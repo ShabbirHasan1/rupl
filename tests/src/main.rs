@@ -1,3 +1,5 @@
+use egui::Context;
+use eplot::Graph;
 use std::fs;
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
@@ -7,12 +9,12 @@ fn main() -> eframe::Result {
 }
 
 struct App {
-    data: Vec<f32>,
+    plot: Graph,
 }
 
 impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.main(ctx, self.data.clone());
+    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        self.main(ctx);
     }
 }
 
@@ -24,9 +26,10 @@ impl App {
             .split(',')
             .map(|c| c.parse::<f32>().unwrap())
             .collect::<Vec<f32>>();
-        Self { data }
+        let plot = Graph::new(data);
+        Self { plot }
     }
-    fn main(&self, ctx: &egui::Context, data: Vec<f32>) {
-        eplot::plot(ctx, data)
+    fn main(&mut self, ctx: &Context) {
+        self.plot.update(ctx)
     }
 }
