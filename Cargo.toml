@@ -10,3 +10,4 @@ panic = "abort"
 
 [dependencies]
 egui="0.31.1"
+eframe = "0.31.1"
