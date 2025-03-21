@@ -26,7 +26,7 @@ impl App {
             .split(',')
             .map(|c| c.parse::<f32>().unwrap())
             .collect::<Vec<f32>>();
-        let plot = Graph::new(data);
+        let plot = Graph::new(data, 16.0);
         Self { plot }
     }
     fn main(&mut self, ctx: &Context) {
