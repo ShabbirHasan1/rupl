@@ -20,7 +20,7 @@ impl eframe::App for App {
 
 impl App {
     fn new() -> Self {
-        let plot = Graph::new(vec![grab("data4"), grab("data5"), grab("data6")], 8.0, true);
+        let plot = Graph::new(vec![grab("data4"), grab("data5"), grab("data6")], 8.0);
         Self { plot }
     }
     fn main(&mut self, ctx: &Context) {
