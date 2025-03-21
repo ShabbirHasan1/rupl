@@ -49,26 +49,15 @@ impl Graph {
         }
     }
     fn make_lines(&self, painter: &Painter, width: f32, height: f32) {
-        let n = (self.width / self.zoom) as isize;
+        let ni = (self.width / self.zoom) as isize;
+        let n = ni.max(1);
         let delta = width / self.width;
-        let s = (-self.offset.x / delta) as isize;
-        let ny = n as f32 * height / width;
-        let offset = self.offset.y + height / 2.0 - (ny.ceil() / 2.0).floor() * delta;
-        let sy = (-offset / delta) as isize;
-        for i in s..=s + n {
+        let s = (-self.offset.x / delta).ceil() as isize;
+        let ny = (n as f32 * height / width).ceil() as isize;
+        let offset = self.offset.y + height / 2.0 - (ny as f32 / 2.0).floor() * delta;
+        let sy = (-offset / delta).ceil() as isize;
+        for i in s..s + n {
             let x = i as f32 * delta;
-            if i == (n as f32 / 2.0 * self.zoom) as isize {
-                for j in sy..=sy + ny.ceil() as isize {
-                    let y = j as f32 * delta;
-                    painter.text(
-                        Pos2::new(x + self.offset.x, y + offset) * self.zoom,
-                        Align2::LEFT_TOP,
-                        (ny.ceil() as isize / 2 - j).to_string(),
-                        FontId::monospace(16.0),
-                        Color32::from_rgb(0, 0, 0),
-                    );
-                }
-            }
             painter.line_segment(
                 [
                     Pos2::new((x + self.offset.x) * self.zoom, 0.0),
@@ -77,22 +66,26 @@ impl Graph {
                 Stroke::new(1.0, Color32::from_rgb(0, 0, 0)),
             );
         }
-        for i in sy..=sy + ny.ceil() as isize {
-            let y = i as f32 * delta;
-            if i == ny.ceil() as isize / 2 {
-                for j in s..=s + n {
-                    if j != (n as f32 / 2.0 * self.zoom) as isize {
-                        let x = j as f32 * delta;
-                        painter.text(
-                            Pos2::new(x + self.offset.x, y + offset) * self.zoom,
-                            Align2::LEFT_TOP,
-                            (j - (n as f32 / 2.0 * self.zoom) as isize).to_string(),
-                            FontId::monospace(16.0),
-                            Color32::from_rgb(0, 0, 0),
-                        );
-                    }
-                }
+        if ni == n {
+            let i = (n as f32 / 2.0 * self.zoom) as isize;
+            let x = if (s..=s + n).contains(&i) {
+                i as f32 * delta
+            } else {
+                -self.offset.x / self.zoom
+            };
+            for j in sy..sy + ny {
+                let y = j as f32 * delta;
+                painter.text(
+                    Pos2::new(x + self.offset.x, y + offset) * self.zoom,
+                    Align2::LEFT_TOP,
+                    (ny / 2 - j).to_string(),
+                    FontId::monospace(16.0),
+                    Color32::from_rgb(0, 0, 0),
+                );
             }
+        }
+        for i in sy..sy + ny {
+            let y = i as f32 * delta;
             painter.line_segment(
                 [
                     Pos2::new(0.0, (y + offset) * self.zoom),
@@ -100,6 +93,24 @@ impl Graph {
                 ],
                 Stroke::new(1.0, Color32::from_rgb(0, 0, 0)),
             );
+        }
+        if ni == n {
+            let i = ny / 2;
+            let y = if (sy..=sy + ny).contains(&i) {
+                i as f32 * delta
+            } else {
+                -offset / self.zoom
+            };
+            for j in s..s + n {
+                let x = j as f32 * delta;
+                painter.text(
+                    Pos2::new(x + self.offset.x, y + offset) * self.zoom,
+                    Align2::LEFT_TOP,
+                    (j - (n as f32 / 2.0 * self.zoom) as isize).to_string(),
+                    FontId::monospace(16.0),
+                    Color32::from_rgb(0, 0, 0),
+                );
+            }
         }
     }
     fn keybinds(&mut self, ui: &Ui, offset: Vec2) {
