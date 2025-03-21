@@ -1,4 +1,7 @@
-use egui::{CentralPanel, Color32, Context, Key, Painter, Pos2, Rect, Sense, Stroke, Ui, Vec2};
+use egui::{
+    Align2, CentralPanel, Color32, Context, FontId, Key, Painter, Pos2, Rect, Sense, Stroke, Ui,
+    Vec2,
+};
 pub struct Graph {
     data: Vec<f32>,
     offset: Vec2,
@@ -27,7 +30,11 @@ impl Graph {
         let rect = ctx.available_rect();
         let (width, height) = (rect.width(), rect.height());
         let offset = Vec2::new(width / 2.0, height / 2.0);
+        self.keybinds(ui, offset);
+        self.plot(painter, width, height, offset, ui);
         self.make_lines(painter, width, height);
+    }
+    fn plot(&self, painter: &Painter, width: f32, height: f32, offset: Vec2, ui: &Ui) {
         for (i, y) in self.data.iter().enumerate() {
             let x = i as f32 / (self.data.len() - 1) as f32 * self.width - self.width / 2.0;
             let pos = Pos2::new(
@@ -40,6 +47,62 @@ impl Graph {
                 painter.rect_filled(rect, 0.0, Color32::from_rgb(255, 0, 0));
             }
         }
+    }
+    fn make_lines(&self, painter: &Painter, width: f32, height: f32) {
+        let n = (self.width / self.zoom) as isize;
+        let delta = width / self.width;
+        let s = (-self.offset.x / delta) as isize;
+        let ny = n as f32 * height / width;
+        let offset = self.offset.y + height / 2.0 - (ny.ceil() / 2.0).floor() * delta;
+        let sy = (-offset / delta) as isize;
+        for i in s..=s + n {
+            let x = i as f32 * delta;
+            if i == (n as f32 / 2.0 * self.zoom) as isize {
+                for j in sy..=sy + ny.ceil() as isize {
+                    let y = j as f32 * delta;
+                    painter.text(
+                        Pos2::new(x + self.offset.x, y + offset) * self.zoom,
+                        Align2::LEFT_TOP,
+                        (ny.ceil() as isize / 2 - j).to_string(),
+                        FontId::monospace(16.0),
+                        Color32::from_rgb(0, 0, 0),
+                    );
+                }
+            }
+            painter.line_segment(
+                [
+                    Pos2::new((x + self.offset.x) * self.zoom, 0.0),
+                    Pos2::new((x + self.offset.x) * self.zoom, height),
+                ],
+                Stroke::new(1.0, Color32::from_rgb(0, 0, 0)),
+            );
+        }
+        for i in sy..=sy + ny.ceil() as isize {
+            let y = i as f32 * delta;
+            if i == ny.ceil() as isize / 2 {
+                for j in s..=s + n {
+                    if j != (n as f32 / 2.0 * self.zoom) as isize {
+                        let x = j as f32 * delta;
+                        painter.text(
+                            Pos2::new(x + self.offset.x, y + offset) * self.zoom,
+                            Align2::LEFT_TOP,
+                            (j - (n as f32 / 2.0 * self.zoom) as isize).to_string(),
+                            FontId::monospace(16.0),
+                            Color32::from_rgb(0, 0, 0),
+                        );
+                    }
+                }
+            }
+            painter.line_segment(
+                [
+                    Pos2::new(0.0, (y + offset) * self.zoom),
+                    Pos2::new(width, (y + offset) * self.zoom),
+                ],
+                Stroke::new(1.0, Color32::from_rgb(0, 0, 0)),
+            );
+        }
+    }
+    fn keybinds(&mut self, ui: &Ui, offset: Vec2) {
         let response = ui.interact(
             ui.available_rect_before_wrap(),
             ui.id().with("map_interact"),
@@ -74,33 +137,5 @@ impl Graph {
                 self.zoom = 1.0;
             }
         });
-    }
-    fn make_lines(&self, painter: &Painter, width: f32, height: f32) {
-        let n = (self.width / self.zoom) as isize;
-        let delta = width / self.width;
-        let s = (-self.offset.x / delta) as isize;
-        for i in s..=s + n {
-            let x = i as f32 * delta;
-            painter.line_segment(
-                [
-                    Pos2::new((x + self.offset.x) * self.zoom, 0.0),
-                    Pos2::new((x + self.offset.x) * self.zoom, height),
-                ],
-                Stroke::new(1.0, Color32::from_rgb(0, 0, 0)),
-            );
-        }
-        let n = n as f32 * height / width;
-        let offset = self.offset.y + height / 2.0 - (n.ceil() / 2.0).floor() * delta;
-        let s = (-offset / delta) as isize;
-        for i in s..=s + n.ceil() as isize {
-            let y = i as f32 * delta;
-            painter.line_segment(
-                [
-                    Pos2::new(0.0, (y + offset) * self.zoom),
-                    Pos2::new(width, (y + offset) * self.zoom),
-                ],
-                Stroke::new(1.0, Color32::from_rgb(0, 0, 0)),
-            );
-        }
     }
 }
