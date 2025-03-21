@@ -3,14 +3,21 @@ use egui::{
     Vec2,
 };
 pub struct Graph {
-    data: Vec<f32>,
+    data: Vec<Vec<Complex>>,
     offset: Vec2,
     zoom: f32,
     width: f32,
+    lines: bool,
+    colors_main: Vec<Color32>,
+    colors_alt: Vec<Color32>,
 }
-
+pub enum Complex {
+    Real(f32),
+    Imag(f32),
+    Complex(f32, f32),
+}
 impl Graph {
-    pub fn new(data: Vec<f32>, width: f32) -> Self {
+    pub fn new(data: Vec<Vec<Complex>>, width: f32, lines: bool) -> Self {
         let offset = Vec2::splat(0.0);
         let zoom = 1.0;
         Self {
@@ -18,6 +25,23 @@ impl Graph {
             offset,
             zoom,
             width,
+            lines,
+            colors_main: vec![
+                Color32::from_rgb(255, 85, 85),
+                Color32::from_rgb(85, 85, 255),
+                Color32::from_rgb(255, 85, 255),
+                Color32::from_rgb(85, 255, 85),
+                Color32::from_rgb(85, 255, 255),
+                Color32::from_rgb(255, 255, 85),
+            ],
+            colors_alt: vec![
+                Color32::from_rgb(170, 0, 0),
+                Color32::from_rgb(0, 0, 170),
+                Color32::from_rgb(170, 0, 170),
+                Color32::from_rgb(0, 170, 0),
+                Color32::from_rgb(0, 170, 170),
+                Color32::from_rgb(170, 170, 0),
+            ],
         }
     }
     pub fn update(&mut self, ctx: &Context) {
@@ -35,17 +59,105 @@ impl Graph {
         self.make_lines(painter, width, height);
     }
     fn plot(&self, painter: &Painter, width: f32, height: f32, offset: Vec2, ui: &Ui) {
-        for (i, y) in self.data.iter().enumerate() {
-            let x = i as f32 / (self.data.len() - 1) as f32 * self.width - self.width / 2.0;
-            let pos = Pos2::new(
+        for (k, data) in self.data.iter().enumerate() {
+            let (mut a, mut b) = (None, None);
+            for (i, y) in data.iter().enumerate() {
+                (a, b) = match y {
+                    Complex::Real(y) => (
+                        self.draw_point(
+                            painter,
+                            width,
+                            height,
+                            offset,
+                            ui,
+                            y,
+                            i,
+                            k,
+                            &self.colors_main[k],
+                            a,
+                        ),
+                        None,
+                    ),
+                    Complex::Imag(y) => (
+                        None,
+                        self.draw_point(
+                            painter,
+                            width,
+                            height,
+                            offset,
+                            ui,
+                            y,
+                            i,
+                            k,
+                            &self.colors_alt[k],
+                            b,
+                        ),
+                    ),
+                    Complex::Complex(y, z) => (
+                        self.draw_point(
+                            painter,
+                            width,
+                            height,
+                            offset,
+                            ui,
+                            y,
+                            i,
+                            k,
+                            &self.colors_main[k],
+                            a,
+                        ),
+                        self.draw_point(
+                            painter,
+                            width,
+                            height,
+                            offset,
+                            ui,
+                            z,
+                            i,
+                            k,
+                            &self.colors_alt[k],
+                            b,
+                        ),
+                    ),
+                }
+            }
+        }
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn draw_point(
+        &self,
+        painter: &Painter,
+        width: f32,
+        height: f32,
+        offset: Vec2,
+        ui: &Ui,
+        y: &f32,
+        i: usize,
+        k: usize,
+        color: &Color32,
+        last: Option<(Pos2, bool)>,
+    ) -> Option<(Pos2, bool)> {
+        if y.is_finite() {
+            let x = i as f32 / (self.data[k].len() - 1) as f32 * self.width - self.width / 2.0;
+            let pos = (Pos2::new(
                 x * width / self.width,
                 -*y * height / (self.width * height / width),
-            );
-            let rect =
-                Rect::from_center_size((pos + self.offset + offset) * self.zoom, Vec2::splat(3.0));
-            if ui.is_rect_visible(rect) {
-                painter.rect_filled(rect, 0.0, Color32::from_rgb(255, 0, 0));
+            ) + offset
+                + self.offset)
+                * self.zoom;
+            let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
+            let show = ui.is_rect_visible(rect);
+            if show {
+                painter.rect_filled(rect, 0.0, *color);
             }
+            if let Some(last) = last {
+                if show || last.1 {
+                    painter.line_segment([last.0, pos], Stroke::new(1.0, *color));
+                }
+            }
+            if self.lines { Some((pos, show)) } else { None }
+        } else {
+            None
         }
     }
     fn make_lines(&self, painter: &Painter, width: f32, height: f32) {
@@ -69,14 +181,14 @@ impl Graph {
         if ni == n {
             let i = (n as f32 / 2.0 * self.zoom) as isize;
             let x = if (s..=s + n).contains(&i) {
-                i as f32 * delta
+                (i as f32 * delta + self.offset.x) * self.zoom
             } else {
-                -self.offset.x / self.zoom
+                0.0
             };
             for j in sy..sy + ny {
                 let y = j as f32 * delta;
                 painter.text(
-                    Pos2::new(x + self.offset.x, y + offset) * self.zoom,
+                    Pos2::new(x, (y + offset) * self.zoom),
                     Align2::LEFT_TOP,
                     (ny / 2 - j).to_string(),
                     FontId::monospace(16.0),
@@ -97,14 +209,14 @@ impl Graph {
         if ni == n {
             let i = ny / 2;
             let y = if (sy..=sy + ny).contains(&i) {
-                i as f32 * delta
+                (i as f32 * delta + offset) * self.zoom
             } else {
-                -offset / self.zoom
+                0.0
             };
             for j in s..s + n {
                 let x = j as f32 * delta;
                 painter.text(
-                    Pos2::new(x + self.offset.x, y + offset) * self.zoom,
+                    Pos2::new((x + self.offset.x) * self.zoom, y),
                     Align2::LEFT_TOP,
                     (j - (n as f32 / 2.0 * self.zoom) as isize).to_string(),
                     FontId::monospace(16.0),
