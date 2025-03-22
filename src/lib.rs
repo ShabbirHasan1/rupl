@@ -2,17 +2,24 @@ use egui::{
     Align2, CentralPanel, Color32, Context, FontId, Key, Painter, Pos2, Rect, Sense, Stroke, Ui,
     Vec2,
 };
+pub enum GraphType {
+    Width(Vec<Complex>, f32, f32),
+    Coord(Vec<(Complex, Complex)>),
+}
 pub struct Graph {
-    data: Vec<Vec<Complex>>,
+    data: Vec<GraphType>,
+    start: f32,
+    end: f32,
     offset: Vec2,
     zoom: f32,
-    width: f32,
     lines: bool,
     main_colors: Vec<Color32>,
     alt_colors: Vec<Color32>,
     axis_color: Color32,
     background_color: Color32,
     text_color: Color32,
+    mouse_position: Option<Pos2>,
+    mouse_moved: bool,
 }
 pub enum Complex {
     Real(f32),
@@ -37,14 +44,15 @@ impl Complex {
     }
 }
 impl Graph {
-    pub fn new(data: Vec<Vec<Complex>>, width: f32) -> Self {
+    pub fn new(data: Vec<GraphType>, start: f32, end: f32) -> Self {
         let offset = Vec2::splat(0.0);
         let zoom = 1.0;
         Self {
             data,
+            start,
+            end,
             offset,
             zoom,
-            width,
             lines: true,
             main_colors: vec![
                 Color32::from_rgb(255, 85, 85),
@@ -65,10 +73,18 @@ impl Graph {
             axis_color: Color32::BLACK,
             text_color: Color32::BLACK,
             background_color: Color32::WHITE,
+            mouse_position: None,
+            mouse_moved: false,
         }
     }
-    pub fn set_data(&mut self, data: Vec<Vec<Complex>>) {
+    pub fn set_data(&mut self, data: Vec<GraphType>) {
         self.data = data
+    }
+    pub fn clear_data(&mut self) {
+        self.data.clear()
+    }
+    pub fn push_data(&mut self, data: GraphType) {
+        self.data.push(data)
     }
     pub fn set_lines(&mut self, lines: bool) {
         self.lines = lines
@@ -98,9 +114,25 @@ impl Graph {
         let rect = ctx.available_rect();
         let (width, height) = (rect.width(), rect.height());
         let offset = Vec2::new(width / 2.0, height / 2.0);
-        self.keybinds(ui, offset);
+        self.keybinds(ui, offset, width);
         self.plot(painter, width, offset, ui);
-        self.make_lines(painter, width, height);
+        self.write_axis(painter, width, height);
+        self.write_coord(painter, height, width);
+    }
+    fn write_coord(&self, painter: &Painter, height: f32, width: f32) {
+        if self.mouse_moved {
+            if let Some(pos) = self.mouse_position {
+                let mpos = (pos / self.zoom - self.offset) * (self.end - self.start) / width
+                    + Vec2::splat(self.start);
+                painter.text(
+                    Pos2::new(0.0, height),
+                    Align2::LEFT_BOTTOM,
+                    format!("{{{},{}}}", mpos.x, -mpos.y),
+                    FontId::monospace(16.0),
+                    self.text_color,
+                );
+            }
+        }
     }
     #[allow(clippy::too_many_arguments)]
     fn draw_point(
@@ -111,35 +143,40 @@ impl Graph {
         ui: &Ui,
         y: &f32,
         i: usize,
-        k: usize,
         color: &Color32,
-        last: Option<(Pos2, bool)>,
-    ) -> Option<(Pos2, bool)> {
+        last: Option<Pos2>,
+        len: f32,
+        start: &f32,
+        end: &f32,
+    ) -> Option<Pos2> {
         if y.is_finite() {
-            let x = i as f32 / (self.data[k].len() - 1) as f32 - 0.5;
-            let pos = (Pos2::new(x, -*y / self.width) * width + offset + self.offset) * self.zoom;
+            let x = i as f32 / len - 0.5;
+            let pos = (Pos2::new(x, -*y / (end - start)) * width * (end - start)
+                / (self.end - self.start)
+                + offset
+                + self.offset)
+                * self.zoom;
             let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
-            let show = ui.is_rect_visible(rect);
-            if show {
+            if ui.is_rect_visible(rect) {
                 painter.rect_filled(rect, 0.0, *color);
             }
             if let Some(last) = last {
-                if show || last.1 {
-                    painter.line_segment([last.0, pos], Stroke::new(1.0, *color));
+                if ui.is_rect_visible(Rect::from_points(&[last, pos])) {
+                    painter.line_segment([last, pos], Stroke::new(1.0, *color));
                 }
             }
-            if self.lines { Some((pos, show)) } else { None }
+            if self.lines { Some(pos) } else { None }
         } else {
             None
         }
     }
-    fn make_lines(&self, painter: &Painter, width: f32, height: f32) {
-        let ni = (self.width / self.zoom) as isize;
+    fn write_axis(&self, painter: &Painter, width: f32, height: f32) {
+        let ni = ((self.end - self.start) / self.zoom) as isize;
         let n = ni.max(1);
-        let delta = width / self.width;
+        let delta = width / (self.end - self.start);
         let s = (-self.offset.x / delta).ceil() as isize;
         let ny = (n as f32 * height / width).ceil() as isize;
-        let offset = self.offset.y + height / 2.0 - (ny as f32 / 2.0).floor() * delta;
+        let offset = self.offset.y + height / 2.0 - (ny / 2) as f32 * delta;
         let sy = (-offset / delta).ceil() as isize;
         for i in s..s + n {
             let x = i as f32 * delta;
@@ -198,7 +235,7 @@ impl Graph {
             }
         }
     }
-    fn keybinds(&mut self, ui: &Ui, offset: Vec2) {
+    fn keybinds(&mut self, ui: &Ui, offset: Vec2, width: f32) {
         let response = ui.interact(
             ui.available_rect_before_wrap(),
             ui.id().with("map_interact"),
@@ -208,17 +245,18 @@ impl Graph {
             self.offset += response.drag_delta() / self.zoom;
         }
         ui.input(|i| {
+            let delta = width / (self.end - self.start);
             if i.key_pressed(Key::A) || i.key_pressed(Key::ArrowLeft) {
-                self.offset.x += 64.0 / self.zoom;
+                self.offset.x += delta / self.zoom;
             }
             if i.key_pressed(Key::D) || i.key_pressed(Key::ArrowRight) {
-                self.offset.x -= 64.0 / self.zoom;
+                self.offset.x -= delta / self.zoom;
             }
             if i.key_pressed(Key::W) || i.key_pressed(Key::ArrowUp) {
-                self.offset.y += 64.0 / self.zoom;
+                self.offset.y += delta / self.zoom;
             }
             if i.key_pressed(Key::S) || i.key_pressed(Key::ArrowDown) {
-                self.offset.y -= 64.0 / self.zoom;
+                self.offset.y -= delta / self.zoom;
             }
             if i.key_pressed(Key::Q) {
                 self.offset += offset / self.zoom;
@@ -232,23 +270,62 @@ impl Graph {
                 self.offset = Vec2::splat(0.0);
                 self.zoom = 1.0;
             }
+            if let Some(mpos) = i.pointer.latest_pos() {
+                if let Some(pos) = self.mouse_position {
+                    if mpos != pos {
+                        self.mouse_moved = true;
+                        self.mouse_position = Some(mpos)
+                    }
+                } else {
+                    self.mouse_position = Some(mpos)
+                }
+            }
         });
     }
     fn plot(&self, painter: &Painter, width: f32, offset: Vec2, ui: &Ui) {
         for (k, data) in self.data.iter().enumerate() {
             let (mut a, mut b) = (None, None);
-            for (i, y) in data.iter().enumerate() {
-                let (y, z) = y.to_options();
-                a = if let Some(y) = y {
-                    self.draw_point(painter, width, offset, ui, y, i, k, &self.main_colors[k], a)
-                } else {
-                    None
-                };
-                b = if let Some(z) = z {
-                    self.draw_point(painter, width, offset, ui, z, i, k, &self.alt_colors[k], b)
-                } else {
-                    None
-                };
+            match data {
+                GraphType::Width(data, start, end) => {
+                    for (i, y) in data.iter().enumerate() {
+                        let (y, z) = y.to_options();
+                        a = if let Some(y) = y {
+                            self.draw_point(
+                                painter,
+                                width,
+                                offset,
+                                ui,
+                                y,
+                                i,
+                                &self.main_colors[k],
+                                a,
+                                (data.len() - 1) as f32,
+                                start,
+                                end,
+                            )
+                        } else {
+                            None
+                        };
+                        b = if let Some(z) = z {
+                            self.draw_point(
+                                painter,
+                                width,
+                                offset,
+                                ui,
+                                z,
+                                i,
+                                &self.alt_colors[k],
+                                b,
+                                (data.len() - 1) as f32,
+                                start,
+                                end,
+                            )
+                        } else {
+                            None
+                        };
+                    }
+                }
+                _ => {}
             }
         }
     }
