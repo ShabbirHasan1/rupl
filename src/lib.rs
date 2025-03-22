@@ -20,6 +20,10 @@ pub struct Graph {
     text_color: Color32,
     mouse_position: Option<Pos2>,
     mouse_moved: bool,
+    scale_axis: bool,
+    disable_lines: bool,
+    disable_axis: bool,
+    disable_coord: bool,
 }
 #[derive(Copy, Clone)]
 pub enum Complex {
@@ -76,6 +80,10 @@ impl Graph {
             background_color: Color32::WHITE,
             mouse_position: None,
             mouse_moved: false,
+            scale_axis: false,
+            disable_lines: false,
+            disable_axis: false,
+            disable_coord: false,
         }
     }
     pub fn set_data(&mut self, data: Vec<GraphType>) {
@@ -105,6 +113,18 @@ impl Graph {
     pub fn set_text_color(&mut self, color: Color32) {
         self.text_color = color
     }
+    pub fn set_scale_axis(&mut self, scale: bool) {
+        self.scale_axis = scale
+    }
+    pub fn disable_lines(&mut self, disable: bool) {
+        self.disable_lines = disable
+    }
+    pub fn disable_axis(&mut self, disable: bool) {
+        self.disable_axis = disable
+    }
+    pub fn disable_coord(&mut self, disable: bool) {
+        self.disable_coord = disable
+    }
     pub fn update(&mut self, ctx: &Context) {
         CentralPanel::default()
             .frame(egui::Frame::default().fill(self.background_color))
@@ -121,7 +141,7 @@ impl Graph {
         self.write_coord(painter, height, width);
     }
     fn write_coord(&self, painter: &Painter, height: f32, width: f32) {
-        if self.mouse_moved {
+        if self.mouse_moved && !self.disable_coord {
             if let Some(pos) = self.mouse_position {
                 let delta = width / (self.end - self.start);
                 let p = (pos / self.zoom - self.offset) / delta;
@@ -169,24 +189,27 @@ impl Graph {
         }
     }
     fn write_axis(&self, painter: &Painter, width: f32, height: f32) {
-        let ni = ((self.end - self.start) / self.zoom) as isize;
+        let ni = ((self.end - self.start) / if self.scale_axis { 1.0 } else { self.zoom }) as isize;
         let n = ni.max(1);
-        let delta = width / (self.end - self.start);
+        let delta =
+            width / ((self.end - self.start) * if self.scale_axis { self.zoom } else { 1.0 });
         let s = (-self.offset.x / delta).ceil() as isize;
         let ny = (n as f32 * height / width).ceil() as isize;
         let offset = self.offset.y + height / 2.0 - (ny / 2) as f32 * delta;
         let sy = (-offset / delta).ceil() as isize;
         for i in s..s + n {
-            let x = i as f32 * delta;
-            painter.line_segment(
-                [
-                    Pos2::new((x + self.offset.x) * self.zoom, 0.0),
-                    Pos2::new((x + self.offset.x) * self.zoom, height),
-                ],
-                Stroke::new(1.0, self.axis_color),
-            );
+            if !self.disable_lines || i == (n as f32 / 2.0 * self.zoom) as isize {
+                let x = i as f32 * delta;
+                painter.line_segment(
+                    [
+                        Pos2::new((x + self.offset.x) * self.zoom, 0.0),
+                        Pos2::new((x + self.offset.x) * self.zoom, height),
+                    ],
+                    Stroke::new(1.0, self.axis_color),
+                );
+            }
         }
-        if ni == n {
+        if ni == n && !self.disable_axis {
             let i = (n as f32 / 2.0 * self.zoom) as isize;
             let x = if (s..=s + n).contains(&i) {
                 (i as f32 * delta + self.offset.x) * self.zoom
@@ -198,23 +221,26 @@ impl Graph {
                 painter.text(
                     Pos2::new(x, (y + offset) * self.zoom),
                     Align2::LEFT_TOP,
-                    (ny / 2 - j).to_string(),
+                    ((ny / 2 - j) as f32 / if self.scale_axis { self.zoom } else { 1.0 })
+                        .to_string(),
                     FontId::monospace(16.0),
                     self.text_color,
                 );
             }
         }
         for i in sy..sy + ny {
-            let y = i as f32 * delta;
-            painter.line_segment(
-                [
-                    Pos2::new(0.0, (y + offset) * self.zoom),
-                    Pos2::new(width, (y + offset) * self.zoom),
-                ],
-                Stroke::new(1.0, self.axis_color),
-            );
+            if !self.disable_lines || i == ny / 2 {
+                let y = i as f32 * delta;
+                painter.line_segment(
+                    [
+                        Pos2::new(0.0, (y + offset) * self.zoom),
+                        Pos2::new(width, (y + offset) * self.zoom),
+                    ],
+                    Stroke::new(1.0, self.axis_color),
+                );
+            }
         }
-        if ni == n {
+        if ni == n && !self.disable_axis {
             let i = ny / 2;
             let y = if (sy..=sy + ny).contains(&i) {
                 (i as f32 * delta + offset) * self.zoom
@@ -226,7 +252,9 @@ impl Graph {
                 painter.text(
                     Pos2::new((x + self.offset.x) * self.zoom, y),
                     Align2::LEFT_TOP,
-                    (j - (n as f32 / 2.0 * self.zoom) as isize).to_string(),
+                    ((j - (n as f32 / 2.0 * self.zoom) as isize) as f32
+                        / if self.scale_axis { self.zoom } else { 1.0 })
+                    .to_string(),
                     FontId::monospace(16.0),
                     self.text_color,
                 );
@@ -256,7 +284,19 @@ impl Graph {
             if i.key_pressed(Key::S) || i.key_pressed(Key::ArrowDown) {
                 self.offset.y -= delta / self.zoom;
             }
-            if i.key_pressed(Key::Q) && self.zoom <= 2.0f32.powi(16) {
+            if i.key_released(Key::Z) {
+                self.disable_lines = !self.disable_lines;
+            }
+            if i.key_released(Key::X) {
+                self.disable_axis = !self.disable_axis;
+            }
+            if i.key_released(Key::C) {
+                self.disable_coord = !self.disable_coord;
+            }
+            if i.key_released(Key::V) {
+                self.scale_axis = !self.scale_axis;
+            }
+            if i.key_pressed(Key::Q) && self.zoom >= 2.0f32.powi(-12) {
                 self.offset += if self.mouse_moved {
                     self.mouse_position.unwrap().to_vec2()
                 } else {
@@ -264,7 +304,7 @@ impl Graph {
                 } / self.zoom;
                 self.zoom /= 2.0;
             }
-            if i.key_pressed(Key::E) && self.zoom >= 2.0f32.powi(-16) {
+            if i.key_pressed(Key::E) && self.zoom <= 2.0f32.powi(12) {
                 self.zoom *= 2.0;
                 self.offset -= if self.mouse_moved {
                     self.mouse_position.unwrap().to_vec2()
@@ -272,21 +312,24 @@ impl Graph {
                     offset
                 } / self.zoom;
             }
-            let delta = i.raw_scroll_delta.y;
-            if delta > 0.0 && self.zoom <= 2.0f32.powi(16) {
-                self.zoom *= 2.0;
-                self.offset -= if self.mouse_moved {
-                    self.mouse_position.unwrap().to_vec2()
-                } else {
-                    offset
-                } / self.zoom;
-            } else if delta < 0.0 && self.zoom >= 2.0f32.powi(-16) {
-                self.offset += if self.mouse_moved {
-                    self.mouse_position.unwrap().to_vec2()
-                } else {
-                    offset
-                } / self.zoom;
-                self.zoom /= 2.0;
+            match i.raw_scroll_delta.y.total_cmp(&0.0) {
+                std::cmp::Ordering::Greater if self.zoom <= 2.0f32.powi(12) => {
+                    self.zoom *= 2.0;
+                    self.offset -= if self.mouse_moved {
+                        self.mouse_position.unwrap().to_vec2()
+                    } else {
+                        offset
+                    } / self.zoom;
+                }
+                std::cmp::Ordering::Less if self.zoom >= 2.0f32.powi(-12) => {
+                    self.offset += if self.mouse_moved {
+                        self.mouse_position.unwrap().to_vec2()
+                    } else {
+                        offset
+                    } / self.zoom;
+                    self.zoom /= 2.0;
+                }
+                _ => {}
             }
             if i.key_pressed(Key::T) {
                 self.offset = Vec2::splat(0.0);
