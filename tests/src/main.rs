@@ -20,11 +20,7 @@ impl eframe::App for App {
 
 impl App {
     fn new() -> Self {
-        let plot = Graph::new(
-            vec![grab_coord("data8"), grab_width("data7", -4.0, 0.0)],
-            -8.0,
-            4.0,
-        );
+        let plot = Graph::new(vec![grab_width("data7", -2.0, 2.0)], -2.0, 2.0);
         Self { plot }
     }
     fn main(&mut self, ctx: &Context) {
@@ -62,6 +58,7 @@ fn to_complex(c: &str) -> Complex {
         }
     }
 }
+#[allow(dead_code)]
 fn grab_width(f: &str, start: f32, end: f32) -> GraphType {
     GraphType::Width(
         fs::read_to_string(f)
@@ -74,6 +71,7 @@ fn grab_width(f: &str, start: f32, end: f32) -> GraphType {
         end,
     )
 }
+#[allow(dead_code)]
 fn grab_coord(f: &str) -> GraphType {
     GraphType::Coord(
         fs::read_to_string(f)
@@ -87,6 +85,7 @@ fn grab_coord(f: &str) -> GraphType {
             .collect::<Vec<(f32, Complex)>>(),
     )
 }
+#[allow(dead_code)]
 fn real(c: Complex) -> f32 {
     match c {
         Complex::Real(y) => y,

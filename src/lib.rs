@@ -2,12 +2,16 @@ use egui::{
     Align2, CentralPanel, Color32, Context, FontId, Key, Painter, Pos2, Rect, Sense, Stroke, Ui,
     Vec2,
 };
+pub enum GraphMode {
+    Normal,
+    DomainColoring,
+    Flatten,
+    Depth,
+}
 pub enum GraphType {
     Width(Vec<Complex>, f32, f32),
     Coord(Vec<(f32, Complex)>),
-    WidthDC(Vec<Complex>, f32, f32, f32, f32),
-    CoordDC(Vec<(f32, f32, Complex)>),
-    Width3D(Vec<Complex>, f32, f32, f32, f32),
+    Width3D(Vec<Complex>, usize, f32, f32, f32, f32),
     Coord3D(Vec<(f32, f32, Complex)>),
 }
 pub struct Graph {
@@ -28,6 +32,7 @@ pub struct Graph {
     disable_lines: bool,
     disable_axis: bool,
     disable_coord: bool,
+    graph_mode: GraphMode,
 }
 #[derive(Copy, Clone)]
 pub enum Complex {
@@ -88,6 +93,7 @@ impl Graph {
             disable_lines: false,
             disable_axis: false,
             disable_coord: false,
+            graph_mode: GraphMode::Normal,
         }
     }
     pub fn set_data(&mut self, data: Vec<GraphType>) {
@@ -129,6 +135,10 @@ impl Graph {
     pub fn disable_coord(&mut self, disable: bool) {
         self.disable_coord = disable
     }
+    pub fn domain_coloring(&mut self, mode: GraphMode) {
+        self.graph_mode = mode
+    }
+
     pub fn update(&mut self, ctx: &Context) {
         CentralPanel::default()
             .frame(egui::Frame::default().fill(self.background_color))
@@ -200,24 +210,33 @@ impl Graph {
         let delta =
             width / ((self.end - self.start) * if self.scale_axis { self.zoom } else { 1.0 });
         let o = -delta * (self.start + self.end) / 2.0 * self.zoom;
-        let s = -((self.offset.x + o / (2.0 * self.zoom)) / delta).ceil() as isize;
-        let ny = (n as f32 * height / width).ceil() as isize;
+        let s = ((self.offset.x + o / (2.0 * self.zoom)) / -delta).ceil() as isize;
+        let nyi = (ni as f32 * height / width).ceil() as isize;
+        let ny = nyi.max(1);
         let offset = self.offset.y + height / 2.0 - (ny / 2) as f32 * delta;
         let sy = (-offset / delta).ceil() as isize;
         for i in s..s + n {
-            if !self.disable_lines || i == (n as f32 / 2.0 * self.zoom) as isize {
+            let is_center = i == (ni as f32 / 2.0 * self.zoom) as isize;
+            if !self.disable_lines || is_center {
                 let x = i as f32 * delta;
                 painter.line_segment(
                     [
                         Pos2::new((x + self.offset.x) * self.zoom + o, 0.0),
                         Pos2::new((x + self.offset.x) * self.zoom + o, height),
                     ],
-                    Stroke::new(1.0, self.axis_color),
+                    Stroke::new(
+                        if ni == n && nyi == ny && is_center {
+                            2.0
+                        } else {
+                            1.0
+                        },
+                        self.axis_color,
+                    ),
                 );
             }
         }
-        if ni == n && !self.disable_axis {
-            let i = (n as f32 / 2.0 * self.zoom) as isize;
+        if ni == n && nyi == ny && !self.disable_axis {
+            let i = (ni as f32 / 2.0 * self.zoom) as isize;
             let x = if (s..=s + n).contains(&i) {
                 (i as f32 * delta + self.offset.x) * self.zoom + o
             } else {
@@ -228,7 +247,7 @@ impl Graph {
                 painter.text(
                     Pos2::new(x, (y + offset) * self.zoom),
                     Align2::LEFT_TOP,
-                    ((ny / 2 - j) as f32 / if self.scale_axis { self.zoom } else { 1.0 })
+                    (((nyi - 2 * j) / 2) as f32 / if self.scale_axis { self.zoom } else { 1.0 })
                         .to_string(),
                     FontId::monospace(16.0),
                     self.text_color,
@@ -236,18 +255,26 @@ impl Graph {
             }
         }
         for i in sy..sy + ny {
-            if !self.disable_lines || i == ny / 2 {
+            let is_center = i == ny / 2;
+            if !self.disable_lines || is_center {
                 let y = i as f32 * delta;
                 painter.line_segment(
                     [
                         Pos2::new(0.0, (y + offset) * self.zoom),
                         Pos2::new(width, (y + offset) * self.zoom),
                     ],
-                    Stroke::new(1.0, self.axis_color),
+                    Stroke::new(
+                        if ni == n && nyi == ny && is_center {
+                            2.0
+                        } else {
+                            1.0
+                        },
+                        self.axis_color,
+                    ),
                 );
             }
         }
-        if ni == n && !self.disable_axis {
+        if ni == n && nyi == ny && !self.disable_axis {
             let i = ny / 2;
             let y = if (sy..=sy + ny).contains(&i) {
                 (i as f32 * delta + offset) * self.zoom
@@ -259,7 +286,7 @@ impl Graph {
                 painter.text(
                     Pos2::new((x + self.offset.x) * self.zoom + o, y),
                     Align2::LEFT_TOP,
-                    ((j - (n as f32 / 2.0 * self.zoom) as isize) as f32
+                    ((j - (ni as f32 / 2.0 * self.zoom) as isize) as f32
                         / if self.scale_axis { self.zoom } else { 1.0 })
                     .to_string(),
                     FontId::monospace(16.0),
@@ -302,6 +329,13 @@ impl Graph {
             }
             if i.key_released(Key::V) {
                 self.scale_axis = !self.scale_axis;
+            }
+            if i.key_released(Key::B) {
+                self.graph_mode = match self.graph_mode {
+                    GraphMode::Normal => GraphMode::Flatten,
+                    GraphMode::Flatten => GraphMode::Normal,
+                    _ => todo!(),
+                };
             }
             if i.key_pressed(Key::Q) && self.zoom >= 2.0f32.powi(-12) {
                 self.offset += if self.mouse_moved {
@@ -360,70 +394,116 @@ impl Graph {
             match data {
                 GraphType::Width(data, start, end) => {
                     for (i, y) in data.iter().enumerate() {
-                        let x = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end - start)
-                            + (start + end) / 2.0;
-                        let (y, z) = y.to_options();
-                        a = if let Some(y) = y {
-                            self.draw_point(
-                                painter,
-                                width,
-                                offset,
-                                ui,
-                                &x,
-                                y,
-                                &self.main_colors[k % self.main_colors.len()],
-                                a,
-                            )
-                        } else {
-                            None
-                        };
-                        b = if let Some(z) = z {
-                            self.draw_point(
-                                painter,
-                                width,
-                                offset,
-                                ui,
-                                &x,
-                                z,
-                                &self.alt_colors[k % self.alt_colors.len()],
-                                b,
-                            )
-                        } else {
-                            None
-                        };
+                        match self.graph_mode {
+                            GraphMode::Normal | GraphMode::DomainColoring => {
+                                let x = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end - start)
+                                    + (start + end) / 2.0;
+                                let (y, z) = y.to_options();
+                                a = if let Some(y) = y {
+                                    self.draw_point(
+                                        painter,
+                                        width,
+                                        offset,
+                                        ui,
+                                        &x,
+                                        y,
+                                        &self.main_colors[k % self.main_colors.len()],
+                                        a,
+                                    )
+                                } else {
+                                    None
+                                };
+                                b = if let Some(z) = z {
+                                    self.draw_point(
+                                        painter,
+                                        width,
+                                        offset,
+                                        ui,
+                                        &x,
+                                        z,
+                                        &self.alt_colors[k % self.alt_colors.len()],
+                                        b,
+                                    )
+                                } else {
+                                    None
+                                };
+                            }
+                            GraphMode::Flatten => {
+                                let (y, z) = y.to_options();
+                                a = if let (Some(y), Some(z)) = (y, z) {
+                                    self.draw_point(
+                                        painter,
+                                        width,
+                                        offset,
+                                        ui,
+                                        &y,
+                                        z,
+                                        &self.main_colors[k % self.main_colors.len()],
+                                        a,
+                                    )
+                                } else {
+                                    None
+                                };
+                                b = None
+                            }
+                            GraphMode::Depth => todo!(),
+                        }
                     }
                 }
                 GraphType::Coord(data) => {
                     for (x, y) in data {
-                        let (y, z) = y.to_options();
-                        a = if let Some(y) = y {
-                            self.draw_point(
-                                painter,
-                                width,
-                                offset,
-                                ui,
-                                x,
-                                y,
-                                &self.main_colors[k % self.main_colors.len()],
-                                a,
-                            )
-                        } else {
-                            None
-                        };
-                        b = if let Some(z) = z {
-                            self.draw_point(
-                                painter,
-                                width,
-                                offset,
-                                ui,
-                                x,
-                                z,
-                                &self.alt_colors[k % self.alt_colors.len()],
-                                b,
-                            )
-                        } else {
-                            None
-                        };
+                        match self.graph_mode {
+                            GraphMode::Normal | GraphMode::DomainColoring => {
+                                let (y, z) = y.to_options();
+                                a = if let Some(y) = y {
+                                    self.draw_point(
+                                        painter,
+                                        width,
+                                        offset,
+                                        ui,
+                                        x,
+                                        y,
+                                        &self.main_colors[k % self.main_colors.len()],
+                                        a,
+                                    )
+                                } else {
+                                    None
+                                };
+                                b = if let Some(z) = z {
+                                    self.draw_point(
+                                        painter,
+                                        width,
+                                        offset,
+                                        ui,
+                                        x,
+                                        z,
+                                        &self.alt_colors[k % self.alt_colors.len()],
+                                        b,
+                                    )
+                                } else {
+                                    None
+                                };
+                            }
+                            GraphMode::Flatten => {
+                                let (y, z) = y.to_options();
+                                a = if let (Some(y), Some(z)) = (y, z) {
+                                    self.draw_point(
+                                        painter,
+                                        width,
+                                        offset,
+                                        ui,
+                                        &y,
+                                        z,
+                                        &self.main_colors[k % self.main_colors.len()],
+                                        a,
+                                    )
+                                } else {
+                                    None
+                                };
+                                b = None
+                            }
+                            GraphMode::Depth => todo!(),
+                        }
                     }
                 }
                 _ => todo!(),
