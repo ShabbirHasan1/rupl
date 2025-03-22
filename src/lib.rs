@@ -193,7 +193,7 @@ impl Graph {
             } else {
                 0.0
             };
-            for j in sy..sy + ny {
+            for j in sy - 1..sy + ny {
                 let y = j as f32 * delta;
                 painter.text(
                     Pos2::new(x, (y + offset) * self.zoom),
@@ -221,7 +221,7 @@ impl Graph {
             } else {
                 0.0
             };
-            for j in s..s + n {
+            for j in s - 1..s + n {
                 let x = j as f32 * delta;
                 painter.text(
                     Pos2::new((x + self.offset.x) * self.zoom, y),
@@ -256,7 +256,7 @@ impl Graph {
             if i.key_pressed(Key::S) || i.key_pressed(Key::ArrowDown) {
                 self.offset.y -= delta / self.zoom;
             }
-            if i.key_pressed(Key::Q) {
+            if i.key_pressed(Key::Q) && self.zoom <= 2.0f32.powi(16) {
                 self.offset += if self.mouse_moved {
                     self.mouse_position.unwrap().to_vec2()
                 } else {
@@ -264,7 +264,7 @@ impl Graph {
                 } / self.zoom;
                 self.zoom /= 2.0;
             }
-            if i.key_pressed(Key::E) {
+            if i.key_pressed(Key::E) && self.zoom >= 2.0f32.powi(-16) {
                 self.zoom *= 2.0;
                 self.offset -= if self.mouse_moved {
                     self.mouse_position.unwrap().to_vec2()
@@ -273,14 +273,14 @@ impl Graph {
                 } / self.zoom;
             }
             let delta = i.raw_scroll_delta.y;
-            if delta > 0.0 {
+            if delta > 0.0 && self.zoom <= 2.0f32.powi(16) {
                 self.zoom *= 2.0;
                 self.offset -= if self.mouse_moved {
                     self.mouse_position.unwrap().to_vec2()
                 } else {
                     offset
                 } / self.zoom;
-            } else if delta < 0.0 {
+            } else if delta < 0.0 && self.zoom >= 2.0f32.powi(-16) {
                 self.offset += if self.mouse_moved {
                     self.mouse_position.unwrap().to_vec2()
                 } else {
@@ -320,7 +320,7 @@ impl Graph {
                                 ui,
                                 &x,
                                 y,
-                                &self.main_colors[k],
+                                &self.main_colors[k % self.main_colors.len()],
                                 a,
                             )
                         } else {
@@ -334,7 +334,7 @@ impl Graph {
                                 ui,
                                 &x,
                                 z,
-                                &self.alt_colors[k],
+                                &self.alt_colors[k % self.alt_colors.len()],
                                 b,
                             )
                         } else {
@@ -354,7 +354,7 @@ impl Graph {
                                 ui,
                                 x,
                                 y,
-                                &self.main_colors[k],
+                                &self.main_colors[k % self.main_colors.len()],
                                 a,
                             )
                         } else {
@@ -368,7 +368,7 @@ impl Graph {
                                 ui,
                                 w,
                                 z,
-                                &self.alt_colors[k],
+                                &self.alt_colors[k % self.alt_colors.len()],
                                 b,
                             )
                         } else {
