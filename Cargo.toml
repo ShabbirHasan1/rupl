@@ -3,11 +3,7 @@ name = "eplot"
 version = "0.1.0"
 edition = "2024"
 
-[profile.release]
-lto = true
-strip = true
-panic = "abort"
-
 [dependencies]
 egui="0.31.1"
 eframe = "0.31.1"
+image = "0.25.5"

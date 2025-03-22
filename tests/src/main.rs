@@ -21,8 +21,8 @@ impl eframe::App for App {
 impl App {
     fn new() -> Self {
         let plot = Graph::new(
-            vec![grab_coord("data8"), grab_width("data7", -2.0, 2.0)],
-            -4.0,
+            vec![grab_coord("data8"), grab_width("data7", -4.0, 0.0)],
+            -8.0,
             4.0,
         );
         Self { plot }
@@ -82,8 +82,15 @@ fn grab_coord(f: &str) -> GraphType {
             .split('\n')
             .map(|c| {
                 let a = c.split(',').map(to_complex).collect::<Vec<Complex>>();
-                (a[0], a[1])
+                (real(a[0]), a[1])
             })
-            .collect::<Vec<(Complex, Complex)>>(),
+            .collect::<Vec<(f32, Complex)>>(),
     )
+}
+fn real(c: Complex) -> f32 {
+    match c {
+        Complex::Real(y) => y,
+        Complex::Imag(_) => 0.0,
+        Complex::Complex(y, _) => y,
+    }
 }

@@ -4,7 +4,11 @@ use egui::{
 };
 pub enum GraphType {
     Width(Vec<Complex>, f32, f32),
-    Coord(Vec<(Complex, Complex)>),
+    Coord(Vec<(f32, Complex)>),
+    WidthDC(Vec<Complex>, f32, f32, f32, f32),
+    CoordDC(Vec<(f32, f32, Complex)>),
+    Width3D(Vec<Complex>, f32, f32, f32, f32),
+    Coord3D(Vec<(f32, f32, Complex)>),
 }
 pub struct Graph {
     data: Vec<GraphType>,
@@ -134,7 +138,9 @@ impl Graph {
         let painter = ui.painter();
         let rect = ctx.available_rect();
         let (width, height) = (rect.width(), rect.height());
-        let offset = Vec2::new(width / 2.0, height / 2.0);
+        let delta = width / (self.end - self.start);
+        let offset = Vec2::new(width / 2.0, height / 2.0)
+            - Vec2::new(delta * (self.start + self.end) / 2.0, 0.0);
         self.keybinds(ui, offset, width);
         self.plot(painter, width, offset, ui);
         self.write_axis(painter, width, height);
@@ -151,7 +157,7 @@ impl Graph {
                     format!(
                         "{{{},{}}}",
                         p.x + self.start,
-                        -(p.y + self.start * height / width)
+                        -(p.y + height / width * (self.start - self.end) / 2.0)
                     ),
                     FontId::monospace(16.0),
                     self.text_color,
@@ -193,7 +199,8 @@ impl Graph {
         let n = ni.max(1);
         let delta =
             width / ((self.end - self.start) * if self.scale_axis { self.zoom } else { 1.0 });
-        let s = (-self.offset.x / delta).ceil() as isize;
+        let o = -delta * (self.start + self.end) / 2.0 * self.zoom;
+        let s = -((self.offset.x + o / (2.0 * self.zoom)) / delta).ceil() as isize;
         let ny = (n as f32 * height / width).ceil() as isize;
         let offset = self.offset.y + height / 2.0 - (ny / 2) as f32 * delta;
         let sy = (-offset / delta).ceil() as isize;
@@ -202,8 +209,8 @@ impl Graph {
                 let x = i as f32 * delta;
                 painter.line_segment(
                     [
-                        Pos2::new((x + self.offset.x) * self.zoom, 0.0),
-                        Pos2::new((x + self.offset.x) * self.zoom, height),
+                        Pos2::new((x + self.offset.x) * self.zoom + o, 0.0),
+                        Pos2::new((x + self.offset.x) * self.zoom + o, height),
                     ],
                     Stroke::new(1.0, self.axis_color),
                 );
@@ -212,7 +219,7 @@ impl Graph {
         if ni == n && !self.disable_axis {
             let i = (n as f32 / 2.0 * self.zoom) as isize;
             let x = if (s..=s + n).contains(&i) {
-                (i as f32 * delta + self.offset.x) * self.zoom
+                (i as f32 * delta + self.offset.x) * self.zoom + o
             } else {
                 0.0
             };
@@ -250,7 +257,7 @@ impl Graph {
             for j in s - 1..s + n {
                 let x = j as f32 * delta;
                 painter.text(
-                    Pos2::new((x + self.offset.x) * self.zoom, y),
+                    Pos2::new((x + self.offset.x) * self.zoom + o, y),
                     Align2::LEFT_TOP,
                     ((j - (n as f32 / 2.0 * self.zoom) as isize) as f32
                         / if self.scale_axis { self.zoom } else { 1.0 })
@@ -353,7 +360,8 @@ impl Graph {
             match data {
                 GraphType::Width(data, start, end) => {
                     for (i, y) in data.iter().enumerate() {
-                        let x = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end - start);
+                        let x = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end - start)
+                            + (start + end) / 2.0;
                         let (y, z) = y.to_options();
                         a = if let Some(y) = y {
                             self.draw_point(
@@ -387,9 +395,8 @@ impl Graph {
                 }
                 GraphType::Coord(data) => {
                     for (x, y) in data {
-                        let (x, w) = x.to_options();
                         let (y, z) = y.to_options();
-                        a = if let (Some(x), Some(y)) = (x, y) {
+                        a = if let Some(y) = y {
                             self.draw_point(
                                 painter,
                                 width,
@@ -403,13 +410,13 @@ impl Graph {
                         } else {
                             None
                         };
-                        b = if let (Some(w), Some(z)) = (w, z) {
+                        b = if let Some(z) = z {
                             self.draw_point(
                                 painter,
                                 width,
                                 offset,
                                 ui,
-                                w,
+                                x,
                                 z,
                                 &self.alt_colors[k % self.alt_colors.len()],
                                 b,
@@ -419,6 +426,7 @@ impl Graph {
                         };
                     }
                 }
+                _ => todo!(),
             }
         }
     }
