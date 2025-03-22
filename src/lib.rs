@@ -122,12 +122,16 @@ impl Graph {
     fn write_coord(&self, painter: &Painter, height: f32, width: f32) {
         if self.mouse_moved {
             if let Some(pos) = self.mouse_position {
-                let mpos = (pos / self.zoom - self.offset) * (self.end - self.start) / width
-                    + Vec2::splat(self.start);
+                let delta = width / (self.end - self.start);
+                let p = (pos / self.zoom - self.offset) / delta;
                 painter.text(
                     Pos2::new(0.0, height),
                     Align2::LEFT_BOTTOM,
-                    format!("{{{},{}}}", mpos.x, -mpos.y),
+                    format!(
+                        "{{{},{}}}",
+                        p.x + self.start,
+                        -(p.y + self.start * height / width)
+                    ),
                     FontId::monospace(16.0),
                     self.text_color,
                 );
