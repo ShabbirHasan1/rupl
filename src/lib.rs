@@ -40,7 +40,7 @@ impl Complex {
             (Some(y), Some(z)) => Self::Complex(y, z),
             (Some(y), None) => Self::Real(y),
             (None, Some(z)) => Self::Imag(z),
-            (None, None) => unreachable!(),
+            (None, None) => Self::Complex(f32::NAN, f32::NAN),
         }
     }
 }
@@ -257,12 +257,36 @@ impl Graph {
                 self.offset.y -= delta / self.zoom;
             }
             if i.key_pressed(Key::Q) {
-                self.offset += offset / self.zoom;
+                self.offset += if self.mouse_moved {
+                    self.mouse_position.unwrap().to_vec2()
+                } else {
+                    offset
+                } / self.zoom;
                 self.zoom /= 2.0;
             }
             if i.key_pressed(Key::E) {
                 self.zoom *= 2.0;
-                self.offset -= offset / self.zoom;
+                self.offset -= if self.mouse_moved {
+                    self.mouse_position.unwrap().to_vec2()
+                } else {
+                    offset
+                } / self.zoom;
+            }
+            let delta = i.raw_scroll_delta.y;
+            if delta > 0.0 {
+                self.zoom *= 2.0;
+                self.offset -= if self.mouse_moved {
+                    self.mouse_position.unwrap().to_vec2()
+                } else {
+                    offset
+                } / self.zoom;
+            } else if delta < 0.0 {
+                self.offset += if self.mouse_moved {
+                    self.mouse_position.unwrap().to_vec2()
+                } else {
+                    offset
+                } / self.zoom;
+                self.zoom /= 2.0;
             }
             if i.key_pressed(Key::T) {
                 self.offset = Vec2::splat(0.0);
