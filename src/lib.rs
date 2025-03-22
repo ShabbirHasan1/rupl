@@ -21,6 +21,7 @@ pub struct Graph {
     mouse_position: Option<Pos2>,
     mouse_moved: bool,
 }
+#[derive(Copy, Clone)]
 pub enum Complex {
     Real(f32),
     Imag(f32),
@@ -145,20 +146,13 @@ impl Graph {
         width: f32,
         offset: Vec2,
         ui: &Ui,
+        x: &f32,
         y: &f32,
-        i: usize,
         color: &Color32,
         last: Option<Pos2>,
-        len: f32,
-        start: &f32,
-        end: &f32,
     ) -> Option<Pos2> {
         if y.is_finite() {
-            let x = i as f32 / len - 0.5;
-            let pos = (Pos2::new(x, -*y / (end - start)) * width * (end - start)
-                / (self.end - self.start)
-                + offset
-                + self.offset)
+            let pos = (Pos2::new(*x, -*y) * width / (self.end - self.start) + offset + self.offset)
                 * self.zoom;
             let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
             if ui.is_rect_visible(rect) {
@@ -292,6 +286,7 @@ impl Graph {
             match data {
                 GraphType::Width(data, start, end) => {
                     for (i, y) in data.iter().enumerate() {
+                        let x = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end - start);
                         let (y, z) = y.to_options();
                         a = if let Some(y) = y {
                             self.draw_point(
@@ -299,13 +294,10 @@ impl Graph {
                                 width,
                                 offset,
                                 ui,
+                                &x,
                                 y,
-                                i,
                                 &self.main_colors[k],
                                 a,
-                                (data.len() - 1) as f32,
-                                start,
-                                end,
                             )
                         } else {
                             None
@@ -316,20 +308,50 @@ impl Graph {
                                 width,
                                 offset,
                                 ui,
+                                &x,
                                 z,
-                                i,
                                 &self.alt_colors[k],
                                 b,
-                                (data.len() - 1) as f32,
-                                start,
-                                end,
                             )
                         } else {
                             None
                         };
                     }
                 }
-                _ => {}
+                GraphType::Coord(data) => {
+                    for (x, y) in data {
+                        let (x, w) = x.to_options();
+                        let (y, z) = y.to_options();
+                        a = if let (Some(x), Some(y)) = (x, y) {
+                            self.draw_point(
+                                painter,
+                                width,
+                                offset,
+                                ui,
+                                x,
+                                y,
+                                &self.main_colors[k],
+                                a,
+                            )
+                        } else {
+                            None
+                        };
+                        b = if let (Some(w), Some(z)) = (w, z) {
+                            self.draw_point(
+                                painter,
+                                width,
+                                offset,
+                                ui,
+                                w,
+                                z,
+                                &self.alt_colors[k],
+                                b,
+                            )
+                        } else {
+                            None
+                        };
+                    }
+                }
             }
         }
     }
