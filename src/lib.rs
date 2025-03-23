@@ -28,6 +28,7 @@ pub struct Graph {
     zoom: f32,
     slice: usize,
     lines: bool,
+    box_size: f32,
     anti_alias: bool,
     main_colors: Vec<Color32>,
     alt_colors: Vec<Color32>,
@@ -114,6 +115,7 @@ impl Graph {
             phi: 0.0,
             slice: 0,
             zoom,
+            box_size: 3.0f32.sqrt(),
             anti_alias: true,
             lines: true,
             main_colors: vec![
@@ -213,7 +215,7 @@ impl Graph {
         let o = Vec2::new(width / 2.0, height / 2.0);
         let offset = o - Vec2::new(delta * (self.start + self.end) / 2.0, 0.0);
         self.keybinds(ui, offset, width);
-        self.plot(painter, width, offset, ui);
+        self.plot(painter, width, height, offset, ui);
         if !self.is_3d {
             self.write_axis(painter, width, height);
         } else {
@@ -364,30 +366,48 @@ impl Graph {
             }
         }
     }
+    fn rotate(&self, p: Vec3, delta: f32, offset: Vec2) -> Pos2 {
+        let cos_phi = self.phi.cos();
+        let sin_phi = self.phi.sin();
+        let cos_theta = self.theta.cos();
+        let sin_theta = self.theta.sin();
+        let x1 = p.x * cos_phi + p.z * sin_phi;
+        let z1 = -p.x * sin_phi + p.z * cos_phi;
+        let y2 = p.y * cos_theta - z1 * sin_theta;
+        Pos2::new(x1, -y2) * delta + offset
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn draw_point_3d(
+        &self,
+        painter: &Painter,
+        width: f32,
+        height: f32,
+        offset: Vec2,
+        x: f32,
+        y: f32,
+        z: f32,
+        color: &Color32,
+    ) {
+        let delta = width.min(height) / (self.box_size * (self.end - self.start));
+        let pos = self.rotate(Vec3::new(x, y, -z), delta, offset);
+        let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
+        painter.rect_filled(rect, 0.0, *color);
+    }
     fn write_axis_3d(&self, painter: &Painter, offset: Vec2, width: f32, height: f32) {
-        let sq3 = 3.0f32.sqrt();
-        let delta = width.min(height) / (self.end - self.start);
+        if self.disable_axis {
+            return;
+        }
+        let delta = width.min(height) / (self.box_size * (self.end - self.start));
         let s = (self.end - self.start) / 2.0;
-        let rotate = |p: Vec3| -> Vec2 {
-            let cos_phi = self.phi.cos();
-            let sin_phi = self.phi.sin();
-            let cos_theta = self.theta.cos();
-            let sin_theta = self.theta.sin();
-            let x1 = p.x * cos_phi + p.z * sin_phi;
-            let z1 = -p.x * sin_phi + p.z * cos_phi;
-            let y2 = p.y * cos_theta - z1 * sin_theta;
-            Vec2::new(x1, y2)
-        };
-        let project = |p: Vec2| -> Pos2 { Pos2::new(p.x, -p.y) * delta / sq3 + offset };
         let vertices = [
-            project(rotate(Vec3::new(-s, -s, s))),
-            project(rotate(Vec3::new(-s, -s, -s))),
-            project(rotate(Vec3::new(-s, s, s))),
-            project(rotate(Vec3::new(-s, s, -s))),
-            project(rotate(Vec3::new(s, -s, s))),
-            project(rotate(Vec3::new(s, -s, -s))),
-            project(rotate(Vec3::new(s, s, s))),
-            project(rotate(Vec3::new(s, s, -s))),
+            self.rotate(Vec3::new(-s, -s, s), delta, offset),
+            self.rotate(Vec3::new(-s, -s, -s), delta, offset),
+            self.rotate(Vec3::new(-s, s, s), delta, offset),
+            self.rotate(Vec3::new(-s, s, -s), delta, offset),
+            self.rotate(Vec3::new(s, -s, s), delta, offset),
+            self.rotate(Vec3::new(s, -s, -s), delta, offset),
+            self.rotate(Vec3::new(s, s, s), delta, offset),
+            self.rotate(Vec3::new(s, s, -s), delta, offset),
         ];
         let edges = [
             (0, 1),
@@ -495,11 +515,31 @@ impl Graph {
                 self.cache = None;
             }
             if self.is_3d {
-                if i.key_released(Key::F) {
+                if i.key_pressed(Key::F) {
                     self.offset.z += delta / self.zoom;
                 }
-                if i.key_released(Key::G) {
+                if i.key_pressed(Key::G) {
                     self.offset.z -= delta / self.zoom;
+                }
+                let mut changed = false;
+                if i.key_pressed(Key::Semicolon) && self.box_size > 0.1 {
+                    self.box_size -= 0.1;
+                    changed = true
+                }
+                if i.key_pressed(Key::Quote) {
+                    self.box_size += 0.1;
+                    changed = true
+                }
+                if changed {
+                    if (self.box_size - 1.0).abs() < 0.1 {
+                        self.box_size = 1.0
+                    }
+                    if (self.box_size - 2.0f32.sqrt()).abs() < 0.1 {
+                        self.box_size = 2.0f32.sqrt()
+                    }
+                    if (self.box_size - 3.0f32.sqrt()).abs() < 0.1 {
+                        self.box_size = 3.0f32.sqrt()
+                    }
                 }
             }
             if i.key_released(Key::Period) {
@@ -555,6 +595,7 @@ impl Graph {
                 self.zoom = 1.0;
                 self.phi = 0.0;
                 self.theta = 0.0;
+                self.box_size = 3.0f32.sqrt();
             }
             if let Some(mpos) = i.pointer.latest_pos() {
                 if let Some(pos) = self.mouse_position {
@@ -568,7 +609,7 @@ impl Graph {
             }
         });
     }
-    fn plot(&mut self, painter: &Painter, width: f32, offset: Vec2, ui: &Ui) {
+    fn plot(&mut self, painter: &Painter, width: f32, height: f32, offset: Vec2, ui: &Ui) {
         for (k, data) in self.data.iter().enumerate() {
             let (mut a, mut b) = (None, None);
             match data {
@@ -686,7 +727,39 @@ impl Graph {
                 },
                 GraphType::Width3D(data, start_x, start_y, end_x, end_y) => match self.graph_mode {
                     GraphMode::Normal => {
-                        //TODO
+                        let len = data.len().isqrt();
+                        for (i, z) in data.iter().enumerate() {
+                            let (i, j) = (i % len, i / len);
+                            let x = (i as f32 / (len - 1) as f32 - 0.5) * (end_x - start_x)
+                                + (start_x + end_x) / 2.0;
+                            let y = (j as f32 / (len - 1) as f32 - 0.5) * (end_y - start_y)
+                                + (start_y + end_y) / 2.0;
+                            let (z, w) = z.to_options();
+                            if let Some(z) = z {
+                                self.draw_point_3d(
+                                    painter,
+                                    width,
+                                    height,
+                                    offset,
+                                    x,
+                                    y,
+                                    z,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                );
+                            }
+                            if let Some(w) = w {
+                                self.draw_point_3d(
+                                    painter,
+                                    width,
+                                    height,
+                                    offset,
+                                    x,
+                                    y,
+                                    w,
+                                    &self.alt_colors[k % self.alt_colors.len()],
+                                );
+                            }
+                        }
                     }
                     GraphMode::Slice => {
                         //TODO test, allow seeing different directions
@@ -729,7 +802,7 @@ impl Graph {
                             };
                         }
                     }
-                    GraphMode::Flatten => todo!(),
+                    GraphMode::Flatten => {}
                     GraphMode::Depth => todo!(),
                     GraphMode::DomainColoring => {
                         let len = data.len().isqrt();
