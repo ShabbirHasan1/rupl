@@ -6,6 +6,7 @@ use std::f32::consts::{PI, TAU};
 use std::ops::{AddAssign, SubAssign};
 pub enum GraphMode {
     Normal,
+    Slice,
     DomainColoring,
     Flatten,
     Depth,
@@ -25,6 +26,7 @@ pub struct Graph {
     theta: f32,
     phi: f32,
     zoom: f32,
+    slice: usize,
     lines: bool,
     anti_alias: bool,
     main_colors: Vec<Color32>,
@@ -110,6 +112,7 @@ impl Graph {
             offset,
             theta: 0.0,
             phi: 0.0,
+            slice: 0,
             zoom,
             anti_alias: true,
             lines: true,
@@ -190,7 +193,7 @@ impl Graph {
     }
     pub fn set_mode(&mut self, mode: GraphMode) {
         match mode {
-            GraphMode::DomainColoring => self.is_3d = false,
+            GraphMode::DomainColoring | GraphMode::Slice => self.is_3d = false,
             _ => {
                 self.is_3d = is_3d(&self.data);
             }
@@ -365,7 +368,7 @@ impl Graph {
         let sq3 = 3.0f32.sqrt();
         let delta = width.min(height) / (self.end - self.start);
         let s = (self.end - self.start) / 2.0;
-        let rotate = |p: Vec3| -> Vec3 {
+        let rotate = |p: Vec3| -> Vec2 {
             let cos_phi = self.phi.cos();
             let sin_phi = self.phi.sin();
             let cos_theta = self.theta.cos();
@@ -373,10 +376,9 @@ impl Graph {
             let x1 = p.x * cos_phi + p.z * sin_phi;
             let z1 = -p.x * sin_phi + p.z * cos_phi;
             let y2 = p.y * cos_theta - z1 * sin_theta;
-            let z2 = p.y * sin_theta + z1 * cos_theta;
-            Vec3::new(x1, y2, z2)
+            Vec2::new(x1, y2)
         };
-        let project = |p: Vec3| -> Pos2 { Pos2::new(p.x, -p.y) * delta / sq3 + offset };
+        let project = |p: Vec2| -> Pos2 { Pos2::new(p.x, -p.y) * delta / sq3 + offset };
         let vertices = [
             project(rotate(Vec3::new(-s, -s, -s))),
             project(rotate(Vec3::new(-s, -s, s))),
@@ -404,7 +406,7 @@ impl Graph {
         for (i, j) in edges {
             painter.line_segment(
                 [vertices[i], vertices[j]],
-                Stroke::new(1.0, self.axis_color),
+                Stroke::new(2.0, self.axis_color),
             );
         }
     }
@@ -476,6 +478,12 @@ impl Graph {
                     self.offset.z -= delta / self.zoom;
                 }
             }
+            if i.key_released(Key::Period) {
+                self.slice += 1
+            }
+            if i.key_released(Key::Comma) {
+                self.slice = self.slice.saturating_sub(1)
+            }
             if i.key_released(Key::B) {
                 self.graph_mode = match self.graph_mode {
                     GraphMode::Normal => GraphMode::Flatten,
@@ -541,7 +549,7 @@ impl Graph {
             let (mut a, mut b) = (None, None);
             match data {
                 GraphType::Width(data, start, end) => match self.graph_mode {
-                    GraphMode::Normal | GraphMode::DomainColoring => {
+                    GraphMode::Normal | GraphMode::DomainColoring | GraphMode::Slice => {
                         for (i, y) in data.iter().enumerate() {
                             let x = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end - start)
                                 + (start + end) / 2.0;
@@ -598,7 +606,7 @@ impl Graph {
                     GraphMode::Depth => todo!(),
                 },
                 GraphType::Coord(data) => match self.graph_mode {
-                    GraphMode::Normal | GraphMode::DomainColoring => {
+                    GraphMode::Normal | GraphMode::DomainColoring | GraphMode::Slice => {
                         for (x, y) in data {
                             let (y, z) = y.to_options();
                             a = if let Some(y) = y {
@@ -655,6 +663,47 @@ impl Graph {
                 GraphType::Width3D(data, start_x, start_y, end_x, end_y) => match self.graph_mode {
                     GraphMode::Normal => {
                         //TODO
+                    }
+                    GraphMode::Slice => {
+                        //TODO test, allow seeing different directions
+                        let len = data.len().isqrt();
+                        self.slice = self.slice.min(len - 1);
+                        for (i, y) in data[self.slice * len..=(self.slice + 1) * len]
+                            .iter()
+                            .enumerate()
+                        {
+                            let x = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end_x - start_x)
+                                + (start_x + end_x) / 2.0;
+                            let (y, z) = y.to_options();
+                            a = if let Some(y) = y {
+                                self.draw_point(
+                                    painter,
+                                    width,
+                                    offset,
+                                    ui,
+                                    x,
+                                    y,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    a,
+                                )
+                            } else {
+                                None
+                            };
+                            b = if let Some(z) = z {
+                                self.draw_point(
+                                    painter,
+                                    width,
+                                    offset,
+                                    ui,
+                                    x,
+                                    z,
+                                    &self.alt_colors[k % self.alt_colors.len()],
+                                    b,
+                                )
+                            } else {
+                                None
+                            };
+                        }
                     }
                     GraphMode::Flatten => todo!(),
                     GraphMode::Depth => todo!(),
