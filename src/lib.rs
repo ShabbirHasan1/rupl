@@ -380,14 +380,14 @@ impl Graph {
         };
         let project = |p: Vec2| -> Pos2 { Pos2::new(p.x, -p.y) * delta / sq3 + offset };
         let vertices = [
-            project(rotate(Vec3::new(-s, -s, -s))),
             project(rotate(Vec3::new(-s, -s, s))),
-            project(rotate(Vec3::new(-s, s, -s))),
+            project(rotate(Vec3::new(-s, -s, -s))),
             project(rotate(Vec3::new(-s, s, s))),
-            project(rotate(Vec3::new(s, -s, -s))),
+            project(rotate(Vec3::new(-s, s, -s))),
             project(rotate(Vec3::new(s, -s, s))),
-            project(rotate(Vec3::new(s, s, -s))),
+            project(rotate(Vec3::new(s, -s, -s))),
             project(rotate(Vec3::new(s, s, s))),
+            project(rotate(Vec3::new(s, s, -s))),
         ];
         let edges = [
             (0, 1),
@@ -403,6 +403,30 @@ impl Graph {
             (2, 6),
             (3, 7),
         ];
+        let mut least = 0;
+        for (i, v) in vertices[1..].iter().enumerate() {
+            if v.y > vertices[least].y || (v.y == vertices[least].y && v.x < vertices[least].x) {
+                least = i + 1
+            }
+        }
+        painter.text(
+            vertices[least],
+            Align2::RIGHT_TOP,
+            format!("l{}", least),
+            FontId::monospace(16.0),
+            self.text_color,
+        );
+        for (i, v) in vertices.iter().enumerate() {
+            if i != least {
+                painter.text(
+                    *v,
+                    Align2::RIGHT_TOP,
+                    format!("{}", i),
+                    FontId::monospace(16.0),
+                    self.text_color,
+                );
+            }
+        }
         for (i, j) in edges {
             painter.line_segment(
                 [vertices[i], vertices[j]],
@@ -668,7 +692,7 @@ impl Graph {
                         //TODO test, allow seeing different directions
                         let len = data.len().isqrt();
                         self.slice = self.slice.min(len - 1);
-                        for (i, y) in data[self.slice * len..=(self.slice + 1) * len]
+                        for (i, y) in data[self.slice * len..(self.slice + 1) * len]
                             .iter()
                             .enumerate()
                         {
