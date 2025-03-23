@@ -2,7 +2,8 @@ use egui::{
     Align2, CentralPanel, Color32, ColorImage, Context, FontId, Key, Painter, Pos2, Rect, Sense,
     Stroke, TextureHandle, TextureOptions, Ui, Vec2,
 };
-use std::f32::consts::PI;
+use std::f32::consts::{PI, TAU};
+use std::ops::{AddAssign, SubAssign};
 pub enum GraphMode {
     Normal,
     DomainColoring,
@@ -20,10 +21,9 @@ pub struct Graph {
     cache: Option<TextureHandle>,
     start: f32,
     end: f32,
-    offset: Vec2,
-    _offset_z: f32,
-    _theta: f32,
-    _phi: f32,
+    offset: Vec3,
+    theta: f32,
+    phi: f32,
     zoom: f32,
     lines: bool,
     anti_alias: bool,
@@ -39,6 +39,7 @@ pub struct Graph {
     disable_axis: bool,
     disable_coord: bool,
     graph_mode: GraphMode,
+    is_3d: bool,
 }
 #[derive(Copy, Clone)]
 pub enum Complex {
@@ -47,7 +48,7 @@ pub enum Complex {
     Complex(f32, f32),
 }
 impl Complex {
-    fn to_options(&self) -> (Option<&f32>, Option<&f32>) {
+    fn to_options(self) -> (Option<f32>, Option<f32>) {
         match self {
             Complex::Real(y) => (Some(y), None),
             Complex::Imag(z) => (None, Some(z)),
@@ -63,19 +64,52 @@ impl Complex {
         }
     }
 }
+fn is_3d(data: &[GraphType]) -> bool {
+    data.iter()
+        .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
+}
+#[derive(Copy, Clone)]
+struct Vec3 {
+    x: f32,
+    y: f32,
+    z: f32,
+}
+impl Vec3 {
+    fn splat(v: f32) -> Self {
+        Self { x: v, y: v, z: v }
+    }
+    fn new(x: f32, y: f32, z: f32) -> Self {
+        Self { x, y, z }
+    }
+    fn get_2d(&self) -> Vec2 {
+        Vec2::new(self.x, self.y)
+    }
+}
+impl AddAssign<Vec2> for Vec3 {
+    fn add_assign(&mut self, rhs: Vec2) {
+        self.x += rhs.x;
+        self.y += rhs.y;
+    }
+}
+impl SubAssign<Vec2> for Vec3 {
+    fn sub_assign(&mut self, rhs: Vec2) {
+        self.x -= rhs.x;
+        self.y -= rhs.y;
+    }
+}
 impl Graph {
     pub fn new(data: Vec<GraphType>, start: f32, end: f32) -> Self {
-        let offset = Vec2::splat(0.0);
+        let offset = Vec3::splat(0.0);
         let zoom = 1.0;
+        let is_3d = is_3d(&data);
         Self {
             data,
             cache: None,
             start,
             end,
             offset,
-            _offset_z: 0.0,
-            _theta: 0.0,
-            _phi: 0.0,
+            theta: 0.0,
+            phi: 0.0,
             zoom,
             anti_alias: true,
             lines: true,
@@ -105,18 +139,21 @@ impl Graph {
             disable_axis: false,
             disable_coord: false,
             graph_mode: GraphMode::Normal,
+            is_3d,
         }
     }
     pub fn set_data(&mut self, data: Vec<GraphType>) {
         self.data = data;
         self.cache = None;
+        self.is_3d = is_3d(&self.data);
     }
     pub fn clear_data(&mut self) {
         self.data.clear();
         self.cache = None;
     }
     pub fn push_data(&mut self, data: GraphType) {
-        self.data.push(data)
+        self.data.push(data);
+        self.is_3d = is_3d(&self.data);
     }
     pub fn set_lines(&mut self, lines: bool) {
         self.lines = lines
@@ -152,9 +189,14 @@ impl Graph {
         self.disable_coord = disable
     }
     pub fn set_mode(&mut self, mode: GraphMode) {
-        self.graph_mode = mode
+        match mode {
+            GraphMode::DomainColoring => self.is_3d = false,
+            _ => {
+                self.is_3d = is_3d(&self.data);
+            }
+        }
+        self.graph_mode = mode;
     }
-
     pub fn update(&mut self, ctx: &Context) {
         CentralPanel::default()
             .frame(egui::Frame::default().fill(self.background_color))
@@ -165,18 +207,24 @@ impl Graph {
         let rect = ctx.available_rect();
         let (width, height) = (rect.width(), rect.height());
         let delta = width / (self.end - self.start);
-        let offset = Vec2::new(width / 2.0, height / 2.0)
-            - Vec2::new(delta * (self.start + self.end) / 2.0, 0.0);
+        let o = Vec2::new(width / 2.0, height / 2.0);
+        let offset = o - Vec2::new(delta * (self.start + self.end) / 2.0, 0.0);
         self.keybinds(ui, offset, width);
         self.plot(painter, width, offset, ui);
-        self.write_axis(painter, width, height);
-        self.write_coord(painter, height, width);
+        if !self.is_3d {
+            self.write_axis(painter, width, height);
+        } else {
+            self.write_axis_3d(painter, o, width, height);
+        }
+        if !self.is_3d {
+            self.write_coord(painter, height, width);
+        }
     }
     fn write_coord(&self, painter: &Painter, height: f32, width: f32) {
         if self.mouse_moved && !self.disable_coord {
             if let Some(pos) = self.mouse_position {
                 let delta = width / (self.end - self.start);
-                let p = (pos / self.zoom - self.offset) / delta;
+                let p = (pos / self.zoom - self.offset.get_2d()) / delta;
                 painter.text(
                     Pos2::new(0.0, height),
                     Align2::LEFT_BOTTOM,
@@ -198,13 +246,15 @@ impl Graph {
         width: f32,
         offset: Vec2,
         ui: &Ui,
-        x: &f32,
-        y: &f32,
+        x: f32,
+        y: f32,
         color: &Color32,
         last: Option<Pos2>,
     ) -> Option<Pos2> {
         if x.is_finite() && y.is_finite() {
-            let pos = (Pos2::new(*x, -*y) * width / (self.end - self.start) + offset + self.offset)
+            let pos = (Pos2::new(x, -y) * width / (self.end - self.start)
+                + offset
+                + self.offset.get_2d())
                 * self.zoom;
             let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
             if ui.is_rect_visible(rect) {
@@ -311,28 +361,96 @@ impl Graph {
             }
         }
     }
+    fn write_axis_3d(&self, painter: &Painter, offset: Vec2, width: f32, height: f32) {
+        let sq3 = 3.0f32.sqrt();
+        let delta = width.min(height) / (self.end - self.start);
+        let s = (self.end - self.start) / 2.0;
+        let rotate = |p: Vec3| -> Vec3 {
+            let cos_phi = self.phi.cos();
+            let sin_phi = self.phi.sin();
+            let cos_theta = self.theta.cos();
+            let sin_theta = self.theta.sin();
+            let x1 = p.x * cos_phi + p.z * sin_phi;
+            let z1 = -p.x * sin_phi + p.z * cos_phi;
+            let y2 = p.y * cos_theta - z1 * sin_theta;
+            let z2 = p.y * sin_theta + z1 * cos_theta;
+            Vec3::new(x1, y2, z2)
+        };
+        let project = |p: Vec3| -> Pos2 { Pos2::new(p.x, -p.y) * delta / sq3 + offset };
+        let vertices = [
+            project(rotate(Vec3::new(-s, -s, -s))),
+            project(rotate(Vec3::new(-s, -s, s))),
+            project(rotate(Vec3::new(-s, s, -s))),
+            project(rotate(Vec3::new(-s, s, s))),
+            project(rotate(Vec3::new(s, -s, -s))),
+            project(rotate(Vec3::new(s, -s, s))),
+            project(rotate(Vec3::new(s, s, -s))),
+            project(rotate(Vec3::new(s, s, s))),
+        ];
+        let edges = [
+            (0, 1),
+            (1, 3),
+            (3, 2),
+            (2, 0),
+            (4, 5),
+            (5, 7),
+            (7, 6),
+            (6, 4),
+            (0, 4),
+            (1, 5),
+            (2, 6),
+            (3, 7),
+        ];
+        for (i, j) in edges {
+            painter.line_segment(
+                [vertices[i], vertices[j]],
+                Stroke::new(1.0, self.axis_color),
+            );
+        }
+    }
     fn keybinds(&mut self, ui: &Ui, offset: Vec2, width: f32) {
         let response = ui.interact(
             ui.available_rect_before_wrap(),
-            ui.id().with("map_interact"),
+            ui.id().with("drag"),
             Sense::drag(),
         );
         if response.dragged() {
-            self.offset += response.drag_delta() / self.zoom;
+            if self.is_3d {
+                self.phi = (self.phi + response.drag_delta().x / 512.0) % TAU;
+                self.theta = (self.theta + response.drag_delta().y / 512.0) % TAU;
+            } else {
+                self.offset += response.drag_delta() / self.zoom;
+            }
         }
         ui.input(|i| {
             let delta = width / (self.end - self.start);
             if i.key_pressed(Key::A) || i.key_pressed(Key::ArrowLeft) {
-                self.offset.x += delta / self.zoom;
+                if self.is_3d {
+                    self.phi = (self.phi - PI / 32.0) % TAU
+                } else {
+                    self.offset.x += delta / self.zoom;
+                }
             }
             if i.key_pressed(Key::D) || i.key_pressed(Key::ArrowRight) {
-                self.offset.x -= delta / self.zoom;
+                if self.is_3d {
+                    self.phi = (self.phi + PI / 32.0) % TAU
+                } else {
+                    self.offset.x -= delta / self.zoom;
+                }
             }
             if i.key_pressed(Key::W) || i.key_pressed(Key::ArrowUp) {
-                self.offset.y += delta / self.zoom;
+                if self.is_3d {
+                    self.theta = (self.theta - PI / 32.0) % TAU
+                } else {
+                    self.offset.y += delta / self.zoom;
+                }
             }
             if i.key_pressed(Key::S) || i.key_pressed(Key::ArrowDown) {
-                self.offset.y -= delta / self.zoom;
+                if self.is_3d {
+                    self.theta = (self.theta + PI / 32.0) % TAU
+                } else {
+                    self.offset.y -= delta / self.zoom;
+                }
             }
             if i.key_released(Key::Z) {
                 self.disable_lines = !self.disable_lines;
@@ -350,6 +468,14 @@ impl Graph {
                 self.anti_alias = !self.anti_alias;
                 self.cache = None;
             }
+            if self.is_3d {
+                if i.key_released(Key::F) {
+                    self.offset.z += delta / self.zoom;
+                }
+                if i.key_released(Key::G) {
+                    self.offset.z -= delta / self.zoom;
+                }
+            }
             if i.key_released(Key::B) {
                 self.graph_mode = match self.graph_mode {
                     GraphMode::Normal => GraphMode::Flatten,
@@ -358,7 +484,7 @@ impl Graph {
                 };
             }
             if i.key_pressed(Key::Q) && self.zoom >= 2.0f32.powi(-12) {
-                self.offset += if self.mouse_moved {
+                self.offset += if self.mouse_moved && !self.is_3d {
                     self.mouse_position.unwrap().to_vec2()
                 } else {
                     offset
@@ -367,7 +493,7 @@ impl Graph {
             }
             if i.key_pressed(Key::E) && self.zoom <= 2.0f32.powi(12) {
                 self.zoom *= 2.0;
-                self.offset -= if self.mouse_moved {
+                self.offset -= if self.mouse_moved && !self.is_3d {
                     self.mouse_position.unwrap().to_vec2()
                 } else {
                     offset
@@ -376,14 +502,14 @@ impl Graph {
             match i.raw_scroll_delta.y.total_cmp(&0.0) {
                 std::cmp::Ordering::Greater if self.zoom <= 2.0f32.powi(12) => {
                     self.zoom *= 2.0;
-                    self.offset -= if self.mouse_moved {
+                    self.offset -= if self.mouse_moved && !self.is_3d {
                         self.mouse_position.unwrap().to_vec2()
                     } else {
                         offset
                     } / self.zoom;
                 }
                 std::cmp::Ordering::Less if self.zoom >= 2.0f32.powi(-12) => {
-                    self.offset += if self.mouse_moved {
+                    self.offset += if self.mouse_moved && !self.is_3d {
                         self.mouse_position.unwrap().to_vec2()
                     } else {
                         offset
@@ -393,8 +519,10 @@ impl Graph {
                 _ => {}
             }
             if i.key_pressed(Key::T) {
-                self.offset = Vec2::splat(0.0);
+                self.offset = Vec3::splat(0.0);
                 self.zoom = 1.0;
+                self.phi = 0.0;
+                self.theta = 0.0;
             }
             if let Some(mpos) = i.pointer.latest_pos() {
                 if let Some(pos) = self.mouse_position {
@@ -424,7 +552,7 @@ impl Graph {
                                     width,
                                     offset,
                                     ui,
-                                    &x,
+                                    x,
                                     y,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
@@ -438,7 +566,7 @@ impl Graph {
                                     width,
                                     offset,
                                     ui,
-                                    &x,
+                                    x,
                                     z,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     b,
@@ -457,7 +585,7 @@ impl Graph {
                                     width,
                                     offset,
                                     ui,
-                                    &y,
+                                    y,
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
@@ -479,7 +607,7 @@ impl Graph {
                                     width,
                                     offset,
                                     ui,
-                                    x,
+                                    *x,
                                     y,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
@@ -493,7 +621,7 @@ impl Graph {
                                     width,
                                     offset,
                                     ui,
-                                    x,
+                                    *x,
                                     z,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     b,
@@ -512,7 +640,7 @@ impl Graph {
                                     width,
                                     offset,
                                     ui,
-                                    &y,
+                                    y,
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
@@ -525,7 +653,9 @@ impl Graph {
                     GraphMode::Depth => todo!(),
                 },
                 GraphType::Width3D(data, start_x, start_y, end_x, end_y) => match self.graph_mode {
-                    GraphMode::Normal => todo!(),
+                    GraphMode::Normal => {
+                        //TODO
+                    }
                     GraphMode::Flatten => todo!(),
                     GraphMode::Depth => todo!(),
                     GraphMode::DomainColoring => {
@@ -551,11 +681,11 @@ impl Graph {
                         };
                         let a = (Pos2::new(*start_x, *start_y) * width / (self.end - self.start)
                             + offset
-                            + self.offset)
+                            + self.offset.get_2d())
                             * self.zoom;
                         let b = (Pos2::new(*end_x, *end_y) * width / (self.end - self.start)
                             + offset
-                            + self.offset)
+                            + self.offset.get_2d())
                             * self.zoom;
                         painter.image(
                             tex.id(),
@@ -573,7 +703,7 @@ impl Graph {
     }
     fn get_color(&self, z: &Complex) -> [u8; 3] {
         let (x, y) = z.to_options();
-        let (x, y) = (*x.unwrap_or(&0.0), *y.unwrap_or(&0.0));
+        let (x, y) = (x.unwrap_or(0.0), y.unwrap_or(0.0));
         let abs = x.hypot(y);
         let hue = 3.0 * (1.0 - y.atan2(x) / PI);
         let sat = (1.0 + abs.fract()) / 2.0;

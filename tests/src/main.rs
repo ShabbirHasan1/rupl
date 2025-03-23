@@ -1,5 +1,5 @@
 use egui::Context;
-use eplot::{Complex, Graph, GraphMode, GraphType};
+use eplot::{Complex, Graph, GraphType};
 use std::fs;
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
@@ -20,12 +20,11 @@ impl eframe::App for App {
 
 impl App {
     fn new() -> Self {
-        let mut plot = Graph::new(
+        let plot = Graph::new(
             vec![grab_width3d("data/data9", -1.0, -1.0, 1.0, 1.0)],
             -2.0,
             2.0,
         );
-        plot.set_mode(GraphMode::DomainColoring);
         Self { plot }
     }
     fn main(&mut self, ctx: &Context) {
