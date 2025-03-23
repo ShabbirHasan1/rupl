@@ -21,7 +21,7 @@ impl eframe::App for App {
 impl App {
     fn new() -> Self {
         let plot = Graph::new(
-            vec![grab_width3d("data/data9", -1.0, -1.0, 1.0, 1.0)],
+            vec![grab_width3d("data/data10", -1.0, -1.0, 1.0, 1.0)],
             -1.0,
             1.0,
         );
@@ -33,7 +33,7 @@ impl App {
 }
 fn to_complex(c: &str) -> Complex {
     if !c.contains('i') {
-        Complex::Real(c.parse::<f32>().unwrap())
+        Complex::Real(c.parse::<f32>().unwrap_or(0.0))
     } else {
         let n = c.starts_with('-');
         let c = if n {
@@ -45,12 +45,12 @@ fn to_complex(c: &str) -> Complex {
         let l = c
             .split(['-', '+'])
             .map(|c| {
-                if c.to_ascii_lowercase() == "in" {
+                if c.eq_ignore_ascii_case("in") {
                     f32::INFINITY
-                } else if c.to_ascii_uppercase() == "na" {
+                } else if c.eq_ignore_ascii_case("na") {
                     f32::NAN
                 } else {
-                    c.parse::<f32>().unwrap()
+                    c.parse::<f32>().unwrap_or(0.0)
                 }
             })
             .collect::<Vec<f32>>();
@@ -68,6 +68,7 @@ fn grab_width(f: &str, start: f32, end: f32) -> GraphType {
         fs::read_to_string(f)
             .unwrap()
             .trim()
+            .replace(['{', '}'], "")
             .split(',')
             .map(to_complex)
             .collect::<Vec<Complex>>(),
@@ -81,6 +82,7 @@ fn grab_width3d(f: &str, startx: f32, starty: f32, endx: f32, endy: f32) -> Grap
         fs::read_to_string(f)
             .unwrap()
             .trim()
+            .replace(['{', '}'], "")
             .replace('\n', ",")
             .split(',')
             .map(to_complex)
@@ -97,6 +99,7 @@ fn grab_coord(f: &str) -> GraphType {
         fs::read_to_string(f)
             .unwrap()
             .trim()
+            .replace(['{', '}'], "")
             .split('\n')
             .map(|c| {
                 let a = c.split(',').map(to_complex).collect::<Vec<Complex>>();

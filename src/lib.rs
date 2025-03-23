@@ -41,6 +41,7 @@ pub struct Graph {
     disable_lines: bool,
     disable_axis: bool,
     disable_coord: bool,
+    view_x: bool,
     graph_mode: GraphMode,
     is_3d: bool,
 }
@@ -115,6 +116,7 @@ impl Graph {
             phi: 0.0,
             slice: 0,
             zoom,
+            view_x: false,
             box_size: 3.0f32.sqrt(),
             anti_alias: true,
             lines: true,
@@ -263,6 +265,7 @@ impl Graph {
                 * self.zoom;
             let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
             if ui.is_rect_visible(rect) {
+                //TODO can be optimized
                 painter.rect_filled(rect, 0.0, *color);
             }
             if let Some(last) = last {
@@ -391,7 +394,7 @@ impl Graph {
         let delta = width.min(height) / (self.box_size * (self.end - self.start));
         let pos = self.rotate(Vec3::new(x, y, -z), delta, offset);
         let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
-        painter.rect_filled(rect, 0.0, *color);
+        painter.rect_filled(rect, 0.0, *color); //TODO culling
     }
     fn write_axis_3d(&self, painter: &Painter, offset: Vec2, width: f32, height: f32) {
         if self.disable_axis {
@@ -470,32 +473,53 @@ impl Graph {
         }
         ui.input(|i| {
             let delta = width / (self.end - self.start);
+            let (a, b) = if i.modifiers.shift {
+                (
+                    4.0 * delta
+                        / if self.zoom > 1.0 {
+                            2.0 * self.zoom
+                        } else {
+                            1.0
+                        },
+                    PI / 16.0,
+                )
+            } else {
+                (
+                    delta
+                        / if self.zoom > 1.0 {
+                            2.0 * self.zoom
+                        } else {
+                            1.0
+                        },
+                    PI / 64.0,
+                )
+            };
             if i.key_pressed(Key::A) || i.key_pressed(Key::ArrowLeft) {
                 if self.is_3d {
-                    self.phi = (self.phi - PI / 32.0) % TAU
+                    self.phi = ((self.phi / b - 1.0).round() * b) % TAU;
                 } else {
-                    self.offset.x += delta / self.zoom;
+                    self.offset.x += a;
                 }
             }
             if i.key_pressed(Key::D) || i.key_pressed(Key::ArrowRight) {
                 if self.is_3d {
-                    self.phi = (self.phi + PI / 32.0) % TAU
+                    self.phi = ((self.phi / b + 1.0).round() * b) % TAU;
                 } else {
-                    self.offset.x -= delta / self.zoom;
+                    self.offset.x -= a;
                 }
             }
             if i.key_pressed(Key::W) || i.key_pressed(Key::ArrowUp) {
                 if self.is_3d {
-                    self.theta = (self.theta - PI / 32.0) % TAU
+                    self.theta = ((self.theta / b - 1.0).round() * b) % TAU;
                 } else {
-                    self.offset.y += delta / self.zoom;
+                    self.offset.y += a;
                 }
             }
             if i.key_pressed(Key::S) || i.key_pressed(Key::ArrowDown) {
                 if self.is_3d {
-                    self.theta = (self.theta + PI / 32.0) % TAU
+                    self.theta = ((self.theta / b + 1.0).round() * b) % TAU;
                 } else {
-                    self.offset.y -= delta / self.zoom;
+                    self.offset.y -= a;
                 }
             }
             if i.key_released(Key::Z) {
@@ -516,10 +540,10 @@ impl Graph {
             }
             if self.is_3d {
                 if i.key_pressed(Key::F) {
-                    self.offset.z += delta / self.zoom;
+                    self.offset.z += a;
                 }
                 if i.key_pressed(Key::G) {
-                    self.offset.z -= delta / self.zoom;
+                    self.offset.z -= a;
                 }
                 let mut changed = false;
                 if i.key_pressed(Key::Semicolon) && self.box_size > 0.1 {
@@ -542,15 +566,29 @@ impl Graph {
                     }
                 }
             }
-            if i.key_released(Key::Period) {
+            if i.key_pressed(Key::Period) {
                 self.slice += 1
             }
-            if i.key_released(Key::Comma) {
+            if i.key_pressed(Key::Comma) {
                 self.slice = self.slice.saturating_sub(1)
+            }
+            if i.key_released(Key::Slash) {
+                self.view_x = !self.view_x
             }
             if i.key_released(Key::B) {
                 self.graph_mode = match self.graph_mode {
-                    GraphMode::Normal => GraphMode::Flatten,
+                    GraphMode::Normal => {
+                        if self.is_3d {
+                            self.is_3d = false;
+                            GraphMode::Slice
+                        } else {
+                            GraphMode::Flatten
+                        }
+                    }
+                    GraphMode::Slice => {
+                        self.is_3d = true;
+                        GraphMode::Normal
+                    }
                     GraphMode::Flatten => GraphMode::Normal,
                     _ => todo!(),
                 };
@@ -596,6 +634,8 @@ impl Graph {
                 self.phi = 0.0;
                 self.theta = 0.0;
                 self.box_size = 3.0f32.sqrt();
+                self.mouse_position = None;
+                self.mouse_moved = false;
             }
             if let Some(mpos) = i.pointer.latest_pos() {
                 if let Some(pos) = self.mouse_position {
@@ -762,14 +802,10 @@ impl Graph {
                         }
                     }
                     GraphMode::Slice => {
-                        //TODO test, allow seeing different directions
                         let len = data.len().isqrt();
                         self.slice = self.slice.min(len - 1);
-                        for (i, y) in data[self.slice * len..(self.slice + 1) * len]
-                            .iter()
-                            .enumerate()
-                        {
-                            let x = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end_x - start_x)
+                        let mut body = |i: usize, y: &Complex| {
+                            let x = (i as f32 / (len - 1) as f32 - 0.5) * (end_x - start_x)
                                 + (start_x + end_x) / 2.0;
                             let (y, z) = y.to_options();
                             a = if let Some(y) = y {
@@ -800,6 +836,18 @@ impl Graph {
                             } else {
                                 None
                             };
+                        };
+                        if self.view_x {
+                            for (i, y) in data[self.slice * len..(self.slice + 1) * len]
+                                .iter()
+                                .enumerate()
+                            {
+                                body(i, y)
+                            }
+                        } else {
+                            for (i, y) in data.iter().skip(self.slice).step_by(len).enumerate() {
+                                body(i, y)
+                            }
                         }
                     }
                     GraphMode::Flatten => {}
