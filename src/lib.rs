@@ -2,6 +2,7 @@ use egui::{
     Align2, CentralPanel, Color32, ColorImage, Context, FontId, Key, Painter, Pos2, Rect, Sense,
     Stroke, TextureHandle, TextureOptions, Ui, Vec2,
 };
+use std::collections::HashMap;
 use std::f32::consts::{PI, TAU};
 use std::ops::{AddAssign, SubAssign};
 pub enum GraphMode {
@@ -112,8 +113,8 @@ impl Graph {
             start,
             end,
             offset,
-            theta: 0.0,
-            phi: 0.0,
+            theta: PI / 6.0,
+            phi: PI / 3.0,
             slice: 0,
             zoom,
             view_x: false,
@@ -217,11 +218,12 @@ impl Graph {
         let o = Vec2::new(width / 2.0, height / 2.0);
         let offset = o - Vec2::new(delta * (self.start + self.end) / 2.0, 0.0);
         self.keybinds(ui, offset, width);
-        self.plot(painter, width, height, offset, ui);
         if !self.is_3d {
+            self.plot(painter, width, height, offset, ui);
             self.write_axis(painter, width, height);
         } else {
             self.write_axis_3d(painter, o, width, height);
+            self.plot(painter, width, height, offset, ui);
         }
         if !self.is_3d {
             self.write_coord(painter, height, width);
@@ -268,12 +270,16 @@ impl Graph {
                 //TODO can be optimized
                 painter.rect_filled(rect, 0.0, *color);
             }
-            if let Some(last) = last {
-                if ui.is_rect_visible(Rect::from_points(&[last, pos])) {
-                    painter.line_segment([last, pos], Stroke::new(1.0, *color));
+            if self.lines {
+                if let Some(last) = last {
+                    if ui.is_rect_visible(Rect::from_points(&[last, pos])) {
+                        painter.line_segment([last, pos], Stroke::new(1.0, *color));
+                    }
                 }
+                Some(pos)
+            } else {
+                None
             }
-            if self.lines { Some(pos) } else { None }
         } else {
             None
         }
@@ -374,10 +380,10 @@ impl Graph {
         let sin_phi = self.phi.sin();
         let cos_theta = self.theta.cos();
         let sin_theta = self.theta.sin();
-        let x1 = p.x * cos_phi + p.z * sin_phi;
-        let z1 = -p.x * sin_phi + p.z * cos_phi;
-        let y2 = p.y * cos_theta - z1 * sin_theta;
-        Pos2::new(x1, -y2) * delta + offset
+        let x1 = p.x * cos_phi + p.y * sin_phi;
+        let y1 = -p.x * sin_phi + p.y * cos_phi;
+        let z2 = p.z * cos_theta - y1 * sin_theta;
+        Pos2::new(x1, z2) * delta + offset
     }
     #[allow(clippy::too_many_arguments)]
     fn draw_point_3d(
@@ -390,11 +396,24 @@ impl Graph {
         y: f32,
         z: f32,
         color: &Color32,
-    ) {
+        a: Option<&Pos2>,
+        b: Option<&Pos2>,
+    ) -> Option<Pos2> {
         let delta = width.min(height) / (self.box_size * (self.end - self.start));
         let pos = self.rotate(Vec3::new(x, y, -z), delta, offset);
         let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
         painter.rect_filled(rect, 0.0, *color); //TODO culling
+        if self.lines {
+            if let Some(last) = a {
+                painter.line_segment([*last, pos], Stroke::new(1.0, *color));
+            }
+            if let Some(last) = b {
+                painter.line_segment([*last, pos], Stroke::new(1.0, *color));
+            }
+            Some(pos)
+        } else {
+            None
+        }
     }
     fn write_axis_3d(&self, painter: &Painter, offset: Vec2, width: f32, height: f32) {
         if self.disable_axis {
@@ -428,33 +447,17 @@ impl Graph {
         ];
         let mut least = 0;
         for (i, v) in vertices[1..].iter().enumerate() {
-            if v.y > vertices[least].y || (v.y == vertices[least].y && v.x < vertices[least].x) {
+            if v.x < vertices[least].x || (v.x == vertices[least].x && v.y > vertices[least].y) {
                 least = i + 1
             }
         }
-        painter.text(
-            vertices[least],
-            Align2::RIGHT_TOP,
-            format!("l{}", least),
-            FontId::monospace(16.0),
-            self.text_color,
-        );
-        for (i, v) in vertices.iter().enumerate() {
-            if i != least {
-                painter.text(
-                    *v,
-                    Align2::RIGHT_TOP,
-                    format!("{}", i),
-                    FontId::monospace(16.0),
-                    self.text_color,
+        for (i, j) in edges {
+            if [i, j].contains(&least) {
+                painter.line_segment(
+                    [vertices[i], vertices[j]],
+                    Stroke::new(2.0, self.axis_color),
                 );
             }
-        }
-        for (i, j) in edges {
-            painter.line_segment(
-                [vertices[i], vertices[j]],
-                Stroke::new(2.0, self.axis_color),
-            );
         }
     }
     fn keybinds(&mut self, ui: &Ui, offset: Vec2, width: f32) {
@@ -768,6 +771,8 @@ impl Graph {
                 GraphType::Width3D(data, start_x, start_y, end_x, end_y) => match self.graph_mode {
                     GraphMode::Normal => {
                         let len = data.len().isqrt();
+                        let mut map = HashMap::new();
+                        let mut mapi = HashMap::new();
                         for (i, z) in data.iter().enumerate() {
                             let (i, j) = (i % len, i / len);
                             let x = (i as f32 / (len - 1) as f32 - 0.5) * (end_x - start_x)
@@ -776,7 +781,7 @@ impl Graph {
                                 + (start_y + end_y) / 2.0;
                             let (z, w) = z.to_options();
                             if let Some(z) = z {
-                                self.draw_point_3d(
+                                let p = self.draw_point_3d(
                                     painter,
                                     width,
                                     height,
@@ -785,10 +790,15 @@ impl Graph {
                                     y,
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
+                                    map.get(&(i.saturating_sub(1), j)),
+                                    map.get(&(i, j.saturating_sub(1))),
                                 );
+                                if let Some(p) = p {
+                                    map.insert((i, j), p);
+                                }
                             }
                             if let Some(w) = w {
-                                self.draw_point_3d(
+                                let p = self.draw_point_3d(
                                     painter,
                                     width,
                                     height,
@@ -797,7 +807,12 @@ impl Graph {
                                     y,
                                     w,
                                     &self.alt_colors[k % self.alt_colors.len()],
+                                    mapi.get(&(i.saturating_sub(1), j)),
+                                    mapi.get(&(i, j.saturating_sub(1))),
                                 );
+                                if let Some(p) = p {
+                                    mapi.insert((i, j), p);
+                                }
                             }
                         }
                     }
