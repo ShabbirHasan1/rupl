@@ -20,11 +20,7 @@ impl eframe::App for App {
 
 impl App {
     fn new() -> Self {
-        let plot = Graph::new(
-            vec![grab_width3d("data/data11", -8.0, -8.0, 8.0, 8.0)],
-            -8.0,
-            8.0,
-        );
+        let plot = Graph::new(vec![grab_width("data/data13", -4.0, 4.0)], -4.0, 4.0);
         Self { plot }
     }
     fn main(&mut self, ctx: &Context) {

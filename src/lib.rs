@@ -6,7 +6,9 @@ use std::f32::consts::{PI, TAU};
 use std::ops::{AddAssign, SubAssign};
 pub enum GraphMode {
     Normal,
-    Slice, //TODO slice types
+    Slice,
+    SliceFlatten,
+    SliceDepth,
     DomainColoring,
     Flatten,
     Depth,
@@ -260,15 +262,11 @@ impl Graph {
     fn write_coord(&self, painter: &Painter) {
         if self.mouse_moved && !self.disable_coord {
             if let Some(pos) = self.mouse_position {
-                let p = (pos / self.zoom - self.offset.get_2d()) / self.delta;
+                let p = self.to_coord(pos);
                 painter.text(
-                    Pos2::new(0.0, self.screen.x),
+                    Pos2::new(0.0, self.screen.y),
                     Align2::LEFT_BOTTOM,
-                    format!(
-                        "{{{},{}}}",
-                        p.x + self.start,
-                        -(p.y + self.screen.y / self.screen.x * (self.start - self.end) / 2.0)
-                    ),
+                    format!("{{{},{}}}", p.x, p.y),
                     FontId::monospace(16.0),
                     self.text_color,
                 );
@@ -276,13 +274,28 @@ impl Graph {
         }
     }
     fn write_angle(&self, painter: &Painter) {
-        painter.text(
-            Pos2::new(0.0, self.screen.x),
-            Align2::LEFT_BOTTOM,
-            format!("{{{},{}}}", self.theta, self.phi),
-            FontId::monospace(16.0),
-            self.text_color,
-        );
+        if !self.disable_coord {
+            painter.text(
+                Pos2::new(0.0, self.screen.y),
+                Align2::LEFT_BOTTOM,
+                format!("{{{},{}}}", self.theta, self.phi),
+                FontId::monospace(16.0),
+                self.text_color,
+            );
+        }
+    }
+    fn to_screen(&self, x: f32, y: f32) -> Pos2 {
+        (Pos2::new(x, -y) * self.screen.x / (self.end - self.start)
+            + self.screen_offset
+            + self.offset.get_2d())
+            * self.zoom
+    }
+    fn to_coord(&self, p: Pos2) -> Pos2 {
+        let mut p = (p / self.zoom - self.offset.get_2d() - self.screen_offset)
+            * (self.end - self.start)
+            / self.screen.x;
+        p.y *= -1.0;
+        p
     }
     #[allow(clippy::too_many_arguments)]
     fn draw_point(
@@ -294,21 +307,18 @@ impl Graph {
         color: &Color32,
         last: Option<Pos2>,
     ) -> Option<Pos2> {
-        if !x.is_finite()
-            || !y.is_finite()
-            || x < self.start //TODO
-            || x > self.end
-            || y < self.start
-            || y > self.end
-        {
+        if !x.is_finite() || !y.is_finite() {
             return None;
         }
-        let pos = (Pos2::new(x, -y) * self.screen.x / (self.end - self.start)
-            + self.screen_offset
-            + self.offset.get_2d())
-            * self.zoom;
-        let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
-        painter.rect_filled(rect, 0.0, *color);
+        let pos = self.to_screen(x, y);
+        if pos.x > -2.0
+            && pos.x < self.screen.x + 2.0
+            && pos.y > -2.0
+            && pos.y < self.screen.y + 2.0
+        {
+            let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
+            painter.rect_filled(rect, 0.0, *color);
+        }
         if self.lines {
             if let Some(last) = last {
                 if ui.is_rect_visible(Rect::from_points(&[last, pos])) {
@@ -409,9 +419,6 @@ impl Graph {
             }
         }
     }
-    /*fn vec2_to_pos(&self, p: Vec2) -> Pos2 {
-        Pos2::new(0.0, 0.0) TODO
-    }*/
     fn vec3_to_pos(&self, p: Vec3) -> Pos2 {
         let cos_phi = self.phi.cos();
         let sin_phi = self.phi.sin();
@@ -517,7 +524,8 @@ impl Graph {
             }
         }
         ui.input(|i| {
-            let (a, b, c) = if i.modifiers.shift {
+            let shift = i.modifiers.shift;
+            let (a, b, c) = if shift {
                 (
                     4.0 * self.delta
                         / if self.zoom > 1.0 {
@@ -633,6 +641,33 @@ impl Graph {
             }
             if i.key_pressed(Key::B) {
                 self.graph_mode = match self.graph_mode {
+                    GraphMode::Normal if shift => {
+                        if self.is_3d {
+                            self.is_3d = false;
+                            GraphMode::DomainColoring
+                        } else {
+                            self.is_3d = true;
+                            GraphMode::Depth
+                        }
+                    }
+                    GraphMode::Slice if shift => {
+                        self.is_3d = true;
+                        GraphMode::Normal
+                    }
+                    GraphMode::SliceDepth if shift => {
+                        self.is_3d = false;
+                        GraphMode::SliceFlatten
+                    }
+                    GraphMode::SliceFlatten if shift => GraphMode::Slice,
+                    GraphMode::Flatten if shift => GraphMode::Normal,
+                    GraphMode::DomainColoring if shift => {
+                        self.is_3d = true;
+                        GraphMode::SliceDepth
+                    }
+                    GraphMode::Depth if shift => {
+                        self.is_3d = false;
+                        GraphMode::Flatten
+                    }
                     GraphMode::Normal => {
                         if self.is_3d {
                             self.is_3d = false;
@@ -641,13 +676,27 @@ impl Graph {
                             GraphMode::Flatten
                         }
                     }
-                    GraphMode::Slice => GraphMode::DomainColoring,
-                    GraphMode::Flatten => GraphMode::Normal,
+                    GraphMode::Slice => GraphMode::SliceFlatten,
+                    GraphMode::SliceFlatten => {
+                        self.is_3d = true;
+                        GraphMode::SliceDepth
+                    }
+                    GraphMode::SliceDepth => {
+                        self.is_3d = false;
+                        GraphMode::DomainColoring
+                    }
+                    GraphMode::Flatten => {
+                        self.is_3d = true;
+                        GraphMode::Depth
+                    }
+                    GraphMode::Depth => {
+                        self.is_3d = false;
+                        GraphMode::Normal
+                    }
                     GraphMode::DomainColoring => {
                         self.is_3d = true;
                         GraphMode::Normal
                     }
-                    _ => todo!(),
                 };
             }
             if i.key_pressed(Key::Q) && self.zoom >= 2.0f32.powi(-12) {
@@ -711,7 +760,11 @@ impl Graph {
             let (mut a, mut b) = (None, None);
             match data {
                 GraphType::Width(data, start, end) => match self.graph_mode {
-                    GraphMode::Normal | GraphMode::DomainColoring | GraphMode::Slice => {
+                    GraphMode::Normal
+                    | GraphMode::DomainColoring
+                    | GraphMode::Slice
+                    | GraphMode::SliceFlatten
+                    | GraphMode::SliceDepth => {
                         for (i, y) in data.iter().enumerate() {
                             let x = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end - start)
                                 + (start + end) / 2.0;
@@ -763,10 +816,33 @@ impl Graph {
                             };
                         }
                     }
-                    GraphMode::Depth => todo!(),
+                    GraphMode::Depth => {
+                        for (i, y) in data.iter().enumerate() {
+                            let (y, z) = y.to_options();
+                            a = if let (Some(x), Some(y)) = (y, z) {
+                                let z = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end - start)
+                                    + (start + end) / 2.0;
+                                self.draw_point_3d(
+                                    painter,
+                                    x,
+                                    y,
+                                    z,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    a,
+                                    None,
+                                )
+                            } else {
+                                None
+                            };
+                        }
+                    }
                 },
                 GraphType::Coord(data) => match self.graph_mode {
-                    GraphMode::Normal | GraphMode::DomainColoring | GraphMode::Slice => {
+                    GraphMode::Normal
+                    | GraphMode::DomainColoring
+                    | GraphMode::Slice
+                    | GraphMode::SliceFlatten
+                    | GraphMode::SliceDepth => {
                         for (x, y) in data {
                             let (y, z) = y.to_options();
                             a = if !self.show.real() {
@@ -816,7 +892,24 @@ impl Graph {
                             };
                         }
                     }
-                    GraphMode::Depth => todo!(),
+                    GraphMode::Depth => {
+                        for (i, y) in data {
+                            let (y, z) = y.to_options();
+                            a = if let (Some(x), Some(y)) = (y, z) {
+                                self.draw_point_3d(
+                                    painter,
+                                    x,
+                                    y,
+                                    *i,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    a,
+                                    None,
+                                )
+                            } else {
+                                None
+                            };
+                        }
+                    }
                 },
                 GraphType::Width3D(data, start_x, start_y, end_x, end_y) => match self.graph_mode {
                     GraphMode::Normal => {
@@ -921,7 +1014,60 @@ impl Graph {
                             }
                         }
                     }
-                    GraphMode::Flatten => {}
+                    GraphMode::SliceFlatten => {
+                        let len = data.len().isqrt();
+                        self.slice = self.slice.min(len - 1);
+                        let mut body = |y: &Complex| {
+                            let (y, z) = y.to_options();
+                            a = if let (Some(y), Some(z)) = (y, z) {
+                                self.draw_point(
+                                    painter,
+                                    ui,
+                                    y,
+                                    z,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    a,
+                                )
+                            } else {
+                                None
+                            };
+                        };
+                        if self.view_x {
+                            for y in &data[self.slice * len..(self.slice + 1) * len] {
+                                body(y)
+                            }
+                        } else {
+                            for y in data.iter().skip(self.slice).step_by(len) {
+                                body(y)
+                            }
+                        }
+                    }
+                    GraphMode::SliceDepth => {
+                        let len = data.len().isqrt();
+                        self.slice = self.slice.min(len - 1);
+                        for (i, y) in data[self.slice * len..(self.slice + 1) * len]
+                            .iter()
+                            .enumerate()
+                        {
+                            let (y, z) = y.to_options();
+                            a = if let (Some(x), Some(y)) = (y, z) {
+                                let z = (i as f32 / (len - 1) as f32 - 0.5) * (end_x - start_x)
+                                    + (start_x + end_x) / 2.0;
+                                self.draw_point_3d(
+                                    painter,
+                                    x,
+                                    y,
+                                    z,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    a,
+                                    None,
+                                )
+                            } else {
+                                None
+                            };
+                        }
+                    }
+                    GraphMode::Flatten => todo!(),
                     GraphMode::Depth => todo!(),
                     GraphMode::DomainColoring => {
                         let len = data.len().isqrt();
