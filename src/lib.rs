@@ -1,6 +1,6 @@
 use egui::{
-    Align2, CentralPanel, Color32, ColorImage, Context, FontId, Key, Painter, Pos2, Rect, Sense,
-    Stroke, TextureHandle, TextureOptions, Ui, Vec2,
+    Align2, CentralPanel, Color32, ColorImage, Context, FontId, Key, Painter, Pos2, Rect, Stroke,
+    TextureHandle, TextureOptions, Ui, Vec2,
 };
 use std::f32::consts::{PI, TAU};
 use std::ops::{AddAssign, SubAssign};
@@ -63,6 +63,7 @@ pub struct Graph {
     view_x: bool,
     graph_mode: GraphMode,
     is_3d: bool,
+    last_interact: Option<Pos2>,
 }
 #[derive(Copy, Clone)]
 pub enum Complex {
@@ -143,6 +144,7 @@ impl Graph {
             box_size: 3.0f32.sqrt(),
             anti_alias: true,
             lines: true,
+            last_interact: None,
             main_colors: vec![
                 Color32::from_rgb(255, 85, 85),
                 Color32::from_rgb(85, 85, 255),
@@ -440,19 +442,21 @@ impl Graph {
         a: Option<Pos2>,
         b: Option<Pos2>,
     ) -> Option<Pos2> {
-        if !z.is_finite()
-            || x < self.start
+        if !x.is_finite() || !y.is_finite() || !z.is_finite() {
+            return None;
+        }
+        if x < self.start
             || x > self.end
             || y < self.start
             || y > self.end
             || z < self.start
             || z > self.end
         {
-            return None;
+            return None; //TODO should show lines ending at end of box
         }
         let pos = self.vec3_to_pos(Vec3::new(x, y, -z));
         let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
-        painter.rect_filled(rect, 0.0, *color); //TODO culling
+        painter.rect_filled(rect, 0.0, *color);
         if self.lines {
             if let Some(last) = a {
                 painter.line_segment([last, pos], Stroke::new(1.0, *color));
@@ -494,36 +498,86 @@ impl Graph {
             (2, 6),
             (3, 7),
         ];
-        let mut least = 0;
+        let mut zl = 0;
         for (i, v) in vertices[1..].iter().enumerate() {
-            if v.x < vertices[least].x || (v.x == vertices[least].x && v.y > vertices[least].y) {
-                least = i + 1
+            if v.x < vertices[zl].x || (v.x == vertices[zl].x && v.y > vertices[zl].y) {
+                zl = i + 1
             }
         }
-        for (i, j) in edges {
-            if [i, j].contains(&least) {
+        let mut xl = 0;
+        for (i, v) in vertices[1..].iter().enumerate() {
+            if v.y > vertices[xl].y || (v.y == vertices[xl].y && v.x > vertices[xl].x) {
+                xl = i + 1
+            }
+        }
+        for (k, (i, j)) in edges.iter().enumerate() {
+            let s = match k {
+                8 | 9 | 10 | 11 => "x",
+                1 | 3 | 5 | 7 => "y",
+                0 | 2 | 4 | 6 => "z",
+                _ => unreachable!(),
+            };
+            if (s == "z" && [i, j].contains(&&zl)) || (s != "z" && [i, j].contains(&&xl)) {
                 painter.line_segment(
-                    [vertices[i], vertices[j]],
+                    [vertices[*i], vertices[*j]],
                     Stroke::new(2.0, self.axis_color),
+                );
+                let p = vertices[*i] + vertices[*j].to_vec2();
+                painter.text(
+                    p / 2.0,
+                    match s {
+                        "x" if p.x > self.screen.x => Align2::LEFT_TOP,
+                        "y" if p.x < self.screen.x => Align2::RIGHT_TOP,
+                        "x" => Align2::RIGHT_TOP,
+                        "y" => Align2::LEFT_TOP,
+                        "z" => Align2::RIGHT_CENTER,
+                        _ => unreachable!(),
+                    },
+                    s,
+                    FontId::monospace(16.0),
+                    self.text_color,
                 );
             }
         }
     }
     fn keybinds(&mut self, ui: &Ui) {
-        let response = ui.interact(
-            ui.available_rect_before_wrap(),
-            ui.id().with("drag"),
-            Sense::drag(),
-        );
-        if response.dragged() {
-            if self.is_3d {
-                self.phi = (self.phi + response.drag_delta().x / 512.0) % TAU;
-                self.theta = (self.theta + response.drag_delta().y / 512.0) % TAU;
-            } else {
-                self.offset += response.drag_delta() / self.zoom;
-            }
-        }
         ui.input(|i| {
+            let multi = i.multi_touch();
+            let interact = i.pointer.interact_pos();
+            if i.pointer.primary_down()
+                && i.pointer.press_start_time().unwrap_or(0.0) < i.time
+                && multi.is_none()
+            {
+                if let (Some(interact), Some(last)) = (interact, self.last_interact) {
+                    let delta = interact - last;
+                    if self.is_3d {
+                        self.phi = (self.phi + delta.x / 512.0) % TAU;
+                        self.theta = (self.theta + delta.y / 512.0) % TAU;
+                    } else {
+                        self.offset += delta / self.zoom;
+                    }
+                }
+            }
+            self.last_interact = interact;
+            if let Some(multi) = multi {
+                match multi.zoom_delta.total_cmp(&1.0) {
+                    std::cmp::Ordering::Greater if self.zoom <= 2.0f32.powi(12) => {
+                        if self.is_3d {
+                            self.box_size *= multi.zoom_delta;
+                        } else {
+                            self.zoom *= multi.zoom_delta;
+                        }
+                    }
+                    std::cmp::Ordering::Less if self.zoom >= 2.0f32.powi(-12) => {
+                        if self.is_3d {
+                            self.box_size *= multi.zoom_delta;
+                        } else {
+                            self.zoom *= multi.zoom_delta;
+                        }
+                    }
+                    _ => {}
+                }
+            }
             let shift = i.modifiers.shift;
             let (a, b, c) = if shift {
                 (
