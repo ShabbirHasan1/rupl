@@ -648,16 +648,34 @@ impl Graph {
                             self.box_size *= multi.zoom_delta;
                         } else {
                             self.zoom *= multi.zoom_delta;
+                            self.offset -= if self.mouse_moved && !self.is_3d {
+                                self.mouse_position.unwrap().to_vec2()
+                            } else {
+                                self.screen_offset
+                            } / self.zoom
+                                * (multi.zoom_delta - 1.0);
                         }
                     }
                     std::cmp::Ordering::Less if self.zoom >= 2.0f32.powi(-12) => {
                         if self.is_3d {
                             self.box_size *= multi.zoom_delta;
                         } else {
+                            self.offset += if self.mouse_moved && !self.is_3d {
+                                self.mouse_position.unwrap().to_vec2()
+                            } else {
+                                self.screen_offset
+                            } / self.zoom
+                                * (multi.zoom_delta.recip() - 1.0);
                             self.zoom *= multi.zoom_delta;
                         }
                     }
                     _ => {}
+                }
+                if self.is_3d {
+                    self.phi = (self.phi + multi.translation_delta.x / 512.0) % TAU;
+                    self.theta = (self.theta + multi.translation_delta.y / 512.0) % TAU;
+                } else {
+                    self.offset += multi.translation_delta / self.zoom
                 }
             }
             let shift = i.modifiers.shift;
@@ -835,40 +853,50 @@ impl Graph {
                     }
                 };
             }
+            let rt = 2.0;
             if i.key_pressed(Key::Q) && self.zoom >= 2.0f32.powi(-12) {
                 self.offset += if self.mouse_moved && !self.is_3d {
                     self.mouse_position.unwrap().to_vec2()
                 } else {
                     self.screen_offset
-                } / self.zoom;
-                self.zoom /= 2.0;
+                } / self.zoom
+                    * (rt - 1.0);
+                self.zoom /= rt;
             }
             if i.key_pressed(Key::E) && self.zoom <= 2.0f32.powi(12) {
-                self.zoom *= 2.0;
+                self.zoom *= 1.5;
                 self.offset -= if self.mouse_moved && !self.is_3d {
                     self.mouse_position.unwrap().to_vec2()
                 } else {
                     self.screen_offset
-                } / self.zoom;
+                } / self.zoom
+                    * (rt - 1.0);
             }
-            match i.raw_scroll_delta.y.total_cmp(&0.0) {
-                std::cmp::Ordering::Greater if self.zoom <= 2.0f32.powi(12) => {
-                    self.zoom *= 2.0;
-                    self.offset -= if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().to_vec2()
-                    } else {
-                        self.screen_offset
-                    } / self.zoom;
+            if self.is_3d {
+                self.phi = (self.phi + i.raw_scroll_delta.x / 512.0) % TAU;
+                self.theta = (self.theta + i.raw_scroll_delta.y / 512.0) % TAU;
+            } else {
+                match i.raw_scroll_delta.y.total_cmp(&0.0) {
+                    std::cmp::Ordering::Greater if self.zoom <= 2.0f32.powi(12) => {
+                        self.zoom *= rt;
+                        self.offset -= if self.mouse_moved && !self.is_3d {
+                            self.mouse_position.unwrap().to_vec2()
+                        } else {
+                            self.screen_offset
+                        } / self.zoom
+                            * (rt - 1.0);
+                    }
+                    std::cmp::Ordering::Less if self.zoom >= 2.0f32.powi(-12) => {
+                        self.offset += if self.mouse_moved && !self.is_3d {
+                            self.mouse_position.unwrap().to_vec2()
+                        } else {
+                            self.screen_offset
+                        } / self.zoom
+                            * (rt - 1.0);
+                        self.zoom /= rt;
+                    }
+                    _ => {}
                 }
-                std::cmp::Ordering::Less if self.zoom >= 2.0f32.powi(-12) => {
-                    self.offset += if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().to_vec2()
-                    } else {
-                        self.screen_offset
-                    } / self.zoom;
-                    self.zoom /= 2.0;
-                }
-                _ => {}
             }
             if i.key_pressed(Key::T) {
                 self.offset = Vec3::splat(0.0);
