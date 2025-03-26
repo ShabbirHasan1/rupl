@@ -3,7 +3,7 @@ use egui::{
     TextureHandle, TextureOptions, Ui, Vec2,
 };
 use std::f32::consts::{PI, TAU};
-use std::ops::{AddAssign, SubAssign};
+use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
 pub enum GraphMode {
     Normal,
     Slice,
@@ -121,6 +121,24 @@ impl SubAssign<Vec2> for Vec3 {
         self.y -= rhs.y;
     }
 }
+impl Mul<f32> for Vec3 {
+    type Output = Vec3;
+    fn mul(self, rhs: f32) -> Self::Output {
+        Vec3::new(self.x * rhs, self.y * rhs, self.z * rhs)
+    }
+}
+impl Sub for Vec3 {
+    type Output = Vec3;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Vec3::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
+    }
+}
+impl Add for Vec3 {
+    type Output = Vec3;
+    fn add(self, rhs: Self) -> Self::Output {
+        Vec3::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
+    }
+}
 impl Graph {
     pub fn new(data: Vec<GraphType>, start: f32, end: f32) -> Self {
         let offset = Vec3::splat(0.0);
@@ -133,7 +151,7 @@ impl Graph {
             end,
             offset,
             theta: PI / 6.0,
-            phi: -PI / 3.0,
+            phi: PI / 6.0,
             slice: 0,
             show: Show::Complex,
             zoom,
@@ -428,7 +446,7 @@ impl Graph {
         let sin_theta = self.theta.sin();
         let x1 = p.x * cos_phi + p.y * sin_phi;
         let y1 = -p.x * sin_phi + p.y * cos_phi;
-        let z2 = p.z * cos_theta - y1 * sin_theta;
+        let z2 = -p.z * cos_theta - y1 * sin_theta;
         Pos2::new(x1, z2) * self.delta / self.box_size + self.screen / 2.0
     }
     #[allow(clippy::too_many_arguments)]
@@ -439,32 +457,84 @@ impl Graph {
         y: f32,
         z: f32,
         color: &Color32,
-        a: Option<Pos2>,
-        b: Option<Pos2>,
-    ) -> Option<Pos2> {
+        a: Option<(Pos2, Vec3, bool)>,
+        b: Option<(Pos2, Vec3, bool)>,
+    ) -> Option<(Pos2, Vec3, bool)> {
         if !x.is_finite() || !y.is_finite() || !z.is_finite() {
             return None;
         }
-        if x < self.start
-            || x > self.end
-            || y < self.start
-            || y > self.end
-            || z < self.start
-            || z > self.end
-        {
-            return None; //TODO should show lines ending at end of box
+        let v = Vec3::new(x, y, z);
+        let pos = self.vec3_to_pos(v);
+        let inside = x >= self.start
+            && x <= self.end
+            && y >= self.start
+            && y <= self.end
+            && z >= self.start
+            && z <= self.end;
+        if inside {
+            let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
+            painter.rect_filled(rect, 0.0, *color);
         }
-        let pos = self.vec3_to_pos(Vec3::new(x, y, -z));
-        let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
-        painter.rect_filled(rect, 0.0, *color);
         if self.lines {
+            let body = |last: (Pos2, Vec3, bool)| {
+                if inside && last.2 {
+                    painter.line_segment([last.0, pos], Stroke::new(1.0, *color));
+                } else if inside {
+                    let mut vi = last.1;
+                    let xi = vi.x;
+                    if xi < self.start {
+                        vi = v + (vi - v) * ((self.start - x) / (xi - x));
+                    } else if xi > self.end {
+                        vi = v + (vi - v) * ((self.end - x) / (xi - x));
+                    }
+                    let yi = vi.y;
+                    if yi < self.start {
+                        vi = v + (vi - v) * ((self.start - y) / (yi - y));
+                    } else if yi > self.end {
+                        vi = v + (vi - v) * ((self.end - y) / (yi - y));
+                    }
+                    let zi = vi.z;
+                    if zi < self.start {
+                        vi = v + (vi - v) * ((self.start - z) / (zi - z));
+                    } else if zi > self.end {
+                        vi = v + (vi - v) * ((self.end - z) / (zi - z));
+                    }
+                    let last = self.vec3_to_pos(vi);
+                    painter.line_segment([last, pos], Stroke::new(1.0, *color));
+                } else if last.2 {
+                    let mut vi = v;
+                    let v = last.1;
+                    let (x, y, z) = (v.x, v.y, v.z);
+                    let pos = self.vec3_to_pos(v);
+                    let xi = vi.x;
+                    if xi < self.start {
+                        vi = v + (vi - v) * ((self.start - x) / (xi - x));
+                    } else if xi > self.end {
+                        vi = v + (vi - v) * ((self.end - x) / (xi - x));
+                    }
+                    let yi = vi.y;
+                    if yi < self.start {
+                        vi = v + (vi - v) * ((self.start - y) / (yi - y));
+                    } else if yi > self.end {
+                        vi = v + (vi - v) * ((self.end - y) / (yi - y));
+                    }
+                    let zi = vi.z;
+                    if zi < self.start {
+                        vi = v + (vi - v) * ((self.start - z) / (zi - z));
+                    } else if zi > self.end {
+                        vi = v + (vi - v) * ((self.end - z) / (zi - z));
+                    }
+                    let last = self.vec3_to_pos(vi);
+                    painter.line_segment([last, pos], Stroke::new(1.0, *color));
+                }
+            };
             if let Some(last) = a {
-                painter.line_segment([last, pos], Stroke::new(1.0, *color));
+                body(last)
             }
             if let Some(last) = b {
-                painter.line_segment([last, pos], Stroke::new(1.0, *color));
+                body(last)
             }
-            Some(pos)
+            Some((pos, Vec3::new(x, y, z), inside))
         } else {
             None
         }
@@ -475,14 +545,14 @@ impl Graph {
         }
         let s = (self.end - self.start) / 2.0;
         let vertices = [
-            self.vec3_to_pos(Vec3::new(-s, -s, s)),
             self.vec3_to_pos(Vec3::new(-s, -s, -s)),
-            self.vec3_to_pos(Vec3::new(-s, s, s)),
+            self.vec3_to_pos(Vec3::new(-s, -s, s)),
             self.vec3_to_pos(Vec3::new(-s, s, -s)),
-            self.vec3_to_pos(Vec3::new(s, -s, s)),
+            self.vec3_to_pos(Vec3::new(-s, s, s)),
             self.vec3_to_pos(Vec3::new(s, -s, -s)),
-            self.vec3_to_pos(Vec3::new(s, s, s)),
+            self.vec3_to_pos(Vec3::new(s, -s, s)),
             self.vec3_to_pos(Vec3::new(s, s, -s)),
+            self.vec3_to_pos(Vec3::new(s, s, s)),
         ];
         let edges = [
             (0, 1),
@@ -498,45 +568,57 @@ impl Graph {
             (2, 6),
             (3, 7),
         ];
-        let mut zl = 0;
-        for (i, v) in vertices[1..].iter().enumerate() {
-            if v.x < vertices[zl].x || (v.x == vertices[zl].x && v.y > vertices[zl].y) {
-                zl = i + 1
-            }
-        }
         let mut xl = 0;
         for (i, v) in vertices[1..].iter().enumerate() {
             if v.y > vertices[xl].y || (v.y == vertices[xl].y && v.x > vertices[xl].x) {
                 xl = i + 1
             }
         }
+        let mut zl = 0;
+        for (i, v) in vertices[1..].iter().enumerate() {
+            if (v.x < vertices[zl].x || (v.x == vertices[zl].x && v.y > vertices[zl].y))
+                && edges
+                    .iter()
+                    .any(|(m, n)| (*m == i + 1 || *n == i + 1) && (xl == *m || xl == *n))
+            {
+                zl = i + 1
+            }
+        }
         for (k, (i, j)) in edges.iter().enumerate() {
             let s = match k {
-                8 | 9 | 10 | 11 => "x",
-                1 | 3 | 5 | 7 => "y",
-                0 | 2 | 4 | 6 => "z",
+                8 | 9 | 10 | 11 => "\nx",
+                1 | 3 | 5 | 7 => "\ny",
+                0 | 2 | 4 | 6 => "z ",
                 _ => unreachable!(),
             };
-            if (s == "z" && [i, j].contains(&&zl)) || (s != "z" && [i, j].contains(&&xl)) {
+            if (s == "z " && [i, j].contains(&&zl)) || (s != "z " && [i, j].contains(&&xl)) {
                 painter.line_segment(
                     [vertices[*i], vertices[*j]],
                     Stroke::new(2.0, self.axis_color),
                 );
                 let p = vertices[*i] + vertices[*j].to_vec2();
-                painter.text(
-                    p / 2.0,
-                    match s {
-                        "x" if p.x > self.screen.x => Align2::LEFT_TOP,
-                        "y" if p.x < self.screen.x => Align2::RIGHT_TOP,
-                        "x" => Align2::RIGHT_TOP,
-                        "y" => Align2::LEFT_TOP,
-                        "z" => Align2::RIGHT_CENTER,
-                        _ => unreachable!(),
-                    },
-                    s,
-                    FontId::monospace(16.0),
-                    self.text_color,
-                );
+                let align = match s {
+                    "\nx" if p.x > self.screen.x => Align2::LEFT_TOP,
+                    "\ny" if p.x < self.screen.x => Align2::RIGHT_TOP,
+                    "\nx" => Align2::RIGHT_TOP,
+                    "\ny" => Align2::LEFT_TOP,
+                    "z " => Align2::RIGHT_CENTER,
+                    _ => unreachable!(),
+                };
+                painter.text(p / 2.0, align, s, FontId::monospace(16.0), self.text_color);
+                let start = vertices[*i.min(j)];
+                let end = vertices[*i.max(j)];
+                let s = self.start.ceil() as isize;
+                let e = self.end.floor() as isize;
+                for i in s..=e {
+                    painter.text(
+                        start + (i - s) as f32 * (end - start) / (e - s) as f32,
+                        align,
+                        i,
+                        FontId::monospace(16.0),
+                        self.text_color,
+                    );
+                }
             }
         }
     }
@@ -792,7 +874,7 @@ impl Graph {
                 self.offset = Vec3::splat(0.0);
                 self.zoom = 1.0;
                 self.theta = PI / 6.0;
-                self.phi = -PI / 3.0;
+                self.phi = PI / 6.0;
                 self.box_size = 3.0f32.sqrt();
                 self.mouse_position = None;
                 self.mouse_moved = false;
@@ -811,7 +893,7 @@ impl Graph {
     }
     fn plot(&mut self, painter: &Painter, ui: &Ui) {
         for (k, data) in self.data.iter().enumerate() {
-            let (mut a, mut b) = (None, None);
+            let (mut a, mut b, mut c) = (None, None, None);
             match data {
                 GraphType::Width(data, start, end) => match self.graph_mode {
                     GraphMode::Normal
@@ -873,7 +955,7 @@ impl Graph {
                     GraphMode::Depth => {
                         for (i, y) in data.iter().enumerate() {
                             let (y, z) = y.to_options();
-                            a = if let (Some(x), Some(y)) = (y, z) {
+                            c = if let (Some(x), Some(y)) = (y, z) {
                                 let z = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end - start)
                                     + (start + end) / 2.0;
                                 self.draw_point_3d(
@@ -882,7 +964,7 @@ impl Graph {
                                     y,
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
-                                    a,
+                                    c,
                                     None,
                                 )
                             } else {
@@ -949,14 +1031,14 @@ impl Graph {
                     GraphMode::Depth => {
                         for (i, y) in data {
                             let (y, z) = y.to_options();
-                            a = if let (Some(x), Some(y)) = (y, z) {
+                            c = if let (Some(x), Some(y)) = (y, z) {
                                 self.draw_point_3d(
                                     painter,
                                     x,
                                     y,
                                     *i,
                                     &self.main_colors[k % self.main_colors.len()],
-                                    a,
+                                    c,
                                     None,
                                 )
                             } else {
@@ -966,7 +1048,7 @@ impl Graph {
                     }
                 },
                 GraphType::Width3D(data, start_x, start_y, end_x, end_y) => match self.graph_mode {
-                    GraphMode::Normal => {
+                    GraphMode::Flatten | GraphMode::Depth | GraphMode::Normal => {
                         let len = data.len().isqrt();
                         let mut last = Vec::new();
                         let mut cur = Vec::new();
@@ -1104,7 +1186,7 @@ impl Graph {
                             .enumerate()
                         {
                             let (y, z) = y.to_options();
-                            a = if let (Some(x), Some(y)) = (y, z) {
+                            c = if let (Some(x), Some(y)) = (y, z) {
                                 let z = (i as f32 / (len - 1) as f32 - 0.5) * (end_x - start_x)
                                     + (start_x + end_x) / 2.0;
                                 self.draw_point_3d(
@@ -1113,7 +1195,7 @@ impl Graph {
                                     y,
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
-                                    a,
+                                    c,
                                     None,
                                 )
                             } else {
@@ -1121,8 +1203,6 @@ impl Graph {
                             };
                         }
                     }
-                    GraphMode::Flatten => todo!(),
-                    GraphMode::Depth => todo!(),
                     GraphMode::DomainColoring => {
                         let len = data.len().isqrt();
                         let tex = if let Some(tex) = &self.cache {
@@ -1162,9 +1242,51 @@ impl Graph {
                         );
                     }
                 },
-                GraphType::Coord3D(_data) => {
-                    todo!()
-                }
+                GraphType::Coord3D(data) => match self.graph_mode {
+                    GraphMode::Slice
+                    | GraphMode::SliceFlatten
+                    | GraphMode::SliceDepth
+                    | GraphMode::DomainColoring
+                    | GraphMode::Flatten
+                    | GraphMode::Depth
+                    | GraphMode::Normal => {
+                        let mut last = None;
+                        let mut lasti = None;
+                        for (x, y, z) in data {
+                            let (z, w) = z.to_options();
+                            last = if !self.show.real() {
+                                None
+                            } else if let Some(z) = z {
+                                self.draw_point_3d(
+                                    painter,
+                                    *x,
+                                    *y,
+                                    z,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    last,
+                                    None,
+                                )
+                            } else {
+                                None
+                            };
+                            lasti = if !self.show.imag() {
+                                None
+                            } else if let Some(w) = w {
+                                self.draw_point_3d(
+                                    painter,
+                                    *x,
+                                    *y,
+                                    w,
+                                    &self.alt_colors[k % self.alt_colors.len()],
+                                    lasti,
+                                    None,
+                                )
+                            } else {
+                                None
+                            };
+                        }
+                    }
+                },
             }
         }
     }
