@@ -1,6 +1,6 @@
 use egui::{
-    Align2, CentralPanel, Color32, ColorImage, Context, FontId, Key, Painter, Pos2, Rect, Stroke,
-    TextureHandle, TextureOptions, Ui, Vec2,
+    Align2, CentralPanel, Color32, ColorImage, Context, FontId, Key, Painter, Pos2, Rangef, Rect,
+    Stroke, TextureHandle, TextureOptions, Ui, Vec2,
 };
 use std::f32::consts::{PI, TAU};
 use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
@@ -351,88 +351,61 @@ impl Graph {
         }
     }
     fn write_axis(&self, painter: &Painter) {
-        let ni = ((self.end - self.start) / if self.scale_axis { 1.0 } else { self.zoom }) as isize;
-        let n = ni.max(1);
-        let o = -self.delta * (self.start + self.end) / 2.0 * self.zoom;
-        let s = ((self.offset.x + o / (2.0 * self.zoom)) / -self.delta).ceil() as isize;
-        let nyi = (ni as f32 * self.screen.x / self.screen.x).ceil() as isize;
-        let ny = nyi.max(1);
-        let offset = self.offset.y + self.screen.y / 2.0 - (ny / 2) as f32 * self.delta;
-        let sy = (-offset / self.delta).ceil() as isize;
-        for i in s..s + n {
-            let is_center = i == (ni as f32 / 2.0 * self.zoom) as isize;
+        let c = self.to_coord(Pos2::new(0.0, 0.0));
+        let cf = self.to_coord(self.screen.to_pos2());
+        let s = c.x.ceil() as isize;
+        let f = cf.x.floor() as isize;
+        let sy = c.y.floor() as isize;
+        let sf = cf.y.ceil() as isize;
+        for i in s..=f {
+            let is_center = i == 0;
             if !self.disable_lines || (is_center && !self.disable_axis) {
-                let x = i as f32 * self.delta;
-                painter.line_segment(
-                    [
-                        Pos2::new((x + self.offset.x) * self.zoom + o, 0.0),
-                        Pos2::new((x + self.offset.x) * self.zoom + o, self.screen.x),
-                    ],
-                    Stroke::new(
-                        if ni == n && nyi == ny && is_center {
-                            2.0
-                        } else {
-                            1.0
-                        },
-                        self.axis_color,
-                    ),
+                let x = self.to_screen(i as f32, 0.0).x;
+                painter.vline(
+                    x,
+                    Rangef::new(0.0, self.screen.y),
+                    Stroke::new(if is_center { 2.0 } else { 1.0 }, self.axis_color),
                 );
             }
         }
-        if ni == n && nyi == ny && !self.disable_axis {
-            let i = (ni as f32 / 2.0 * self.zoom) as isize;
-            let x = if (s..=s + n).contains(&i) {
-                (i as f32 * self.delta + self.offset.x) * self.zoom + o
+        for i in sf..=sy {
+            let is_center = i == 0;
+            if !self.disable_lines || (is_center && !self.disable_axis) {
+                let y = self.to_screen(0.0, i as f32).y;
+                painter.hline(
+                    Rangef::new(0.0, self.screen.x),
+                    y,
+                    Stroke::new(if is_center { 2.0 } else { 1.0 }, self.axis_color),
+                );
+            }
+        }
+        if !self.disable_axis {
+            let y = if (sf..=sy).contains(&0) {
+                self.to_screen(0.0, 0.0).y
             } else {
                 0.0
             };
-            for j in sy - 1..sy + ny {
-                let y = j as f32 * self.delta;
+            for j in s.saturating_sub(1)..=f {
+                let x = self.to_screen(j as f32, 0.0).x;
                 painter.text(
-                    Pos2::new(x, (y + offset) * self.zoom),
+                    Pos2::new(x, y),
                     Align2::LEFT_TOP,
-                    ((nyi / 2 - j) as f32 / if self.scale_axis { self.zoom } else { 1.0 })
-                        .to_string(),
+                    j.to_string(),
                     FontId::monospace(16.0),
                     self.text_color,
                 );
             }
-        }
-        for i in sy..sy + ny {
-            let is_center = i == ny / 2;
-            if !self.disable_lines || (is_center && !self.disable_axis) {
-                let y = i as f32 * self.delta;
-                painter.line_segment(
-                    [
-                        Pos2::new(0.0, (y + offset) * self.zoom),
-                        Pos2::new(self.screen.x, (y + offset) * self.zoom),
-                    ],
-                    Stroke::new(
-                        if ni == n && nyi == ny && is_center {
-                            2.0
-                        } else {
-                            1.0
-                        },
-                        self.axis_color,
-                    ),
-                );
-            }
-        }
-        if ni == n && nyi == ny && !self.disable_axis {
-            let i = ny / 2;
-            let y = if (sy..=sy + ny).contains(&i) {
-                (i as f32 * self.delta + offset) * self.zoom
+            let x = if (s..=f).contains(&0) {
+                self.to_screen(0.0, 0.0).x
             } else {
                 0.0
             };
-            for j in s - 1..s + n {
-                let x = j as f32 * self.delta;
+            for j in sf..=sy.saturating_add(1) {
+                let y = self.to_screen(0.0, j as f32).y;
                 painter.text(
-                    Pos2::new((x + self.offset.x) * self.zoom + o, y),
+                    Pos2::new(x, y),
                     Align2::LEFT_TOP,
-                    ((j - (ni as f32 / 2.0 * self.zoom) as isize) as f32
-                        / if self.scale_axis { self.zoom } else { 1.0 })
-                    .to_string(),
+                    j.to_string(),
                     FontId::monospace(16.0),
                     self.text_color,
                 );
@@ -586,7 +559,7 @@ impl Graph {
         }
         for (k, (i, j)) in edges.iter().enumerate() {
             let s = match k {
-                8 | 9 | 10 | 11 => "\nx",
+                8..=11 => "\nx",
                 1 | 3 | 5 | 7 => "\ny",
                 0 | 2 | 4 | 6 => "z ",
                 _ => unreachable!(),
@@ -740,7 +713,7 @@ impl Graph {
                 self.disable_coord = !self.disable_coord;
             }
             if i.key_pressed(Key::V) {
-                self.scale_axis = !self.scale_axis;
+                self.scale_axis = !self.scale_axis; //TODO
             }
             if i.key_pressed(Key::R) {
                 self.anti_alias = !self.anti_alias;
@@ -864,7 +837,7 @@ impl Graph {
                 self.zoom /= rt;
             }
             if i.key_pressed(Key::E) && self.zoom <= 2.0f32.powi(12) {
-                self.zoom *= 1.5;
+                self.zoom *= rt;
                 self.offset -= if self.mouse_moved && !self.is_3d {
                     self.mouse_position.unwrap().to_vec2()
                 } else {
@@ -876,7 +849,8 @@ impl Graph {
                 self.phi = (self.phi + i.raw_scroll_delta.x / 512.0) % TAU;
                 self.theta = (self.theta + i.raw_scroll_delta.y / 512.0) % TAU;
             } else {
-                match i.raw_scroll_delta.y.total_cmp(&0.0) {
+                let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
+                match rt.total_cmp(&1.0) {
                     std::cmp::Ordering::Greater if self.zoom <= 2.0f32.powi(12) => {
                         self.zoom *= rt;
                         self.offset -= if self.mouse_moved && !self.is_3d {
@@ -892,8 +866,8 @@ impl Graph {
                         } else {
                             self.screen_offset
                         } / self.zoom
-                            * (rt - 1.0);
-                        self.zoom /= rt;
+                            * (rt.recip() - 1.0);
+                        self.zoom *= rt;
                     }
                     _ => {}
                 }
