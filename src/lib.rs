@@ -53,6 +53,7 @@ pub struct Graph {
     main_colors: Vec<Color32>,
     alt_colors: Vec<Color32>,
     axis_color: Color32,
+    axis_color_light: Color32,
     background_color: Color32,
     text_color: Color32,
     mouse_position: Option<Pos2>,
@@ -182,6 +183,7 @@ impl Graph {
                 Color32::from_rgb(170, 170, 0),
             ],
             axis_color: Color32::BLACK,
+            axis_color_light: Color32::LIGHT_GRAY,
             text_color: Color32::BLACK,
             background_color: Color32::WHITE,
             mouse_position: None,
@@ -221,6 +223,9 @@ impl Graph {
     }
     pub fn set_axis_color(&mut self, color: Color32) {
         self.axis_color = color
+    }
+    pub fn set_axis_color_light(&mut self, color: Color32) {
+        self.axis_color_light = color
     }
     pub fn set_background_color(&mut self, color: Color32) {
         self.background_color = color
@@ -269,12 +274,11 @@ impl Graph {
             self.screen.y / 2.0,
         );
         if !self.is_3d {
-            self.plot(painter, ui);
             self.write_axis(painter);
         } else {
             self.write_axis_3d(painter);
-            self.plot(painter, ui);
         }
+        self.plot(painter, ui);
         if !self.is_3d {
             self.write_coord(painter);
         } else {
@@ -363,9 +367,38 @@ impl Graph {
         let f = cf.x.floor() as isize;
         let sy = c.y.floor() as isize;
         let sf = cf.y.ceil() as isize;
+        if !self.disable_lines && (self.scale_axis || self.zoom > 2.0f32.powi(-4)) {
+            for i in s..=f {
+                for j in -4..4 {
+                    if j != 0 {
+                        let x = self.to_screen(i as f32 + j as f32 / 8.0, 0.0).x;
+                        painter.vline(
+                            x,
+                            Rangef::new(0.0, self.screen.y),
+                            Stroke::new(1.0, self.axis_color_light),
+                        );
+                    }
+                }
+            }
+            for i in sf..=sy {
+                for j in -4..4 {
+                    if j != 0 {
+                        let y = self.to_screen(0.0, i as f32 + j as f32 / 8.0).y;
+                        painter.hline(
+                            Rangef::new(0.0, self.screen.x),
+                            y,
+                            Stroke::new(1.0, self.axis_color_light),
+                        );
+                    }
+                }
+            }
+        }
         for i in s..=f {
             let is_center = i == 0;
-            if !self.disable_lines || (is_center && !self.disable_axis) {
+            if (!self.disable_lines
+                && (is_center || self.scale_axis || self.zoom > 2.0f32.powi(-6)))
+                || (is_center && !self.disable_axis)
+            {
                 let x = self.to_screen(i as f32, 0.0).x;
                 painter.vline(
                     x,
@@ -376,7 +409,10 @@ impl Graph {
         }
         for i in sf..=sy {
             let is_center = i == 0;
-            if !self.disable_lines || (is_center && !self.disable_axis) {
+            if (!self.disable_lines
+                && (is_center || self.scale_axis || self.zoom > 2.0f32.powi(-6)))
+                || (is_center && !self.disable_axis)
+            {
                 let y = self.to_screen(0.0, i as f32).y;
                 painter.hline(
                     Rangef::new(0.0, self.screen.x),
@@ -385,7 +421,7 @@ impl Graph {
                 );
             }
         }
-        if !self.disable_axis {
+        if !self.disable_axis && (self.scale_axis || self.zoom > 2.0f32.powi(-6)) {
             let y = if (sf..=sy).contains(&0) {
                 self.to_screen(0.0, 0.0).y
             } else {
