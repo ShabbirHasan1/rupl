@@ -436,6 +436,7 @@ impl Graph {
         if !x.is_finite() || !y.is_finite() || !z.is_finite() {
             return None;
         }
+        let z = z + self.offset.z;
         let v = Vec3::new(x, y, z);
         let pos = self.vec3_to_pos(v);
         let inside = x >= self.start
@@ -561,10 +562,10 @@ impl Graph {
             let s = match k {
                 8..=11 => "\nx",
                 1 | 3 | 5 | 7 => "\ny",
-                0 | 2 | 4 | 6 => "z ",
+                0 | 2 | 4 | 6 => "z",
                 _ => unreachable!(),
             };
-            if (s == "z " && [i, j].contains(&&zl)) || (s != "z " && [i, j].contains(&&xl)) {
+            if (s == "z" && [i, j].contains(&&zl)) || (s != "z" && [i, j].contains(&&xl)) {
                 painter.line_segment(
                     [vertices[*i], vertices[*j]],
                     Stroke::new(2.0, self.axis_color),
@@ -575,19 +576,31 @@ impl Graph {
                     "\ny" if p.x < self.screen.x => Align2::RIGHT_TOP,
                     "\nx" => Align2::RIGHT_TOP,
                     "\ny" => Align2::LEFT_TOP,
-                    "z " => Align2::RIGHT_CENTER,
+                    "z" => Align2::RIGHT_CENTER,
                     _ => unreachable!(),
                 };
-                painter.text(p / 2.0, align, s, FontId::monospace(16.0), self.text_color);
                 let start = vertices[*i.min(j)];
                 let end = vertices[*i.max(j)];
-                let s = self.start.ceil() as isize;
+                let st = self.start.ceil() as isize;
                 let e = self.end.floor() as isize;
-                for i in s..=e {
+                let n = ((st + (e - st) / 2) as f32 - if s == "z" { self.offset.z } else { 0.0 })
+                    .to_string();
+                painter.text(
+                    p / 2.0,
+                    align,
+                    if s == "z" {
+                        format!("z{}", " ".repeat(n.len()))
+                    } else {
+                        s.to_string()
+                    },
+                    FontId::monospace(16.0),
+                    self.text_color,
+                );
+                for i in st..=e {
                     painter.text(
-                        start + (i - s) as f32 * (end - start) / (e - s) as f32,
+                        start + (i - st) as f32 * (end - start) / (e - st) as f32,
                         align,
-                        i,
+                        i as f32 - if s == "z" { self.offset.z } else { 0.0 },
                         FontId::monospace(16.0),
                         self.text_color,
                     );
@@ -721,10 +734,10 @@ impl Graph {
             }
             if self.is_3d {
                 if i.key_pressed(Key::F) {
-                    self.offset.z += a;
+                    self.offset.z += 1.0;
                 }
                 if i.key_pressed(Key::G) {
-                    self.offset.z -= a;
+                    self.offset.z -= 1.0;
                 }
                 let mut changed = false;
                 if i.key_pressed(Key::Semicolon) && self.box_size > 0.1 {
