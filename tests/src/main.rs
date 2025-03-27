@@ -22,6 +22,7 @@ impl App {
     fn new() -> Self {
         let plot = Graph::new(
             vec![grab_width3d("data/data14", -2.0, -2.0, 2.0, 2.0)],
+            false,
             -2.0,
             2.0,
         );

@@ -37,6 +37,7 @@ pub struct Graph {
     cache: Option<TextureHandle>,
     start: f32,
     end: f32,
+    is_complex: bool,
     offset: Vec3,
     theta: f32,
     phi: f32,
@@ -140,7 +141,7 @@ impl Add for Vec3 {
     }
 }
 impl Graph {
-    pub fn new(data: Vec<GraphType>, start: f32, end: f32) -> Self {
+    pub fn new(data: Vec<GraphType>, is_complex: bool, start: f32, end: f32) -> Self {
         let offset = Vec3::splat(0.0);
         let zoom = 1.0;
         let is_3d = is_3d(&data);
@@ -153,6 +154,7 @@ impl Graph {
             theta: PI / 6.0,
             phi: PI / 6.0,
             slice: 0,
+            is_complex,
             show: Show::Complex,
             zoom,
             screen: Vec2::splat(0.0),
@@ -300,8 +302,8 @@ impl Graph {
                 Align2::LEFT_BOTTOM,
                 format!(
                     "{{{},{}}}",
-                    (self.theta / TAU * 360.0).round(),
-                    (self.phi / TAU * 360.0).round()
+                    (self.phi / TAU * 360.0).round(),
+                    ((0.25 - self.theta / TAU) * 360.0).round(),
                 ),
                 FontId::monospace(16.0),
                 self.text_color,
@@ -785,64 +787,80 @@ impl Graph {
                 }
             }
             if i.key_pressed(Key::B) {
-                self.graph_mode = match self.graph_mode {
-                    GraphMode::Normal if shift => {
-                        if self.is_3d {
+                if self.is_complex {
+                    self.graph_mode = match self.graph_mode {
+                        GraphMode::Normal if shift => {
+                            if self.is_3d {
+                                self.is_3d = false;
+                                GraphMode::DomainColoring
+                            } else {
+                                self.is_3d = true;
+                                GraphMode::Depth
+                            }
+                        }
+                        GraphMode::Slice if shift => {
+                            self.is_3d = true;
+                            GraphMode::Normal
+                        }
+                        GraphMode::SliceDepth if shift => {
+                            self.is_3d = false;
+                            GraphMode::SliceFlatten
+                        }
+                        GraphMode::SliceFlatten if shift => GraphMode::Slice,
+                        GraphMode::Flatten if shift => GraphMode::Normal,
+                        GraphMode::DomainColoring if shift => {
+                            self.is_3d = true;
+                            GraphMode::SliceDepth
+                        }
+                        GraphMode::Depth if shift => {
+                            self.is_3d = false;
+                            GraphMode::Flatten
+                        }
+                        GraphMode::Normal => {
+                            if self.is_3d {
+                                self.is_3d = false;
+                                GraphMode::Slice
+                            } else {
+                                GraphMode::Flatten
+                            }
+                        }
+                        GraphMode::Slice => GraphMode::SliceFlatten,
+                        GraphMode::SliceFlatten => {
+                            self.is_3d = true;
+                            GraphMode::SliceDepth
+                        }
+                        GraphMode::SliceDepth => {
                             self.is_3d = false;
                             GraphMode::DomainColoring
-                        } else {
+                        }
+                        GraphMode::Flatten => {
                             self.is_3d = true;
                             GraphMode::Depth
                         }
-                    }
-                    GraphMode::Slice if shift => {
-                        self.is_3d = true;
-                        GraphMode::Normal
-                    }
-                    GraphMode::SliceDepth if shift => {
-                        self.is_3d = false;
-                        GraphMode::SliceFlatten
-                    }
-                    GraphMode::SliceFlatten if shift => GraphMode::Slice,
-                    GraphMode::Flatten if shift => GraphMode::Normal,
-                    GraphMode::DomainColoring if shift => {
-                        self.is_3d = true;
-                        GraphMode::SliceDepth
-                    }
-                    GraphMode::Depth if shift => {
-                        self.is_3d = false;
-                        GraphMode::Flatten
-                    }
-                    GraphMode::Normal => {
-                        if self.is_3d {
+                        GraphMode::Depth => {
                             self.is_3d = false;
-                            GraphMode::Slice
-                        } else {
-                            GraphMode::Flatten
+                            GraphMode::Normal
                         }
+                        GraphMode::DomainColoring => {
+                            self.is_3d = true;
+                            GraphMode::Normal
+                        }
+                    };
+                } else {
+                    match self.graph_mode {
+                        GraphMode::Normal => {
+                            if self.is_3d {
+                                self.is_3d = false;
+                                self.graph_mode = GraphMode::Slice
+                            }
+                        }
+                        GraphMode::Slice => {
+                            self.is_3d = true;
+                            self.graph_mode = GraphMode::Normal;
+                        }
+                        _ => {}
                     }
-                    GraphMode::Slice => GraphMode::SliceFlatten,
-                    GraphMode::SliceFlatten => {
-                        self.is_3d = true;
-                        GraphMode::SliceDepth
-                    }
-                    GraphMode::SliceDepth => {
-                        self.is_3d = false;
-                        GraphMode::DomainColoring
-                    }
-                    GraphMode::Flatten => {
-                        self.is_3d = true;
-                        GraphMode::Depth
-                    }
-                    GraphMode::Depth => {
-                        self.is_3d = false;
-                        GraphMode::Normal
-                    }
-                    GraphMode::DomainColoring => {
-                        self.is_3d = true;
-                        GraphMode::Normal
-                    }
-                };
+                }
             }
             let rt = 2.0;
             if i.key_pressed(Key::Q) && self.zoom >= 2.0f32.powi(-12) {
