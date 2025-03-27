@@ -501,6 +501,7 @@ impl Graph {
                     let last = self.vec3_to_pos(vi);
                     painter.line_segment([last, pos], Stroke::new(1.0, *color));
                 }
+                //TODO deal with lines only intersecting
             };
             if let Some(last) = a {
                 body(last)
@@ -619,7 +620,7 @@ impl Graph {
                 if let (Some(interact), Some(last)) = (interact, self.last_interact) {
                     let delta = interact - last;
                     if self.is_3d {
-                        self.phi = (self.phi + delta.x / 512.0) % TAU;
+                        self.phi = (self.phi - delta.x / 512.0) % TAU;
                         self.theta = (self.theta + delta.y / 512.0) % TAU;
                     } else {
                         self.offset += delta / self.zoom;
@@ -631,7 +632,7 @@ impl Graph {
                 match multi.zoom_delta.total_cmp(&1.0) {
                     std::cmp::Ordering::Greater if self.zoom <= 2.0f32.powi(12) => {
                         if self.is_3d {
-                            self.box_size *= multi.zoom_delta;
+                            self.box_size /= multi.zoom_delta;
                         } else {
                             self.zoom *= multi.zoom_delta;
                             self.offset -= if self.mouse_moved && !self.is_3d {
@@ -644,7 +645,7 @@ impl Graph {
                     }
                     std::cmp::Ordering::Less if self.zoom >= 2.0f32.powi(-12) => {
                         if self.is_3d {
-                            self.box_size *= multi.zoom_delta;
+                            self.box_size /= multi.zoom_delta;
                         } else {
                             self.offset += if self.mouse_moved && !self.is_3d {
                                 self.mouse_position.unwrap().to_vec2()
@@ -658,7 +659,7 @@ impl Graph {
                     _ => {}
                 }
                 if self.is_3d {
-                    self.phi = (self.phi + multi.translation_delta.x / 512.0) % TAU;
+                    self.phi = (self.phi - multi.translation_delta.x / 512.0) % TAU;
                     self.theta = (self.theta + multi.translation_delta.y / 512.0) % TAU;
                 } else {
                     self.offset += multi.translation_delta / self.zoom
@@ -859,7 +860,7 @@ impl Graph {
                     * (rt - 1.0);
             }
             if self.is_3d {
-                self.phi = (self.phi + i.raw_scroll_delta.x / 512.0) % TAU;
+                self.phi = (self.phi - i.raw_scroll_delta.x / 512.0) % TAU;
                 self.theta = (self.theta + i.raw_scroll_delta.y / 512.0) % TAU;
             } else {
                 let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
