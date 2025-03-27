@@ -286,7 +286,7 @@ impl Graph {
                 painter.text(
                     Pos2::new(0.0, self.screen.y),
                     Align2::LEFT_BOTTOM,
-                    format!("{{{},{}}}", p.x, p.y),
+                    format!("{{{0:.5},{1:.5}}}", p.x, p.y),
                     FontId::monospace(16.0),
                     self.text_color,
                 );
@@ -298,7 +298,11 @@ impl Graph {
             painter.text(
                 Pos2::new(0.0, self.screen.y),
                 Align2::LEFT_BOTTOM,
-                format!("{{{},{}}}", self.theta, self.phi),
+                format!(
+                    "{{{},{}}}",
+                    (self.theta / TAU * 360.0).round(),
+                    (self.phi / TAU * 360.0).round()
+                ),
                 FontId::monospace(16.0),
                 self.text_color,
             );
@@ -620,8 +624,8 @@ impl Graph {
                 if let (Some(interact), Some(last)) = (interact, self.last_interact) {
                     let delta = interact - last;
                     if self.is_3d {
-                        self.phi = (self.phi - delta.x / 512.0) % TAU;
-                        self.theta = (self.theta + delta.y / 512.0) % TAU;
+                        self.phi = (self.phi - delta.x / 512.0).rem_euclid(TAU);
+                        self.theta = (self.theta + delta.y / 512.0).rem_euclid(TAU);
                     } else {
                         self.offset += delta / self.zoom;
                     }
@@ -659,8 +663,8 @@ impl Graph {
                     _ => {}
                 }
                 if self.is_3d {
-                    self.phi = (self.phi - multi.translation_delta.x / 512.0) % TAU;
-                    self.theta = (self.theta + multi.translation_delta.y / 512.0) % TAU;
+                    self.phi = (self.phi - multi.translation_delta.x / 512.0).rem_euclid(TAU);
+                    self.theta = (self.theta + multi.translation_delta.y / 512.0).rem_euclid(TAU);
                 } else {
                     self.offset += multi.translation_delta / self.zoom
                 }
@@ -691,28 +695,28 @@ impl Graph {
             };
             if i.key_pressed(Key::A) || i.key_pressed(Key::ArrowLeft) {
                 if self.is_3d {
-                    self.phi = ((self.phi / b - 1.0).round() * b) % TAU;
+                    self.phi = ((self.phi / b - 1.0).round() * b).rem_euclid(TAU);
                 } else {
                     self.offset.x += a;
                 }
             }
             if i.key_pressed(Key::D) || i.key_pressed(Key::ArrowRight) {
                 if self.is_3d {
-                    self.phi = ((self.phi / b + 1.0).round() * b) % TAU;
+                    self.phi = ((self.phi / b + 1.0).round() * b).rem_euclid(TAU);
                 } else {
                     self.offset.x -= a;
                 }
             }
             if i.key_pressed(Key::W) || i.key_pressed(Key::ArrowUp) {
                 if self.is_3d {
-                    self.theta = ((self.theta / b - 1.0).round() * b) % TAU;
+                    self.theta = ((self.theta / b - 1.0).round() * b).rem_euclid(TAU);
                 } else {
                     self.offset.y += a;
                 }
             }
             if i.key_pressed(Key::S) || i.key_pressed(Key::ArrowDown) {
                 if self.is_3d {
-                    self.theta = ((self.theta / b + 1.0).round() * b) % TAU;
+                    self.theta = ((self.theta / b + 1.0).round() * b).rem_euclid(TAU);
                 } else {
                     self.offset.y -= a;
                 }
@@ -860,8 +864,8 @@ impl Graph {
                     * (rt - 1.0);
             }
             if self.is_3d {
-                self.phi = (self.phi - i.raw_scroll_delta.x / 512.0) % TAU;
-                self.theta = (self.theta + i.raw_scroll_delta.y / 512.0) % TAU;
+                self.phi = (self.phi - i.raw_scroll_delta.x / 512.0).rem_euclid(TAU);
+                self.theta = (self.theta + i.raw_scroll_delta.y / 512.0).rem_euclid(TAU);
             } else {
                 let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
                 match rt.total_cmp(&1.0) {
