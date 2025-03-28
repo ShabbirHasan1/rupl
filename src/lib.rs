@@ -19,6 +19,11 @@ pub enum GraphType {
     Width3D(Vec<Complex>, f32, f32, f32, f32),
     Coord3D(Vec<(f32, f32, Complex)>),
 }
+#[derive(Copy, Clone)]
+pub enum Draw {
+    Line(Pos2, Pos2, f32),
+    Point(Pos2),
+}
 pub enum Show {
     Real,
     Imag,
@@ -40,6 +45,7 @@ pub struct Graph {
     is_complex: bool,
     offset: Vec3,
     theta: f32,
+    ignore_bounds: bool,
     phi: f32,
     zoom: f32,
     slice: usize,
@@ -50,6 +56,7 @@ pub struct Graph {
     delta: f32,
     show: Show,
     anti_alias: bool,
+    color_depth: bool,
     show_box: bool,
     main_colors: Vec<Color32>,
     alt_colors: Vec<Color32>,
@@ -158,12 +165,14 @@ impl Graph {
             slice: 0,
             is_complex,
             show: Show::Complex,
+            ignore_bounds: false,
             zoom,
             screen: Vec2::splat(0.0),
             screen_offset: Vec2::splat(0.0),
             delta: 0.0,
             show_box: false,
             view_x: false,
+            color_depth: false,
             box_size: 3.0f32.sqrt(),
             anti_alias: true,
             lines: true,
@@ -279,10 +288,19 @@ impl Graph {
             self.write_axis(painter);
             self.plot(painter, ui);
         } else {
-            let lines = self.write_axis_3d(painter);
-            self.plot(painter, ui);
-            for (a, b) in lines {
-                painter.line_segment([a, b], Stroke::new(2.0, self.axis_color));
+            let mut pts = self.plot(painter, ui);
+            pts.extend(self.write_axis_3d(painter));
+            pts.sort_by(|a, b| a.0.total_cmp(&b.0));
+            for (_, a, c) in pts.into_iter() {
+                match a {
+                    Draw::Line(a, b, t) => {
+                        painter.line_segment([a, b], Stroke::new(t, c));
+                    }
+                    Draw::Point(a) => {
+                        let rect = Rect::from_center_size(a, Vec2::splat(3.0));
+                        painter.rect_filled(rect, 0.0, c);
+                    }
+                }
             }
         }
         if !self.is_3d {
@@ -313,7 +331,9 @@ impl Graph {
                 format!(
                     "{{{},{}}}",
                     (self.phi / TAU * 360.0).round(),
-                    ((0.25 - self.theta / TAU) * 360.0).round(),
+                    ((0.25 - self.theta / TAU) * 360.0)
+                        .round()
+                        .rem_euclid(360.0),
                 ),
                 FontId::monospace(16.0),
                 self.text_color,
@@ -460,7 +480,21 @@ impl Graph {
             }
         }
     }
-    fn vec3_to_pos(&self, p: Vec3) -> Pos2 {
+    fn vec3_to_pos_depth(&self, p: Vec3) -> (Pos2, f32) {
+        let cos_phi = self.phi.cos();
+        let sin_phi = self.phi.sin();
+        let cos_theta = self.theta.cos();
+        let sin_theta = self.theta.sin();
+        let x1 = p.x * cos_phi + p.y * sin_phi;
+        let y1 = -p.x * sin_phi + p.y * cos_phi;
+        let z2 = -p.z * cos_theta - y1 * sin_theta;
+        let d = p.z * sin_theta - y1 * cos_theta;
+        (
+            Pos2::new(x1, z2) * self.delta / self.box_size + self.screen / 2.0,
+            d / ((self.end - self.start) * 3.0f32.sqrt()) + 0.5,
+        )
+    }
+    /*fn vec3_to_pos(&self, p: Vec3) -> Pos2 {
         let cos_phi = self.phi.cos();
         let sin_phi = self.phi.sin();
         let cos_theta = self.theta.cos();
@@ -469,38 +503,43 @@ impl Graph {
         let y1 = -p.x * sin_phi + p.y * cos_phi;
         let z2 = -p.z * cos_theta - y1 * sin_theta;
         Pos2::new(x1, z2) * self.delta / self.box_size + self.screen / 2.0
-    }
+    }*/
     #[allow(clippy::too_many_arguments)]
     fn draw_point_3d(
         &self,
-        painter: &Painter,
         x: f32,
         y: f32,
         z: f32,
         color: &Color32,
-        a: Option<(Pos2, Vec3, bool)>,
-        b: Option<(Pos2, Vec3, bool)>,
-    ) -> Option<(Pos2, Vec3, bool)> {
+        a: Option<((Pos2, f32), Vec3, bool)>,
+        b: Option<((Pos2, f32), Vec3, bool)>,
+    ) -> (Option<((Pos2, f32), Vec3, bool)>, Vec<(f32, Draw, Color32)>) {
+        let mut draws = Vec::new();
         if !x.is_finite() || !y.is_finite() || !z.is_finite() {
-            return None;
+            return (None, draws);
         }
         let z = z + self.offset.z;
         let v = Vec3::new(x, y, z);
-        let pos = self.vec3_to_pos(v);
-        let inside = x >= self.start
-            && x <= self.end
-            && y >= self.start
-            && y <= self.end
-            && z >= self.start
-            && z <= self.end;
+        let pos = self.vec3_to_pos_depth(v);
+        let inside = self.ignore_bounds
+            || (x >= self.start
+                && x <= self.end
+                && y >= self.start
+                && y <= self.end
+                && z >= self.start
+                && z <= self.end);
         if inside {
-            let rect = Rect::from_center_size(pos, Vec2::splat(3.0));
-            painter.rect_filled(rect, 0.0, *color);
+            draws.push((pos.1, Draw::Point(pos.0), self.shift_hue(pos.1, color)));
         }
         if self.lines {
-            let body = |last: (Pos2, Vec3, bool)| {
+            let mut body = |last: ((Pos2, f32), Vec3, bool)| {
                 if inside && last.2 {
-                    painter.line_segment([last.0, pos], Stroke::new(1.0, *color));
+                    let d = (pos.1 + last.0.1) / 2.0;
+                    draws.push((
+                        d,
+                        Draw::Line(last.0.0, pos.0, 1.0),
+                        self.shift_hue(d, color),
+                    ));
                 } else if inside {
                     let mut vi = last.1;
                     let xi = vi.x;
@@ -521,13 +560,14 @@ impl Graph {
                     } else if zi > self.end {
                         vi = v + (vi - v) * ((self.end - z) / (zi - z));
                     }
-                    let last = self.vec3_to_pos(vi);
-                    painter.line_segment([last, pos], Stroke::new(1.0, *color));
+                    let last = self.vec3_to_pos_depth(vi);
+                    let d = (pos.1 + last.1) / 2.0;
+                    draws.push((d, Draw::Line(last.0, pos.0, 1.0), self.shift_hue(d, color)));
                 } else if last.2 {
                     let mut vi = v;
                     let v = last.1;
                     let (x, y, z) = (v.x, v.y, v.z);
-                    let pos = self.vec3_to_pos(v);
+                    let pos = self.vec3_to_pos_depth(v);
                     let xi = vi.x;
                     if xi < self.start {
                         vi = v + (vi - v) * ((self.start - x) / (xi - x));
@@ -546,8 +586,9 @@ impl Graph {
                     } else if zi > self.end {
                         vi = v + (vi - v) * ((self.end - z) / (zi - z));
                     }
-                    let last = self.vec3_to_pos(vi);
-                    painter.line_segment([last, pos], Stroke::new(1.0, *color));
+                    let last = self.vec3_to_pos_depth(vi);
+                    let d = (pos.1 + last.1) / 2.0;
+                    draws.push((d, Draw::Line(last.0, pos.0, 1.0), self.shift_hue(d, color)));
                 }
                 //TODO deal with lines only intersecting
             };
@@ -557,26 +598,26 @@ impl Graph {
             if let Some(last) = b {
                 body(last)
             }
-            Some((pos, Vec3::new(x, y, z), inside))
+            (Some((pos, Vec3::new(x, y, z), inside)), draws)
         } else {
-            None
+            (None, draws)
         }
     }
-    fn write_axis_3d(&self, painter: &Painter) -> Vec<(Pos2, Pos2)> {
+    fn write_axis_3d(&self, painter: &Painter) -> Vec<(f32, Draw, Color32)> {
         let mut lines = Vec::new();
         if self.disable_axis {
             return lines;
         }
         let s = (self.end - self.start) / 2.0;
         let vertices = [
-            self.vec3_to_pos(Vec3::new(-s, -s, -s)),
-            self.vec3_to_pos(Vec3::new(-s, -s, s)),
-            self.vec3_to_pos(Vec3::new(-s, s, -s)),
-            self.vec3_to_pos(Vec3::new(-s, s, s)),
-            self.vec3_to_pos(Vec3::new(s, -s, -s)),
-            self.vec3_to_pos(Vec3::new(s, -s, s)),
-            self.vec3_to_pos(Vec3::new(s, s, -s)),
-            self.vec3_to_pos(Vec3::new(s, s, s)),
+            self.vec3_to_pos_depth(Vec3::new(-s, -s, -s)),
+            self.vec3_to_pos_depth(Vec3::new(-s, -s, s)),
+            self.vec3_to_pos_depth(Vec3::new(-s, s, -s)),
+            self.vec3_to_pos_depth(Vec3::new(-s, s, s)),
+            self.vec3_to_pos_depth(Vec3::new(s, -s, -s)),
+            self.vec3_to_pos_depth(Vec3::new(s, -s, s)),
+            self.vec3_to_pos_depth(Vec3::new(s, s, -s)),
+            self.vec3_to_pos_depth(Vec3::new(s, s, s)),
         ];
         let edges = [
             (0, 1),
@@ -594,13 +635,13 @@ impl Graph {
         ];
         let mut xl = 0;
         for (i, v) in vertices[1..].iter().enumerate() {
-            if v.y > vertices[xl].y || (v.y == vertices[xl].y && v.x > vertices[xl].x) {
+            if v.0.y > vertices[xl].0.y || (v.0.y == vertices[xl].0.y && v.0.x > vertices[xl].0.x) {
                 xl = i + 1
             }
         }
         let mut zl = 0;
         for (i, v) in vertices[1..].iter().enumerate() {
-            if (v.x < vertices[zl].x || (v.x == vertices[zl].x && v.y > vertices[zl].y))
+            if (v.0.x < vertices[zl].0.x || (v.0.x == vertices[zl].0.x && v.0.y > vertices[zl].0.y))
                 && edges
                     .iter()
                     .any(|(m, n)| (*m == i + 1 || *n == i + 1) && (xl == *m || xl == *n))
@@ -616,11 +657,20 @@ impl Graph {
                 _ => unreachable!(),
             };
             if (s == "z" && [i, j].contains(&&zl)) || (s != "z" && [i, j].contains(&&xl)) {
-                painter.line_segment(
-                    [vertices[*i], vertices[*j]],
-                    Stroke::new(2.0, self.axis_color),
-                );
-                let p = vertices[*i] + vertices[*j].to_vec2();
+                lines.push((
+                    if vertices[*i].1 < 0.5 || vertices[*j].1 < 0.5 {
+                        0.0
+                    } else {
+                        1.0
+                    },
+                    Draw::Line(
+                        vertices[*i].0,
+                        vertices[*j].0,
+                        vertices[*i].1 + vertices[*j].1,
+                    ),
+                    self.axis_color,
+                ));
+                let p = vertices[*i].0 + vertices[*j].0.to_vec2();
                 let align = match s {
                     "\nx" if p.x > self.screen.x => Align2::LEFT_TOP,
                     "\ny" if p.x < self.screen.x => Align2::RIGHT_TOP,
@@ -629,8 +679,8 @@ impl Graph {
                     "z" => Align2::RIGHT_CENTER,
                     _ => unreachable!(),
                 };
-                let start = vertices[*i.min(j)];
-                let end = vertices[*i.max(j)];
+                let start = vertices[*i.min(j)].0;
+                let end = vertices[*i.max(j)].0;
                 let st = self.start.ceil() as isize;
                 let e = self.end.floor() as isize;
                 let n = ((st + (e - st) / 2) as f32 - if s == "z" { self.offset.z } else { 0.0 })
@@ -656,7 +706,19 @@ impl Graph {
                     );
                 }
             } else if self.show_box {
-                lines.push((vertices[*i], vertices[*j]))
+                lines.push((
+                    if vertices[*i].1 < 0.5 || vertices[*j].1 < 0.5 {
+                        0.0
+                    } else {
+                        1.0
+                    },
+                    Draw::Line(
+                        vertices[*i].0,
+                        vertices[*j].0,
+                        vertices[*i].1 + vertices[*j].1,
+                    ),
+                    self.axis_color,
+                ));
             }
         }
         lines
@@ -791,6 +853,12 @@ impl Graph {
                 }
                 if i.key_pressed(Key::G) {
                     self.offset.z -= 1.0;
+                }
+                if i.key_pressed(Key::P) {
+                    self.ignore_bounds = !self.ignore_bounds;
+                }
+                if i.key_pressed(Key::O) {
+                    self.color_depth = !self.color_depth;
                 }
                 let mut changed = false;
                 if i.key_pressed(Key::Semicolon) && self.box_size > 0.1 {
@@ -981,7 +1049,8 @@ impl Graph {
             }
         });
     }
-    fn plot(&mut self, painter: &Painter, ui: &Ui) {
+    fn plot(&mut self, painter: &Painter, ui: &Ui) -> Vec<(f32, Draw, Color32)> {
+        let mut pts = Vec::new();
         for (k, data) in self.data.iter().enumerate() {
             let (mut a, mut b, mut c) = (None, None, None);
             match data {
@@ -1048,15 +1117,16 @@ impl Graph {
                             c = if let (Some(x), Some(y)) = (y, z) {
                                 let z = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end - start)
                                     + (start + end) / 2.0;
-                                self.draw_point_3d(
-                                    painter,
+                                let (c, d) = self.draw_point_3d(
                                     x,
                                     y,
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     c,
                                     None,
-                                )
+                                );
+                                pts.extend(d);
+                                c
                             } else {
                                 None
                             };
@@ -1122,15 +1192,16 @@ impl Graph {
                         for (i, y) in data {
                             let (y, z) = y.to_options();
                             c = if let (Some(x), Some(y)) = (y, z) {
-                                self.draw_point_3d(
-                                    painter,
+                                let (c, d) = self.draw_point_3d(
                                     x,
                                     y,
                                     *i,
                                     &self.main_colors[k % self.main_colors.len()],
                                     c,
                                     None,
-                                )
+                                );
+                                pts.extend(d);
+                                c
                             } else {
                                 None
                             };
@@ -1154,15 +1225,16 @@ impl Graph {
                             let p = if !self.show.real() {
                                 None
                             } else if let Some(z) = z {
-                                self.draw_point_3d(
-                                    painter,
+                                let (c, d) = self.draw_point_3d(
                                     x,
                                     y,
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     if i == 0 { None } else { cur[i - 1] },
                                     if j == 0 { None } else { last[i] },
-                                )
+                                );
+                                pts.extend(d);
+                                c
                             } else {
                                 None
                             };
@@ -1173,15 +1245,16 @@ impl Graph {
                             let p = if !self.show.imag() {
                                 None
                             } else if let Some(w) = w {
-                                self.draw_point_3d(
-                                    painter,
+                                let (c, d) = self.draw_point_3d(
                                     x,
                                     y,
                                     w,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     if i == 0 { None } else { curi[i - 1] },
                                     if j == 0 { None } else { lasti[i] },
-                                )
+                                );
+                                pts.extend(d);
+                                c
                             } else {
                                 None
                             };
@@ -1279,15 +1352,16 @@ impl Graph {
                             c = if let (Some(x), Some(y)) = (y, z) {
                                 let z = (i as f32 / (len - 1) as f32 - 0.5) * (end_x - start_x)
                                     + (start_x + end_x) / 2.0;
-                                self.draw_point_3d(
-                                    painter,
+                                let (c, d) = self.draw_point_3d(
                                     x,
                                     y,
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     c,
                                     None,
-                                )
+                                );
+                                pts.extend(d);
+                                c
                             } else {
                                 None
                             };
@@ -1347,30 +1421,32 @@ impl Graph {
                             last = if !self.show.real() {
                                 None
                             } else if let Some(z) = z {
-                                self.draw_point_3d(
-                                    painter,
+                                let (c, d) = self.draw_point_3d(
                                     *x,
                                     *y,
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     last,
                                     None,
-                                )
+                                );
+                                pts.extend(d);
+                                c
                             } else {
                                 None
                             };
                             lasti = if !self.show.imag() {
                                 None
                             } else if let Some(w) = w {
-                                self.draw_point_3d(
-                                    painter,
+                                let (c, d) = self.draw_point_3d(
                                     *x,
                                     *y,
                                     w,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     lasti,
                                     None,
-                                )
+                                );
+                                pts.extend(d);
+                                c
                             } else {
                                 None
                             };
@@ -1379,6 +1455,7 @@ impl Graph {
                 },
             }
         }
+        pts
     }
     fn get_color(&self, z: &Complex) -> [u8; 3] {
         let (x, y) = z.to_options();
@@ -1392,6 +1469,13 @@ impl Graph {
             (t1 * t2).abs().powf(0.125)
         };
         hsv2rgb(hue, sat, val)
+    }
+    fn shift_hue(&self, diff: f32, color: &Color32) -> Color32 {
+        if self.color_depth {
+            shift_hue(diff, color)
+        } else {
+            *color
+        }
     }
 }
 fn hsv2rgb(hue: f32, sat: f32, val: f32) -> [u8; 3] {
@@ -1414,4 +1498,66 @@ fn hsv2rgb(hue: f32, sat: f32, val: f32) -> [u8; 3] {
 }
 fn rgb2val(r: f32, g: f32, b: f32) -> [u8; 3] {
     [(255.0 * r) as u8, (255.0 * g) as u8, (255.0 * b) as u8]
+}
+pub fn get_lch(color: [f32; 3]) -> (f32, f32, f32) {
+    let c = (color[1].powi(2) + color[2].powi(2)).sqrt();
+    let h = color[2].atan2(color[1]);
+    (color[0], c, h)
+}
+pub fn rgb_to_oklch(color: &mut [f32; 3]) {
+    let mut l = 0.4122214694707629 * color[0]
+        + 0.5363325372617349 * color[1]
+        + 0.0514459932675022 * color[2];
+    let mut m = 0.2119034958178251 * color[0]
+        + 0.6806995506452344 * color[1]
+        + 0.1073969535369405 * color[2];
+    let mut s = 0.0883024591900564 * color[0]
+        + 0.2817188391361215 * color[1]
+        + 0.6299787016738222 * color[2];
+
+    l = l.cbrt();
+    m = m.cbrt();
+    s = s.cbrt();
+
+    color[0] = 0.210454268309314 * l + 0.7936177747023054 * m - 0.0040720430116193 * s;
+    color[1] = 1.9779985324311684 * l - 2.42859224204858 * m + 0.450593709617411 * s;
+    color[2] = 0.0259040424655478 * l + 0.7827717124575296 * m - 0.8086757549230774 * s;
+}
+fn oklch_to_rgb(color: &mut [f32; 3]) {
+    let mut l = color[0] + 0.3963377773761749 * color[1] + 0.2158037573099136 * color[2];
+    let mut m = color[0] - 0.1055613458156586 * color[1] - 0.0638541728258133 * color[2];
+    let mut s = color[0] - 0.0894841775298119 * color[1] - 1.2914855480194092 * color[2];
+
+    l = l.powi(3);
+    m = m.powi(3);
+    s = s.powi(3);
+
+    color[0] = 4.07674163607596 * l - 3.3077115392580635 * m + 0.2309699031821046 * s;
+    color[1] = -1.2684379732850317 * l + 2.6097573492876887 * m - 0.3413193760026572 * s;
+    color[2] = -0.0041960761386754 * l - 0.7034186179359363 * m + 1.7076146940746116 * s;
+}
+fn shift_hue_by(color: &mut [f32; 3], diff: f32) {
+    let diff = TAU * diff;
+    let (_, c, hue) = get_lch(*color);
+    let mut new_hue = (hue + diff) % TAU;
+    if new_hue.is_sign_negative() {
+        new_hue += TAU;
+    }
+    color[1] = c * new_hue.cos();
+    color[2] = c * new_hue.sin();
+}
+fn shift_hue(diff: f32, color: &Color32) -> Color32 {
+    let mut color = [
+        color.r() as f32 / 255.0,
+        color.g() as f32 / 255.0,
+        color.b() as f32 / 255.0,
+    ];
+    rgb_to_oklch(&mut color);
+    shift_hue_by(&mut color, diff);
+    oklch_to_rgb(&mut color);
+    Color32::from_rgb(
+        (color[0] * 255.0) as u8,
+        (color[1] * 255.0) as u8,
+        (color[2] * 255.0) as u8,
+    )
 }

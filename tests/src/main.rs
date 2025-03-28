@@ -21,10 +21,10 @@ impl eframe::App for App {
 impl App {
     fn new() -> Self {
         let plot = Graph::new(
-            vec![grab_width3d("data/data14", -2.0, -2.0, 2.0, 2.0)],
-            false,
-            -2.0,
-            2.0,
+            vec![grab_width3d("data/data12", -8.0, -8.0, 8.0, 8.0)],
+            true,
+            -8.0,
+            8.0,
         );
         Self { plot }
     }
