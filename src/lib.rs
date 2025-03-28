@@ -50,6 +50,7 @@ pub struct Graph {
     delta: f32,
     show: Show,
     anti_alias: bool,
+    show_box: bool,
     main_colors: Vec<Color32>,
     alt_colors: Vec<Color32>,
     axis_color: Color32,
@@ -161,6 +162,7 @@ impl Graph {
             screen: Vec2::splat(0.0),
             screen_offset: Vec2::splat(0.0),
             delta: 0.0,
+            show_box: false,
             view_x: false,
             box_size: 3.0f32.sqrt(),
             anti_alias: true,
@@ -275,10 +277,14 @@ impl Graph {
         );
         if !self.is_3d {
             self.write_axis(painter);
+            self.plot(painter, ui);
         } else {
-            self.write_axis_3d(painter);
+            let lines = self.write_axis_3d(painter);
+            self.plot(painter, ui);
+            for (a, b) in lines {
+                painter.line_segment([a, b], Stroke::new(2.0, self.axis_color));
+            }
         }
-        self.plot(painter, ui);
         if !self.is_3d {
             self.write_coord(painter);
         } else {
@@ -556,9 +562,10 @@ impl Graph {
             None
         }
     }
-    fn write_axis_3d(&self, painter: &Painter) {
+    fn write_axis_3d(&self, painter: &Painter) -> Vec<(Pos2, Pos2)> {
+        let mut lines = Vec::new();
         if self.disable_axis {
-            return;
+            return lines;
         }
         let s = (self.end - self.start) / 2.0;
         let vertices = [
@@ -648,8 +655,11 @@ impl Graph {
                         self.text_color,
                     );
                 }
+            } else if self.show_box {
+                lines.push((vertices[*i], vertices[*j]))
             }
         }
+        lines
     }
     fn keybinds(&mut self, ui: &Ui) {
         ui.input(|i| {
@@ -802,20 +812,72 @@ impl Graph {
                         self.box_size = 3.0f32.sqrt()
                     }
                 }
+                if i.key_pressed(Key::Y) {
+                    self.show_box = !self.show_box
+                }
+                self.phi = (self.phi - i.raw_scroll_delta.x / 512.0).rem_euclid(TAU);
+                self.theta = (self.theta + i.raw_scroll_delta.y / 512.0).rem_euclid(TAU);
+            } else {
+                let rt = 2.0;
+                if i.key_pressed(Key::Q) && self.zoom >= 2.0f32.powi(-12) {
+                    self.offset += if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().to_vec2()
+                    } else {
+                        self.screen_offset
+                    } / self.zoom
+                        * (rt - 1.0);
+                    self.zoom /= rt;
+                }
+                if i.key_pressed(Key::E) && self.zoom <= 2.0f32.powi(12) {
+                    self.zoom *= rt;
+                    self.offset -= if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().to_vec2()
+                    } else {
+                        self.screen_offset
+                    } / self.zoom
+                        * (rt - 1.0);
+                }
+                let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
+                match rt.total_cmp(&1.0) {
+                    std::cmp::Ordering::Greater if self.zoom <= 2.0f32.powi(12) => {
+                        self.zoom *= rt;
+                        self.offset -= if self.mouse_moved && !self.is_3d {
+                            self.mouse_position.unwrap().to_vec2()
+                        } else {
+                            self.screen_offset
+                        } / self.zoom
+                            * (rt - 1.0);
+                    }
+                    std::cmp::Ordering::Less if self.zoom >= 2.0f32.powi(-12) => {
+                        self.offset += if self.mouse_moved && !self.is_3d {
+                            self.mouse_position.unwrap().to_vec2()
+                        } else {
+                            self.screen_offset
+                        } / self.zoom
+                            * (rt.recip() - 1.0);
+                        self.zoom *= rt;
+                    }
+                    _ => {}
+                }
             }
-            if i.key_pressed(Key::Period) {
-                self.slice += c
-            }
-            if i.key_pressed(Key::Comma) {
-                self.slice = self.slice.saturating_sub(c)
-            }
-            if i.key_pressed(Key::Slash) {
-                self.view_x = !self.view_x
+            if matches!(
+                self.graph_mode,
+                GraphMode::Slice | GraphMode::SliceFlatten | GraphMode::SliceDepth
+            ) {
+                if i.key_pressed(Key::Period) {
+                    self.slice += c
+                }
+                if i.key_pressed(Key::Comma) {
+                    self.slice = self.slice.saturating_sub(c)
+                }
+                if i.key_pressed(Key::Slash) {
+                    self.view_x = !self.view_x
+                }
             }
             if i.key_pressed(Key::L) {
                 self.lines = !self.lines
             }
-            if i.key_pressed(Key::I) {
+            if self.is_complex && i.key_pressed(Key::I) {
                 self.show = match self.show {
                     Show::Complex => Show::Real,
                     Show::Real => Show::Imag,
@@ -896,52 +958,6 @@ impl Graph {
                         }
                         _ => {}
                     }
-                }
-            }
-            let rt = 2.0;
-            if i.key_pressed(Key::Q) && self.zoom >= 2.0f32.powi(-12) {
-                self.offset += if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().to_vec2()
-                } else {
-                    self.screen_offset
-                } / self.zoom
-                    * (rt - 1.0);
-                self.zoom /= rt;
-            }
-            if i.key_pressed(Key::E) && self.zoom <= 2.0f32.powi(12) {
-                self.zoom *= rt;
-                self.offset -= if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().to_vec2()
-                } else {
-                    self.screen_offset
-                } / self.zoom
-                    * (rt - 1.0);
-            }
-            if self.is_3d {
-                self.phi = (self.phi - i.raw_scroll_delta.x / 512.0).rem_euclid(TAU);
-                self.theta = (self.theta + i.raw_scroll_delta.y / 512.0).rem_euclid(TAU);
-            } else {
-                let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
-                match rt.total_cmp(&1.0) {
-                    std::cmp::Ordering::Greater if self.zoom <= 2.0f32.powi(12) => {
-                        self.zoom *= rt;
-                        self.offset -= if self.mouse_moved && !self.is_3d {
-                            self.mouse_position.unwrap().to_vec2()
-                        } else {
-                            self.screen_offset
-                        } / self.zoom
-                            * (rt - 1.0);
-                    }
-                    std::cmp::Ordering::Less if self.zoom >= 2.0f32.powi(-12) => {
-                        self.offset += if self.mouse_moved && !self.is_3d {
-                            self.mouse_position.unwrap().to_vec2()
-                        } else {
-                            self.screen_offset
-                        } / self.zoom
-                            * (rt.recip() - 1.0);
-                        self.zoom *= rt;
-                    }
-                    _ => {}
                 }
             }
             if i.key_pressed(Key::T) {
