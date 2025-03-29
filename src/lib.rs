@@ -103,7 +103,7 @@ fn is_3d(data: &[GraphType]) -> bool {
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
 }
 #[derive(Copy, Clone)]
-struct Vec3 {
+pub struct Vec3 {
     x: f32,
     y: f32,
     z: f32,
@@ -112,7 +112,7 @@ impl Vec3 {
     fn splat(v: f32) -> Self {
         Self { x: v, y: v, z: v }
     }
-    fn new(x: f32, y: f32, z: f32) -> Self {
+    pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
     }
     fn get_2d(&self) -> Vec2 {
@@ -256,6 +256,9 @@ impl Graph {
     pub fn disable_coord(&mut self, disable: bool) {
         self.disable_coord = disable
     }
+    pub fn set_offset(&mut self, offset: Vec3) {
+        self.offset = offset
+    }
     pub fn set_mode(&mut self, mode: GraphMode) {
         match mode {
             GraphMode::DomainColoring | GraphMode::Slice => self.is_3d = false,
@@ -389,11 +392,36 @@ impl Graph {
     fn write_axis(&self, painter: &Painter) {
         let c = self.to_coord(Pos2::new(0.0, 0.0));
         let cf = self.to_coord(self.screen.to_pos2());
-        let s = c.x.ceil() as isize;
-        let f = cf.x.floor() as isize;
-        let sy = c.y.floor() as isize;
-        let sf = cf.y.ceil() as isize;
-        if !self.disable_lines && (self.scale_axis || self.zoom > 2.0f32.powi(-4)) {
+        let r = if self.scale_axis {
+            self.zoom.log2()
+        } else {
+            1.0
+        };
+        let stx = (c.x / r).round() * r;
+        let sty = (c.y / r).round() * r;
+        let enx = (cf.x / r).round() * r;
+        let eny = (cf.y / r).round() * r;
+        let s = if self.scale_axis {
+            0
+        } else {
+            c.x.ceil() as isize
+        };
+        let f = if self.scale_axis {
+            8
+        } else {
+            cf.x.floor() as isize
+        };
+        let sy = if self.scale_axis {
+            8
+        } else {
+            c.y.floor() as isize
+        };
+        let sf = if self.scale_axis {
+            0
+        } else {
+            cf.y.ceil() as isize
+        };
+        /*if !self.disable_lines && (self.scale_axis || self.zoom > 2.0f32.powi(-4)) {
             for i in s..=f {
                 for j in -4..4 {
                     if j != 0 {
@@ -418,14 +446,23 @@ impl Graph {
                     }
                 }
             }
-        }
+        }*/
         for i in s..=f {
-            let is_center = i == 0;
+            let is_center = if self.scale_axis { false } else { i == 0 };
             if (!self.disable_lines
                 && (is_center || self.scale_axis || self.zoom > 2.0f32.powi(-6)))
                 || (is_center && !self.disable_axis)
             {
-                let x = self.to_screen(i as f32, 0.0).x;
+                let x = self
+                    .to_screen(
+                        if self.scale_axis {
+                            stx + r * i as f32
+                        } else {
+                            i as f32
+                        },
+                        0.0,
+                    )
+                    .x;
                 painter.vline(
                     x,
                     Rangef::new(0.0, self.screen.y),
@@ -434,12 +471,21 @@ impl Graph {
             }
         }
         for i in sf..=sy {
-            let is_center = i == 0;
+            let is_center = if self.scale_axis { false } else { i == 0 };
             if (!self.disable_lines
                 && (is_center || self.scale_axis || self.zoom > 2.0f32.powi(-6)))
                 || (is_center && !self.disable_axis)
             {
-                let y = self.to_screen(0.0, i as f32).y;
+                let y = self
+                    .to_screen(
+                        0.0,
+                        if self.scale_axis {
+                            sty + r * i as f32
+                        } else {
+                            i as f32
+                        },
+                    )
+                    .y;
                 painter.hline(
                     Rangef::new(0.0, self.screen.x),
                     y,
@@ -447,7 +493,7 @@ impl Graph {
                 );
             }
         }
-        if !self.disable_axis && (self.scale_axis || self.zoom > 2.0f32.powi(-6)) {
+        /*if !self.disable_axis && (self.scale_axis || self.zoom > 2.0f32.powi(-6)) {
             let y = if (sf..=sy).contains(&0) {
                 self.to_screen(0.0, 0.0).y
             } else {
@@ -478,7 +524,7 @@ impl Graph {
                     self.text_color,
                 );
             }
-        }
+        }*/
     }
     fn vec3_to_pos_depth(&self, p: Vec3) -> (Pos2, f32) {
         let cos_phi = self.phi.cos();
@@ -589,6 +635,7 @@ impl Graph {
                     let last = self.vec3_to_pos_depth(vi);
                     let d = (pos.1 + last.1) / 2.0;
                     draws.push((d, Draw::Line(last.0, pos.0, 1.0), self.shift_hue(d, color)));
+                } else {
                 }
                 //TODO deal with lines only intersecting
             };
@@ -1344,10 +1391,7 @@ impl Graph {
                     GraphMode::SliceDepth => {
                         let len = data.len().isqrt();
                         self.slice = self.slice.min(len - 1);
-                        for (i, y) in data[self.slice * len..(self.slice + 1) * len]
-                            .iter()
-                            .enumerate()
-                        {
+                        let mut body = |i: usize, y: &Complex| {
                             let (y, z) = y.to_options();
                             c = if let (Some(x), Some(y)) = (y, z) {
                                 let z = (i as f32 / (len - 1) as f32 - 0.5) * (end_x - start_x)
@@ -1365,6 +1409,18 @@ impl Graph {
                             } else {
                                 None
                             };
+                        };
+                        if self.view_x {
+                            for (i, y) in data[self.slice * len..(self.slice + 1) * len]
+                                .iter()
+                                .enumerate()
+                            {
+                                body(i, y)
+                            }
+                        } else {
+                            for (i, y) in data.iter().skip(self.slice).step_by(len).enumerate() {
+                                body(i, y)
+                            }
                         }
                     }
                     GraphMode::DomainColoring => {

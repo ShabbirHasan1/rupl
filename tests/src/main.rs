@@ -1,5 +1,5 @@
 use egui::Context;
-use rupl::{Complex, Graph, GraphType};
+use rupl::{Complex, Graph, GraphType, Vec3};
 use std::fs;
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
@@ -20,12 +20,19 @@ impl eframe::App for App {
 
 impl App {
     fn new() -> Self {
-        let plot = Graph::new(
+        /*let plot = Graph::new(
             vec![grab_width3d("data/data12", -8.0, -8.0, 8.0, 8.0)],
             true,
             -8.0,
             8.0,
+        );*/
+        let mut plot = Graph::new(
+            vec![grab_width3d("data/data14", -2.0, -2.0, 2.0, 2.0)],
+            false,
+            -2.0,
+            2.0,
         );
+        plot.set_offset(Vec3::new(0.0, 0.0, -2.0));
         Self { plot }
     }
     fn main(&mut self, ctx: &Context) {
