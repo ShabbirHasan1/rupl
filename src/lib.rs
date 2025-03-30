@@ -390,141 +390,129 @@ impl Graph {
         }
     }
     fn write_axis(&self, painter: &Painter) {
-        let c = self.to_coord(Pos2::new(0.0, 0.0));
-        let cf = self.to_coord(self.screen.to_pos2());
-        let r = if self.scale_axis {
-            self.zoom.log2()
-        } else {
-            1.0
-        };
-        let stx = (c.x / r).round() * r;
-        let sty = (c.y / r).round() * r;
-        let enx = (cf.x / r).round() * r;
-        let eny = (cf.y / r).round() * r;
-        let s = if self.scale_axis {
-            0
-        } else {
-            c.x.ceil() as isize
-        };
-        let f = if self.scale_axis {
-            8
-        } else {
-            cf.x.floor() as isize
-        };
-        let sy = if self.scale_axis {
-            8
-        } else {
-            c.y.floor() as isize
-        };
-        let sf = if self.scale_axis {
-            0
-        } else {
-            cf.y.ceil() as isize
-        };
-        /*if !self.disable_lines && (self.scale_axis || self.zoom > 2.0f32.powi(-4)) {
+        if self.scale_axis {
+            if self.disable_lines {
+                return;
+            }
+            let c = self.to_coord(Pos2::new(0.0, 0.0));
+            let cf = self.to_coord(self.screen.to_pos2());
+            let r = self.zoom.recip();
+            let stx = (c.x / r).round() * r;
+            let sty = (c.y / r).round() * r;
+            let enx = (cf.x / r).round() * r;
+            let eny = (cf.y / r).round() * r;
+            let s = 0;
+            let f = ((enx - stx) / r).abs() as isize;
+            let sy = ((eny - sty) / r).abs() as isize;
+            let sf = 0;
             for i in s..=f {
-                for j in -4..4 {
-                    if j != 0 {
-                        let x = self.to_screen(i as f32 + j as f32 / 8.0, 0.0).x;
-                        painter.vline(
-                            x,
-                            Rangef::new(0.0, self.screen.y),
-                            Stroke::new(1.0, self.axis_color_light),
-                        );
-                    }
-                }
-            }
-            for i in sf..=sy {
-                for j in -4..4 {
-                    if j != 0 {
-                        let y = self.to_screen(0.0, i as f32 + j as f32 / 8.0).y;
-                        painter.hline(
-                            Rangef::new(0.0, self.screen.x),
-                            y,
-                            Stroke::new(1.0, self.axis_color_light),
-                        );
-                    }
-                }
-            }
-        }*/
-        for i in s..=f {
-            let is_center = if self.scale_axis { false } else { i == 0 };
-            if (!self.disable_lines
-                && (is_center || self.scale_axis || self.zoom > 2.0f32.powi(-6)))
-                || (is_center && !self.disable_axis)
-            {
-                let x = self
-                    .to_screen(
-                        if self.scale_axis {
-                            stx + r * i as f32
-                        } else {
-                            i as f32
-                        },
-                        0.0,
-                    )
-                    .x;
+                let x = self.to_screen(stx + r * i as f32, 0.0).x;
                 painter.vline(
                     x,
                     Rangef::new(0.0, self.screen.y),
-                    Stroke::new(if is_center { 2.0 } else { 1.0 }, self.axis_color),
+                    Stroke::new(1.0, self.axis_color),
                 );
             }
-        }
-        for i in sf..=sy {
-            let is_center = if self.scale_axis { false } else { i == 0 };
-            if (!self.disable_lines
-                && (is_center || self.scale_axis || self.zoom > 2.0f32.powi(-6)))
-                || (is_center && !self.disable_axis)
-            {
-                let y = self
-                    .to_screen(
-                        0.0,
-                        if self.scale_axis {
-                            sty + r * i as f32
-                        } else {
-                            i as f32
-                        },
-                    )
-                    .y;
+            for i in sf..=sy {
+                let y = self.to_screen(0.0, sty - r * i as f32).y;
                 painter.hline(
                     Rangef::new(0.0, self.screen.x),
                     y,
-                    Stroke::new(if is_center { 2.0 } else { 1.0 }, self.axis_color),
+                    Stroke::new(1.0, self.axis_color),
                 );
+            }
+        } else {
+            let c = self.to_coord(Pos2::new(0.0, 0.0));
+            let cf = self.to_coord(self.screen.to_pos2());
+            let s = c.x.ceil() as isize;
+            let f = cf.x.floor() as isize;
+            let sy = c.y.floor() as isize;
+            let sf = cf.y.ceil() as isize;
+            if !self.disable_lines && self.zoom > 2.0f32.powi(-4) {
+                for i in s..=f {
+                    for j in -4..4 {
+                        if j != 0 {
+                            let x = self.to_screen(i as f32 + j as f32 / 8.0, 0.0).x;
+                            painter.vline(
+                                x,
+                                Rangef::new(0.0, self.screen.y),
+                                Stroke::new(1.0, self.axis_color_light),
+                            );
+                        }
+                    }
+                }
+                for i in sf..=sy {
+                    for j in -4..4 {
+                        if j != 0 {
+                            let y = self.to_screen(0.0, i as f32 + j as f32 / 8.0).y;
+                            painter.hline(
+                                Rangef::new(0.0, self.screen.x),
+                                y,
+                                Stroke::new(1.0, self.axis_color_light),
+                            );
+                        }
+                    }
+                }
+            }
+            for i in s..=f {
+                let is_center = i == 0;
+                if (!self.disable_lines && (is_center || self.zoom > 2.0f32.powi(-6)))
+                    || (is_center && !self.disable_axis)
+                {
+                    let x = self.to_screen(i as f32, 0.0).x;
+                    painter.vline(
+                        x,
+                        Rangef::new(0.0, self.screen.y),
+                        Stroke::new(if is_center { 2.0 } else { 1.0 }, self.axis_color),
+                    );
+                }
+            }
+            for i in sf..=sy {
+                let is_center = i == 0;
+                if (!self.disable_lines && (is_center || self.zoom > 2.0f32.powi(-6)))
+                    || (is_center && !self.disable_axis)
+                {
+                    let y = self.to_screen(0.0, i as f32).y;
+                    painter.hline(
+                        Rangef::new(0.0, self.screen.x),
+                        y,
+                        Stroke::new(if is_center { 2.0 } else { 1.0 }, self.axis_color),
+                    );
+                }
+            }
+            if !self.disable_axis && self.zoom > 2.0f32.powi(-6) {
+                let y = if (sf..=sy).contains(&0) {
+                    self.to_screen(0.0, 0.0).y
+                } else {
+                    0.0
+                };
+                for j in s.saturating_sub(1)..=f {
+                    let x = self.to_screen(j as f32, 0.0).x;
+                    painter.text(
+                        Pos2::new(x, y),
+                        Align2::LEFT_TOP,
+                        j.to_string(),
+                        FontId::monospace(16.0),
+                        self.text_color,
+                    );
+                }
+                let x = if (s..=f).contains(&0) {
+                    self.to_screen(0.0, 0.0).x
+                } else {
+                    0.0
+                };
+                for j in sf..=sy.saturating_add(1) {
+                    let y = self.to_screen(0.0, j as f32).y;
+                    painter.text(
+                        Pos2::new(x, y),
+                        Align2::LEFT_TOP,
+                        j.to_string(),
+                        FontId::monospace(16.0),
+                        self.text_color,
+                    );
+                }
             }
         }
-        /*if !self.disable_axis && (self.scale_axis || self.zoom > 2.0f32.powi(-6)) {
-            let y = if (sf..=sy).contains(&0) {
-                self.to_screen(0.0, 0.0).y
-            } else {
-                0.0
-            };
-            for j in s.saturating_sub(1)..=f {
-                let x = self.to_screen(j as f32, 0.0).x;
-                painter.text(
-                    Pos2::new(x, y),
-                    Align2::LEFT_TOP,
-                    j.to_string(),
-                    FontId::monospace(16.0),
-                    self.text_color,
-                );
-            }
-            let x = if (s..=f).contains(&0) {
-                self.to_screen(0.0, 0.0).x
-            } else {
-                0.0
-            };
-            for j in sf..=sy.saturating_add(1) {
-                let y = self.to_screen(0.0, j as f32).y;
-                painter.text(
-                    Pos2::new(x, y),
-                    Align2::LEFT_TOP,
-                    j.to_string(),
-                    FontId::monospace(16.0),
-                    self.text_color,
-                );
-            }
-        }*/
     }
     fn vec3_to_pos_depth(&self, p: Vec3) -> (Pos2, f32) {
         let cos_phi = self.phi.cos();

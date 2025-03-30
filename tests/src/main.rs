@@ -26,12 +26,7 @@ impl App {
             -8.0,
             8.0,
         );*/
-        let mut plot = Graph::new(
-            vec![grab_width3d("data/data14", -2.0, -2.0, 2.0, 2.0)],
-            false,
-            -2.0,
-            2.0,
-        );
+        let mut plot = Graph::new(vec![generate(-2.0, -2.0, 2.0, 2.0, 64)], false, -2.0, 2.0);
         plot.set_offset(Vec3::new(0.0, 0.0, -2.0));
         Self { plot }
     }
@@ -123,4 +118,19 @@ fn real(c: Complex) -> f32 {
         Complex::Imag(_) => 0.0,
         Complex::Complex(y, _) => y,
     }
+}
+#[allow(dead_code)]
+fn generate(startx: f32, starty: f32, endx: f32, endy: f32, len: usize) -> GraphType {
+    let mut data = Vec::new();
+    for j in 0..=len {
+        let j = j as f32 / len as f32;
+        for i in 0..=len {
+            let i = i as f32 / len as f32;
+            let x = startx + i * (endx - startx);
+            let y = starty + j * (endy - starty);
+            let v = (x.powi(3) + y).exp();
+            data.push(Complex::Real(v))
+        }
+    }
+    GraphType::Width3D(data, startx, starty, endx, endy)
 }
