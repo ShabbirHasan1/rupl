@@ -396,15 +396,41 @@ impl Graph {
             }
             let c = self.to_coord(Pos2::new(0.0, 0.0));
             let cf = self.to_coord(self.screen.to_pos2());
-            let r = self.zoom.recip();
+            let r = self.zoom.recip() / 2.0;
             let stx = (c.x / r).round() * r;
             let sty = (c.y / r).round() * r;
             let enx = (cf.x / r).round() * r;
             let eny = (cf.y / r).round() * r;
-            let s = 0;
+            let s: isize = 0;
             let f = ((enx - stx) / r).abs() as isize;
             let sy = ((eny - sty) / r).abs() as isize;
-            let sf = 0;
+            let sf: isize = 0;
+            if !self.disable_lines {
+                for i in s.saturating_sub(1)..=f.saturating_add(1) {
+                    for j in -2..2 {
+                        if j != 0 {
+                            let x = self.to_screen(stx + r * (i as f32 + j as f32 / 4.0), 0.0).x;
+                            painter.vline(
+                                x,
+                                Rangef::new(0.0, self.screen.y),
+                                Stroke::new(1.0, self.axis_color_light),
+                            );
+                        }
+                    }
+                }
+                for i in sf.saturating_sub(1)..=sy.saturating_add(1) {
+                    for j in -2..2 {
+                        if j != 0 {
+                            let y = self.to_screen(0.0, sty - r * (i as f32 + j as f32 / 4.0)).y;
+                            painter.hline(
+                                Rangef::new(0.0, self.screen.x),
+                                y,
+                                Stroke::new(1.0, self.axis_color_light),
+                            );
+                        }
+                    }
+                }
+            }
             for i in s..=f {
                 let x = self.to_screen(stx + r * i as f32, 0.0).x;
                 painter.vline(
@@ -421,6 +447,38 @@ impl Graph {
                     Stroke::new(1.0, self.axis_color),
                 );
             }
+            if !self.disable_axis {
+                let y = if sty - r * (sy as f32) < 0.0 && sty - r * (sf as f32) > 0.0 {
+                    self.to_screen(0.0, 0.0).y
+                } else {
+                    0.0
+                };
+                for j in s.saturating_sub(1)..=f {
+                    let x = self.to_screen(stx + r * j as f32, 0.0).x;
+                    painter.text(
+                        Pos2::new(x, y),
+                        Align2::LEFT_TOP,
+                        format!("{0:.5}", stx + r * j as f32),
+                        FontId::monospace(16.0),
+                        self.text_color,
+                    );
+                }
+                let x = if stx + r * (s as f32) < 0.0 && stx + r * (f as f32) > 0.0 {
+                    self.to_screen(0.0, 0.0).x
+                } else {
+                    0.0
+                };
+                for j in sf..=sy.saturating_add(1) {
+                    let y = self.to_screen(0.0, sty - r * j as f32).y;
+                    painter.text(
+                        Pos2::new(x, y),
+                        Align2::LEFT_TOP,
+                        format!("{0:.5}", sty - r * j as f32),
+                        FontId::monospace(16.0),
+                        self.text_color,
+                    );
+                }
+            }
         } else {
             let c = self.to_coord(Pos2::new(0.0, 0.0));
             let cf = self.to_coord(self.screen.to_pos2());
@@ -429,7 +487,7 @@ impl Graph {
             let sy = c.y.floor() as isize;
             let sf = cf.y.ceil() as isize;
             if !self.disable_lines && self.zoom > 2.0f32.powi(-4) {
-                for i in s..=f {
+                for i in s.saturating_sub(1)..=f.saturating_add(1) {
                     for j in -4..4 {
                         if j != 0 {
                             let x = self.to_screen(i as f32 + j as f32 / 8.0, 0.0).x;
@@ -441,7 +499,7 @@ impl Graph {
                         }
                     }
                 }
-                for i in sf..=sy {
+                for i in sf.saturating_sub(1)..=sy.saturating_add(1) {
                     for j in -4..4 {
                         if j != 0 {
                             let y = self.to_screen(0.0, i as f32 + j as f32 / 8.0).y;

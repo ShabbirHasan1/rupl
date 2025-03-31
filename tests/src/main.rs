@@ -1,11 +1,33 @@
-use egui::Context;
+use egui::{Context, FontData, FontDefinitions, FontFamily};
 use rupl::{Complex, Graph, GraphType, Vec3};
 use std::fs;
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         ..Default::default()
     };
-    eframe::run_native("eplot", options, Box::new(|_cc| Ok(Box::new(App::new()))))
+    eframe::run_native(
+        "eplot",
+        options,
+        Box::new(|cc| {
+            let mut fonts = FontDefinitions::default();
+            fonts.font_data.insert(
+                "notosans".to_owned(),
+                std::sync::Arc::new(FontData::from_static(include_bytes!("../notosans.ttf"))),
+            );
+            fonts
+                .families
+                .get_mut(&FontFamily::Proportional)
+                .unwrap()
+                .insert(0, "notosans".to_owned());
+            fonts
+                .families
+                .get_mut(&FontFamily::Monospace)
+                .unwrap()
+                .insert(0, "notosans".to_owned());
+            cc.egui_ctx.set_fonts(fonts);
+            Ok(Box::new(App::new()))
+        }),
+    )
 }
 
 struct App {
