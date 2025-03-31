@@ -74,6 +74,8 @@ pub struct Graph {
     graph_mode: GraphMode,
     is_3d: bool,
     last_interact: Option<Pos2>,
+    recalculate: bool,
+    no_points: bool,
 }
 #[derive(Copy, Clone)]
 pub enum Complex {
@@ -205,6 +207,8 @@ impl Graph {
             disable_coord: false,
             graph_mode: GraphMode::Normal,
             is_3d,
+            recalculate: false,
+            no_points: true,
         }
     }
     pub fn set_data(&mut self, data: Vec<GraphType>) {
@@ -222,6 +226,9 @@ impl Graph {
     }
     pub fn set_lines(&mut self, lines: bool) {
         self.lines = lines
+    }
+    pub fn set_points(&mut self, points: bool) {
+        self.no_points = !points
     }
     pub fn set_anti_alias(&mut self, anti_alias: bool) {
         self.anti_alias = anti_alias
@@ -268,25 +275,36 @@ impl Graph {
         }
         self.graph_mode = mode;
     }
-    pub fn update(&mut self, ctx: &Context) {
+    pub fn update(&mut self, ctx: &Context) -> Option<(f32, f32)> {
         CentralPanel::default()
             .frame(egui::Frame::default().fill(self.background_color))
             .show(ctx, |ui| self.plot_main(ctx, ui));
+        if self.recalculate {
+            self.recalculate = false;
+            let c = self.to_coord(Pos2::new(0.0, 0.0));
+            let cf = self.to_coord(self.screen.to_pos2());
+            Some((c.x, cf.x))
+        } else {
+            None
+        }
     }
     fn plot_main(&mut self, ctx: &Context, ui: &Ui) {
         let painter = ui.painter();
         let rect = ctx.available_rect();
-        self.keybinds(ui);
         self.screen = Vec2::new(rect.width(), rect.height());
         self.delta = if self.is_3d {
             self.screen.x.min(self.screen.y)
         } else {
             self.screen.x
         } / (self.end - self.start);
-        self.screen_offset = Vec2::new(
+        let t = Vec2::new(
             self.screen.x / 2.0 - self.delta * (self.start + self.end) / 2.0,
             self.screen.y / 2.0,
         );
+        if t != self.screen_offset {
+            self.recalculate = true;
+            self.screen_offset = t;
+        }
         if !self.is_3d {
             self.write_axis(painter);
             self.plot(painter, ui);
@@ -311,6 +329,7 @@ impl Graph {
         } else {
             self.write_angle(painter);
         }
+        self.keybinds(ui);
     }
     fn write_coord(&self, painter: &Painter) {
         if self.mouse_moved && !self.disable_coord {
@@ -370,7 +389,8 @@ impl Graph {
             return None;
         }
         let pos = self.to_screen(x, y);
-        if pos.x > -2.0
+        if !self.no_points
+            && pos.x > -2.0
             && pos.x < self.screen.x + 2.0
             && pos.y > -2.0
             && pos.y < self.screen.y + 2.0
@@ -596,6 +616,7 @@ impl Graph {
         let z2 = -p.z * cos_theta - y1 * sin_theta;
         Pos2::new(x1, z2) * self.delta / self.box_size + self.screen / 2.0
     }*/
+    #[allow(clippy::type_complexity)]
     #[allow(clippy::too_many_arguments)]
     fn draw_point_3d(
         &self,
@@ -620,7 +641,7 @@ impl Graph {
                 && y <= self.end
                 && z >= self.start
                 && z <= self.end);
-        if inside {
+        if !self.no_points && inside {
             draws.push((pos.1, Draw::Point(pos.0), self.shift_hue(pos.1, color)));
         }
         if self.lines {
@@ -681,7 +702,6 @@ impl Graph {
                     let last = self.vec3_to_pos_depth(vi);
                     let d = (pos.1 + last.1) / 2.0;
                     draws.push((d, Draw::Line(last.0, pos.0, 1.0), self.shift_hue(d, color)));
-                } else {
                 }
                 //TODO deal with lines only intersecting
             };
@@ -831,6 +851,7 @@ impl Graph {
                         self.theta = (self.theta + delta.y / 512.0).rem_euclid(TAU);
                     } else {
                         self.offset += delta / self.zoom;
+                        self.recalculate = true;
                     }
                 }
             }
@@ -848,6 +869,7 @@ impl Graph {
                                 self.screen_offset
                             } / self.zoom
                                 * (multi.zoom_delta - 1.0);
+                            self.recalculate = true;
                         }
                     }
                     std::cmp::Ordering::Less if self.zoom >= 2.0f32.powi(-12) => {
@@ -861,6 +883,7 @@ impl Graph {
                             } / self.zoom
                                 * (multi.zoom_delta.recip() - 1.0);
                             self.zoom *= multi.zoom_delta;
+                            self.recalculate = true;
                         }
                     }
                     _ => {}
@@ -869,7 +892,8 @@ impl Graph {
                     self.phi = (self.phi - multi.translation_delta.x / 512.0).rem_euclid(TAU);
                     self.theta = (self.theta + multi.translation_delta.y / 512.0).rem_euclid(TAU);
                 } else {
-                    self.offset += multi.translation_delta / self.zoom
+                    self.offset += multi.translation_delta / self.zoom;
+                    self.recalculate = true;
                 }
             }
             let shift = i.modifiers.shift;
@@ -901,6 +925,7 @@ impl Graph {
                     self.phi = ((self.phi / b - 1.0).round() * b).rem_euclid(TAU);
                 } else {
                     self.offset.x += a;
+                    self.recalculate = true;
                 }
             }
             if i.key_pressed(Key::D) || i.key_pressed(Key::ArrowRight) {
@@ -908,6 +933,7 @@ impl Graph {
                     self.phi = ((self.phi / b + 1.0).round() * b).rem_euclid(TAU);
                 } else {
                     self.offset.x -= a;
+                    self.recalculate = true;
                 }
             }
             if i.key_pressed(Key::W) || i.key_pressed(Key::ArrowUp) {
@@ -915,6 +941,7 @@ impl Graph {
                     self.theta = ((self.theta / b - 1.0).round() * b).rem_euclid(TAU);
                 } else {
                     self.offset.y += a;
+                    self.recalculate = true;
                 }
             }
             if i.key_pressed(Key::S) || i.key_pressed(Key::ArrowDown) {
@@ -922,6 +949,7 @@ impl Graph {
                     self.theta = ((self.theta / b + 1.0).round() * b).rem_euclid(TAU);
                 } else {
                     self.offset.y -= a;
+                    self.recalculate = true;
                 }
             }
             if i.key_pressed(Key::Z) {
@@ -939,6 +967,9 @@ impl Graph {
             if i.key_pressed(Key::R) {
                 self.anti_alias = !self.anti_alias;
                 self.cache = None;
+            }
+            if i.key_pressed(Key::U) {
+                self.no_points = !self.no_points;
             }
             if self.is_3d {
                 if i.key_pressed(Key::F) {
@@ -988,6 +1019,7 @@ impl Graph {
                     } / self.zoom
                         * (rt - 1.0);
                     self.zoom /= rt;
+                    self.recalculate = true;
                 }
                 if i.key_pressed(Key::E) && self.zoom <= 2.0f32.powi(12) {
                     self.zoom *= rt;
@@ -997,6 +1029,7 @@ impl Graph {
                         self.screen_offset
                     } / self.zoom
                         * (rt - 1.0);
+                    self.recalculate = true;
                 }
                 let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
                 match rt.total_cmp(&1.0) {
@@ -1008,6 +1041,7 @@ impl Graph {
                             self.screen_offset
                         } / self.zoom
                             * (rt - 1.0);
+                        self.recalculate = true;
                     }
                     std::cmp::Ordering::Less if self.zoom >= 2.0f32.powi(-12) => {
                         self.offset += if self.mouse_moved && !self.is_3d {
@@ -1017,6 +1051,7 @@ impl Graph {
                         } / self.zoom
                             * (rt.recip() - 1.0);
                         self.zoom *= rt;
+                        self.recalculate = true;
                     }
                     _ => {}
                 }
@@ -1129,6 +1164,7 @@ impl Graph {
                 self.box_size = 3.0f32.sqrt();
                 self.mouse_position = None;
                 self.mouse_moved = false;
+                self.recalculate = true;
             }
             if let Some(mpos) = i.pointer.latest_pos() {
                 if let Some(pos) = self.mouse_position {
@@ -1606,6 +1642,7 @@ pub fn get_lch(color: [f32; 3]) -> (f32, f32, f32) {
     let h = color[2].atan2(color[1]);
     (color[0], c, h)
 }
+#[allow(clippy::excessive_precision)]
 pub fn rgb_to_oklch(color: &mut [f32; 3]) {
     let mut l = 0.4122214694707629 * color[0]
         + 0.5363325372617349 * color[1]
@@ -1625,6 +1662,7 @@ pub fn rgb_to_oklch(color: &mut [f32; 3]) {
     color[1] = 1.9779985324311684 * l - 2.42859224204858 * m + 0.450593709617411 * s;
     color[2] = 0.0259040424655478 * l + 0.7827717124575296 * m - 0.8086757549230774 * s;
 }
+#[allow(clippy::excessive_precision)]
 fn oklch_to_rgb(color: &mut [f32; 3]) {
     let mut l = color[0] + 0.3963377773761749 * color[1] + 0.2158037573099136 * color[2];
     let mut m = color[0] - 0.1055613458156586 * color[1] - 0.0638541728258133 * color[2];

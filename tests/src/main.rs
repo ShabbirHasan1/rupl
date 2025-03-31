@@ -1,5 +1,5 @@
 use egui::{Context, FontData, FontDefinitions, FontFamily};
-use rupl::{Complex, Graph, GraphType, Vec3};
+use rupl::{Complex, Graph, GraphType};
 use std::fs;
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
@@ -48,12 +48,15 @@ impl App {
             -8.0,
             8.0,
         );*/
-        let mut plot = Graph::new(vec![generate(-2.0, -2.0, 2.0, 2.0, 64)], false, -2.0, 2.0);
-        plot.set_offset(Vec3::new(0.0, 0.0, -2.0));
+        let plot = Graph::new(vec![generate(-2.0, 2.0, 64)], true, -2.0, 2.0);
         Self { plot }
     }
     fn main(&mut self, ctx: &Context) {
-        self.plot.update(ctx);
+        let v = self.plot.update(ctx);
+        if let Some((s, e)) = v {
+            let plot = generate(s, e, 1024);
+            self.plot.set_data(vec![plot]);
+        }
     }
 }
 fn to_complex(c: &str) -> Complex {
@@ -142,7 +145,7 @@ fn real(c: Complex) -> f32 {
     }
 }
 #[allow(dead_code)]
-fn generate(startx: f32, starty: f32, endx: f32, endy: f32, len: usize) -> GraphType {
+fn generate_3d(startx: f32, starty: f32, endx: f32, endy: f32, len: usize) -> GraphType {
     let mut data = Vec::new();
     for j in 0..=len {
         let j = j as f32 / len as f32;
@@ -155,4 +158,16 @@ fn generate(startx: f32, starty: f32, endx: f32, endy: f32, len: usize) -> Graph
         }
     }
     GraphType::Width3D(data, startx, starty, endx, endy)
+}
+#[allow(dead_code)]
+fn generate(start: f32, end: f32, len: usize) -> GraphType {
+    let mut data = Vec::new();
+    for i in 0..=len {
+        let i = i as f32 / len as f32;
+        let x = start + i * (end - start);
+        let r = x.cos();
+        let i = x.sin();
+        data.push(Complex::Complex(r, i))
+    }
+    GraphType::Width(data, start, end)
 }
