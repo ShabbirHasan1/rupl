@@ -338,7 +338,7 @@ impl Graph {
                 painter.text(
                     Pos2::new(0.0, self.screen.y),
                     Align2::LEFT_BOTTOM,
-                    format!("{{{0:.5},{1:.5}}}", p.x, p.y),
+                    format!("{{{},{}}}", p.x, p.y),
                     FontId::monospace(16.0),
                     self.text_color,
                 );
@@ -482,7 +482,7 @@ impl Graph {
                     painter.text(
                         Pos2::new(x, y),
                         Align2::LEFT_TOP,
-                        format!("{0:.5}", stx + r * j as f64),
+                        format!("{}", stx + r * j as f64),
                         FontId::monospace(16.0),
                         self.text_color,
                     );
@@ -497,7 +497,7 @@ impl Graph {
                     painter.text(
                         Pos2::new(x, y),
                         Align2::LEFT_TOP,
-                        format!("{0:.5}", sty - r * j as f64),
+                        format!("{}", sty - r * j as f64),
                         FontId::monospace(16.0),
                         self.text_color,
                     );
