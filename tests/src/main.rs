@@ -48,7 +48,7 @@ impl App {
     fn main(&mut self, ctx: &Context) {
         let v = self.plot.update(ctx);
         if let Some((s, e)) = v {
-            let plot = generate(s, e, 1024);
+            let plot = generate(s as f64, e as f64, 1024);
             self.plot.set_data(vec![plot]);
         }
     }
@@ -85,7 +85,7 @@ fn to_complex(c: &str) -> Complex {
     }
 }
 #[allow(dead_code)]
-fn grab_width(f: &str, start: f32, end: f32) -> GraphType {
+fn grab_width(f: &str, start: f64, end: f64) -> GraphType {
     GraphType::Width(
         fs::read_to_string(f)
             .unwrap()
@@ -99,7 +99,7 @@ fn grab_width(f: &str, start: f32, end: f32) -> GraphType {
     )
 }
 #[allow(dead_code)]
-fn grab_width3d(f: &str, startx: f32, starty: f32, endx: f32, endy: f32) -> GraphType {
+fn grab_width3d(f: &str, startx: f64, starty: f64, endx: f64, endy: f64) -> GraphType {
     GraphType::Width3D(
         fs::read_to_string(f)
             .unwrap()
@@ -139,29 +139,29 @@ fn real(c: Complex) -> f32 {
     }
 }
 #[allow(dead_code)]
-fn generate_3d(startx: f32, starty: f32, endx: f32, endy: f32, len: usize) -> GraphType {
+fn generate_3d(startx: f64, starty: f64, endx: f64, endy: f64, len: usize) -> GraphType {
     let mut data = Vec::new();
     for j in 0..=len {
-        let j = j as f32 / len as f32;
+        let j = j as f64 / len as f64;
         for i in 0..=len {
-            let i = i as f32 / len as f32;
+            let i = i as f64 / len as f64;
             let x = startx + i * (endx - startx);
             let y = starty + j * (endy - starty);
             let v = (x.powi(3) + y).exp();
-            data.push(Complex::Real(v))
+            data.push(Complex::Real(v as f32))
         }
     }
     GraphType::Width3D(data, startx, starty, endx, endy)
 }
 #[allow(dead_code)]
-fn generate(start: f32, end: f32, len: usize) -> GraphType {
+fn generate(start: f64, end: f64, len: usize) -> GraphType {
     let mut data = Vec::new();
     for i in 0..=len {
-        let i = i as f32 / len as f32;
+        let i = i as f64 / len as f64;
         let x = start + i * (end - start);
         let r = x.cos();
         let i = x.sin();
-        data.push(Complex::Complex(r, i))
+        data.push(Complex::Complex(r as f32, i as f32))
     }
     GraphType::Width(data, start, end)
 }

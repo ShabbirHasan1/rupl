@@ -14,9 +14,9 @@ pub enum GraphMode {
     Depth,
 }
 pub enum GraphType {
-    Width(Vec<Complex>, f32, f32),
+    Width(Vec<Complex>, f64, f64),
     Coord(Vec<(f32, Complex)>),
-    Width3D(Vec<Complex>, f32, f32, f32, f32),
+    Width3D(Vec<Complex>, f64, f64, f64, f64),
     Coord3D(Vec<(f32, f32, Complex)>),
 }
 #[derive(Copy, Clone)]
@@ -384,15 +384,15 @@ impl Graph {
         &self,
         painter: &Painter,
         ui: &Ui,
-        x: f32,
-        y: f32,
+        x: f64,
+        y: f64,
         color: &Color32,
         last: Option<Pos2>,
     ) -> Option<Pos2> {
         if !x.is_finite() || !y.is_finite() {
             return None;
         }
-        let pos = self.to_screen(x as f64, y as f64);
+        let pos = self.to_screen(x, y);
         if !self.no_points
             && pos.x > -2.0
             && pos.x < self.screen.x + 2.0
@@ -628,9 +628,9 @@ impl Graph {
     #[allow(clippy::too_many_arguments)]
     fn draw_point_3d(
         &self,
-        x: f32,
-        y: f32,
-        z: f32,
+        x: f64,
+        y: f64,
+        z: f64,
         color: &Color32,
         a: Option<((Pos2, f32), Vec3, bool)>,
         b: Option<((Pos2, f32), Vec3, bool)>,
@@ -639,9 +639,6 @@ impl Graph {
         if !x.is_finite() || !y.is_finite() || !z.is_finite() {
             return (None, draws);
         }
-        let x = x as f64;
-        let y = y as f64;
-        let z = z as f64;
         let z = z + self.offset.z;
         let v = Vec3::new(x, y, z);
         let pos = self.vec3_to_pos_depth(v);
@@ -997,7 +994,7 @@ impl Graph {
                 self.disable_coord = !self.disable_coord;
             }
             if i.key_pressed(Key::V) {
-                self.scale_axis = !self.scale_axis; //TODO
+                self.scale_axis = !self.scale_axis;
             }
             if i.key_pressed(Key::R) {
                 self.anti_alias = !self.anti_alias;
@@ -1265,7 +1262,7 @@ impl Graph {
                     | GraphMode::SliceFlatten
                     | GraphMode::SliceDepth => {
                         for (i, y) in data.iter().enumerate() {
-                            let x = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end - start)
+                            let x = (i as f64 / (data.len() - 1) as f64 - 0.5) * (end - start)
                                 + (start + end) / 2.0;
                             let (y, z) = y.to_options();
                             a = if !self.show.real() {
@@ -1275,7 +1272,7 @@ impl Graph {
                                     painter,
                                     ui,
                                     x,
-                                    y,
+                                    y as f64,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
                                 )
@@ -1289,7 +1286,7 @@ impl Graph {
                                     painter,
                                     ui,
                                     x,
-                                    z,
+                                    z as f64,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     b,
                                 )
@@ -1305,8 +1302,8 @@ impl Graph {
                                 self.draw_point(
                                     painter,
                                     ui,
-                                    y,
-                                    z,
+                                    y as f64,
+                                    z as f64,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
                                 )
@@ -1319,11 +1316,11 @@ impl Graph {
                         for (i, y) in data.iter().enumerate() {
                             let (y, z) = y.to_options();
                             c = if let (Some(x), Some(y)) = (y, z) {
-                                let z = (i as f32 / (data.len() - 1) as f32 - 0.5) * (end - start)
+                                let z = (i as f64 / (data.len() - 1) as f64 - 0.5) * (end - start)
                                     + (start + end) / 2.0;
                                 let (c, d) = self.draw_point_3d(
-                                    x,
-                                    y,
+                                    x as f64,
+                                    y as f64,
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     c,
@@ -1351,8 +1348,8 @@ impl Graph {
                                 self.draw_point(
                                     painter,
                                     ui,
-                                    *x,
-                                    y,
+                                    *x as f64,
+                                    y as f64,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
                                 )
@@ -1365,8 +1362,8 @@ impl Graph {
                                 self.draw_point(
                                     painter,
                                     ui,
-                                    *x,
-                                    z,
+                                    *x as f64,
+                                    z as f64,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     b,
                                 )
@@ -1382,8 +1379,8 @@ impl Graph {
                                 self.draw_point(
                                     painter,
                                     ui,
-                                    y,
-                                    z,
+                                    y as f64,
+                                    z as f64,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
                                 )
@@ -1397,9 +1394,9 @@ impl Graph {
                             let (y, z) = y.to_options();
                             c = if let (Some(x), Some(y)) = (y, z) {
                                 let (c, d) = self.draw_point_3d(
-                                    x,
-                                    y,
-                                    *i,
+                                    x as f64,
+                                    y as f64,
+                                    *i as f64,
                                     &self.main_colors[k % self.main_colors.len()],
                                     c,
                                     None,
@@ -1421,9 +1418,9 @@ impl Graph {
                         let mut curi = Vec::new();
                         for (i, z) in data.iter().enumerate() {
                             let (i, j) = (i % len, i / len);
-                            let x = (i as f32 / (len - 1) as f32 - 0.5) * (end_x - start_x)
+                            let x = (i as f64 / (len - 1) as f64 - 0.5) * (end_x - start_x)
                                 + (start_x + end_x) / 2.0;
-                            let y = (j as f32 / (len - 1) as f32 - 0.5) * (end_y - start_y)
+                            let y = (j as f64 / (len - 1) as f64 - 0.5) * (end_y - start_y)
                                 + (start_y + end_y) / 2.0;
                             let (z, w) = z.to_options();
                             let p = if !self.show.real() {
@@ -1432,7 +1429,7 @@ impl Graph {
                                 let (c, d) = self.draw_point_3d(
                                     x,
                                     y,
-                                    z,
+                                    z as f64,
                                     &self.main_colors[k % self.main_colors.len()],
                                     if i == 0 { None } else { cur[i - 1] },
                                     if j == 0 { None } else { last[i] },
@@ -1452,7 +1449,7 @@ impl Graph {
                                 let (c, d) = self.draw_point_3d(
                                     x,
                                     y,
-                                    w,
+                                    w as f64,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     if i == 0 { None } else { curi[i - 1] },
                                     if j == 0 { None } else { lasti[i] },
@@ -1472,7 +1469,7 @@ impl Graph {
                         let len = data.len().isqrt();
                         self.slice = self.slice.min(len - 1);
                         let mut body = |i: usize, y: &Complex| {
-                            let x = (i as f32 / (len - 1) as f32 - 0.5) * (end_x - start_x)
+                            let x = (i as f64 / (len - 1) as f64 - 0.5) * (end_x - start_x)
                                 + (start_x + end_x) / 2.0;
                             let (y, z) = y.to_options();
                             a = if !self.show.real() {
@@ -1482,7 +1479,7 @@ impl Graph {
                                     painter,
                                     ui,
                                     x,
-                                    y,
+                                    y as f64,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
                                 )
@@ -1496,7 +1493,7 @@ impl Graph {
                                     painter,
                                     ui,
                                     x,
-                                    z,
+                                    z as f64,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     b,
                                 )
@@ -1526,8 +1523,8 @@ impl Graph {
                                 self.draw_point(
                                     painter,
                                     ui,
-                                    y,
-                                    z,
+                                    y as f64,
+                                    z as f64,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
                                 )
@@ -1551,11 +1548,11 @@ impl Graph {
                         let mut body = |i: usize, y: &Complex| {
                             let (y, z) = y.to_options();
                             c = if let (Some(x), Some(y)) = (y, z) {
-                                let z = (i as f32 / (len - 1) as f32 - 0.5) * (end_x - start_x)
+                                let z = (i as f64 / (len - 1) as f64 - 0.5) * (end_x - start_x)
                                     + (start_x + end_x) / 2.0;
                                 let (c, d) = self.draw_point_3d(
-                                    x,
-                                    y,
+                                    x as f64,
+                                    y as f64,
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     c,
@@ -1601,12 +1598,12 @@ impl Graph {
                             self.cache = Some(tex);
                             self.cache.as_ref().unwrap()
                         };
-                        let a = (Pos2::new(*start_x, *start_y) * self.screen.x
+                        let a = (Pos2::new(*start_x as f32, *start_y as f32) * self.screen.x
                             / (self.end - self.start) as f32
                             + self.screen_offset
                             + self.offset.get_2d())
                             * self.zoom as f32;
-                        let b = (Pos2::new(*end_x, *end_y) * self.screen.x
+                        let b = (Pos2::new(*end_x as f32, *end_y as f32) * self.screen.x
                             / (self.end - self.start) as f32
                             + self.screen_offset
                             + self.offset.get_2d())
@@ -1635,9 +1632,9 @@ impl Graph {
                                 None
                             } else if let Some(z) = z {
                                 let (c, d) = self.draw_point_3d(
-                                    *x,
-                                    *y,
-                                    z,
+                                    *x as f64,
+                                    *y as f64,
+                                    z as f64,
                                     &self.main_colors[k % self.main_colors.len()],
                                     last,
                                     None,
@@ -1651,9 +1648,9 @@ impl Graph {
                                 None
                             } else if let Some(w) = w {
                                 let (c, d) = self.draw_point_3d(
-                                    *x,
-                                    *y,
-                                    w,
+                                    *x as f64,
+                                    *y as f64,
+                                    w as f64,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     lasti,
                                     None,
