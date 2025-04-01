@@ -2,7 +2,7 @@ use egui::{
     Align2, CentralPanel, Color32, ColorImage, Context, FontId, Key, Painter, Pos2, Rangef, Rect,
     Stroke, TextureHandle, TextureOptions, Ui, Vec2,
 };
-use std::f32::consts::{PI, TAU};
+use std::f64::consts::{PI, TAU};
 use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
 pub enum GraphMode {
     Normal,
@@ -40,20 +40,20 @@ impl Show {
 pub struct Graph {
     data: Vec<GraphType>,
     cache: Option<TextureHandle>,
-    start: f32,
-    end: f32,
+    start: f64,
+    end: f64,
     is_complex: bool,
     offset: Vec3,
-    theta: f32,
+    theta: f64,
+    phi: f64,
     ignore_bounds: bool,
-    phi: f32,
-    zoom: f32,
+    zoom: f64,
     slice: usize,
     lines: bool,
     box_size: f32,
     screen: Vec2,
     screen_offset: Vec2,
-    delta: f32,
+    delta: f64,
     show: Show,
     anti_alias: bool,
     color_depth: bool,
@@ -106,36 +106,36 @@ fn is_3d(data: &[GraphType]) -> bool {
 }
 #[derive(Copy, Clone)]
 pub struct Vec3 {
-    x: f32,
-    y: f32,
-    z: f32,
+    x: f64,
+    y: f64,
+    z: f64,
 }
 impl Vec3 {
-    fn splat(v: f32) -> Self {
+    fn splat(v: f64) -> Self {
         Self { x: v, y: v, z: v }
     }
-    pub fn new(x: f32, y: f32, z: f32) -> Self {
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
     }
     fn get_2d(&self) -> Vec2 {
-        Vec2::new(self.x, self.y)
+        Vec2::new(self.x as f32, self.y as f32)
     }
 }
 impl AddAssign<Vec2> for Vec3 {
     fn add_assign(&mut self, rhs: Vec2) {
-        self.x += rhs.x;
-        self.y += rhs.y;
+        self.x += rhs.x as f64;
+        self.y += rhs.y as f64;
     }
 }
 impl SubAssign<Vec2> for Vec3 {
     fn sub_assign(&mut self, rhs: Vec2) {
-        self.x -= rhs.x;
-        self.y -= rhs.y;
+        self.x -= rhs.x as f64;
+        self.y -= rhs.y as f64;
     }
 }
-impl Mul<f32> for Vec3 {
+impl Mul<f64> for Vec3 {
     type Output = Vec3;
-    fn mul(self, rhs: f32) -> Self::Output {
+    fn mul(self, rhs: f64) -> Self::Output {
         Vec3::new(self.x * rhs, self.y * rhs, self.z * rhs)
     }
 }
@@ -152,7 +152,7 @@ impl Add for Vec3 {
     }
 }
 impl Graph {
-    pub fn new(data: Vec<GraphType>, is_complex: bool, start: f32, end: f32) -> Self {
+    pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
         let offset = Vec3::splat(0.0);
         let zoom = 1.0;
         let is_3d = is_3d(&data);
@@ -293,12 +293,12 @@ impl Graph {
         let rect = ctx.available_rect();
         self.screen = Vec2::new(rect.width(), rect.height());
         self.delta = if self.is_3d {
-            self.screen.x.min(self.screen.y)
+            self.screen.x.min(self.screen.y) as f64
         } else {
-            self.screen.x
+            self.screen.x as f64
         } / (self.end - self.start);
         let t = Vec2::new(
-            self.screen.x / 2.0 - self.delta * (self.start + self.end) / 2.0,
+            self.screen.x / 2.0 - (self.delta * (self.start + self.end) / 2.0) as f32,
             self.screen.y / 2.0,
         );
         if t != self.screen_offset {
@@ -362,18 +362,22 @@ impl Graph {
             );
         }
     }
-    fn to_screen(&self, x: f32, y: f32) -> Pos2 {
-        (Pos2::new(x, -y) * self.screen.x / (self.end - self.start)
-            + self.screen_offset
-            + self.offset.get_2d())
-            * self.zoom
+    fn to_screen(&self, x: f64, y: f64) -> Pos2 {
+        let s = self.screen.x as f64 / (self.end - self.start);
+        let ox = self.screen_offset.x as f64 + self.offset.x;
+        let oy = self.screen_offset.y as f64 + self.offset.y;
+        Pos2::new(
+            ((x * s + ox) * self.zoom) as f32,
+            ((-y * s + oy) * self.zoom) as f32,
+        )
     }
     fn to_coord(&self, p: Pos2) -> Pos2 {
-        let mut p = (p / self.zoom - self.offset.get_2d() - self.screen_offset)
-            * (self.end - self.start)
-            / self.screen.x;
-        p.y *= -1.0;
-        p
+        let ox = self.offset.x + self.screen_offset.x as f64;
+        let oy = self.offset.y + self.screen_offset.y as f64;
+        let s = (self.end - self.start) / self.screen.x as f64;
+        let x = (p.x as f64 / self.zoom - ox) * s;
+        let y = (p.y as f64 / self.zoom - oy) * s;
+        Pos2::new(x as f32, -y as f32)
     }
     #[allow(clippy::too_many_arguments)]
     fn draw_point(
@@ -388,7 +392,7 @@ impl Graph {
         if !x.is_finite() || !y.is_finite() {
             return None;
         }
-        let pos = self.to_screen(x, y);
+        let pos = self.to_screen(x as f64, y as f64);
         if !self.no_points
             && pos.x > -2.0
             && pos.x < self.screen.x + 2.0
@@ -417,10 +421,10 @@ impl Graph {
             let c = self.to_coord(Pos2::new(0.0, 0.0));
             let cf = self.to_coord(self.screen.to_pos2());
             let r = self.zoom.recip() / 2.0;
-            let stx = (c.x / r).round() * r;
-            let sty = (c.y / r).round() * r;
-            let enx = (cf.x / r).round() * r;
-            let eny = (cf.y / r).round() * r;
+            let stx = (c.x as f64 / r).round() * r;
+            let sty = (c.y as f64 / r).round() * r;
+            let enx = (cf.x as f64 / r).round() * r;
+            let eny = (cf.y as f64 / r).round() * r;
             let s: isize = 0;
             let f = ((enx - stx) / r).abs() as isize;
             let sy = ((eny - sty) / r).abs() as isize;
@@ -429,7 +433,7 @@ impl Graph {
                 for i in s.saturating_sub(1)..=f.saturating_add(1) {
                     for j in -2..2 {
                         if j != 0 {
-                            let x = self.to_screen(stx + r * (i as f32 + j as f32 / 4.0), 0.0).x;
+                            let x = self.to_screen(stx + r * (i as f64 + j as f64 / 4.0), 0.0).x;
                             painter.vline(
                                 x,
                                 Rangef::new(0.0, self.screen.y),
@@ -441,7 +445,7 @@ impl Graph {
                 for i in sf.saturating_sub(1)..=sy.saturating_add(1) {
                     for j in -2..2 {
                         if j != 0 {
-                            let y = self.to_screen(0.0, sty - r * (i as f32 + j as f32 / 4.0)).y;
+                            let y = self.to_screen(0.0, sty - r * (i as f64 + j as f64 / 4.0)).y;
                             painter.hline(
                                 Rangef::new(0.0, self.screen.x),
                                 y,
@@ -452,7 +456,7 @@ impl Graph {
                 }
             }
             for i in s..=f {
-                let x = self.to_screen(stx + r * i as f32, 0.0).x;
+                let x = self.to_screen(stx + r * i as f64, 0.0).x;
                 painter.vline(
                     x,
                     Rangef::new(0.0, self.screen.y),
@@ -460,7 +464,7 @@ impl Graph {
                 );
             }
             for i in sf..=sy {
-                let y = self.to_screen(0.0, sty - r * i as f32).y;
+                let y = self.to_screen(0.0, sty - r * i as f64).y;
                 painter.hline(
                     Rangef::new(0.0, self.screen.x),
                     y,
@@ -468,32 +472,32 @@ impl Graph {
                 );
             }
             if !self.disable_axis {
-                let y = if sty - r * (sy as f32) < 0.0 && sty - r * (sf as f32) > 0.0 {
+                let y = if sty - r * (sy as f64) < 0.0 && sty - r * (sf as f64) > 0.0 {
                     self.to_screen(0.0, 0.0).y
                 } else {
                     0.0
                 };
                 for j in s.saturating_sub(1)..=f {
-                    let x = self.to_screen(stx + r * j as f32, 0.0).x;
+                    let x = self.to_screen(stx + r * j as f64, 0.0).x;
                     painter.text(
                         Pos2::new(x, y),
                         Align2::LEFT_TOP,
-                        format!("{0:.5}", stx + r * j as f32),
+                        format!("{0:.5}", stx + r * j as f64),
                         FontId::monospace(16.0),
                         self.text_color,
                     );
                 }
-                let x = if stx + r * (s as f32) < 0.0 && stx + r * (f as f32) > 0.0 {
+                let x = if stx + r * (s as f64) < 0.0 && stx + r * (f as f64) > 0.0 {
                     self.to_screen(0.0, 0.0).x
                 } else {
                     0.0
                 };
                 for j in sf..=sy.saturating_add(1) {
-                    let y = self.to_screen(0.0, sty - r * j as f32).y;
+                    let y = self.to_screen(0.0, sty - r * j as f64).y;
                     painter.text(
                         Pos2::new(x, y),
                         Align2::LEFT_TOP,
-                        format!("{0:.5}", sty - r * j as f32),
+                        format!("{0:.5}", sty - r * j as f64),
                         FontId::monospace(16.0),
                         self.text_color,
                     );
@@ -506,11 +510,11 @@ impl Graph {
             let f = cf.x.floor() as isize;
             let sy = c.y.floor() as isize;
             let sf = cf.y.ceil() as isize;
-            if !self.disable_lines && self.zoom > 2.0f32.powi(-4) {
+            if !self.disable_lines && self.zoom > 2.0f64.powi(-4) {
                 for i in s.saturating_sub(1)..=f.saturating_add(1) {
                     for j in -4..4 {
                         if j != 0 {
-                            let x = self.to_screen(i as f32 + j as f32 / 8.0, 0.0).x;
+                            let x = self.to_screen(i as f64 + j as f64 / 8.0, 0.0).x;
                             painter.vline(
                                 x,
                                 Rangef::new(0.0, self.screen.y),
@@ -522,7 +526,7 @@ impl Graph {
                 for i in sf.saturating_sub(1)..=sy.saturating_add(1) {
                     for j in -4..4 {
                         if j != 0 {
-                            let y = self.to_screen(0.0, i as f32 + j as f32 / 8.0).y;
+                            let y = self.to_screen(0.0, i as f64 + j as f64 / 8.0).y;
                             painter.hline(
                                 Rangef::new(0.0, self.screen.x),
                                 y,
@@ -534,10 +538,10 @@ impl Graph {
             }
             for i in s..=f {
                 let is_center = i == 0;
-                if (!self.disable_lines && (is_center || self.zoom > 2.0f32.powi(-6)))
+                if (!self.disable_lines && (is_center || self.zoom > 2.0f64.powi(-6)))
                     || (is_center && !self.disable_axis)
                 {
-                    let x = self.to_screen(i as f32, 0.0).x;
+                    let x = self.to_screen(i as f64, 0.0).x;
                     painter.vline(
                         x,
                         Rangef::new(0.0, self.screen.y),
@@ -547,10 +551,10 @@ impl Graph {
             }
             for i in sf..=sy {
                 let is_center = i == 0;
-                if (!self.disable_lines && (is_center || self.zoom > 2.0f32.powi(-6)))
+                if (!self.disable_lines && (is_center || self.zoom > 2.0f64.powi(-6)))
                     || (is_center && !self.disable_axis)
                 {
-                    let y = self.to_screen(0.0, i as f32).y;
+                    let y = self.to_screen(0.0, i as f64).y;
                     painter.hline(
                         Rangef::new(0.0, self.screen.x),
                         y,
@@ -558,14 +562,14 @@ impl Graph {
                     );
                 }
             }
-            if !self.disable_axis && self.zoom > 2.0f32.powi(-6) {
+            if !self.disable_axis && self.zoom > 2.0f64.powi(-6) {
                 let y = if (sf..=sy).contains(&0) {
                     self.to_screen(0.0, 0.0).y
                 } else {
                     0.0
                 };
                 for j in s.saturating_sub(1)..=f {
-                    let x = self.to_screen(j as f32, 0.0).x;
+                    let x = self.to_screen(j as f64, 0.0).x;
                     painter.text(
                         Pos2::new(x, y),
                         Align2::LEFT_TOP,
@@ -580,7 +584,7 @@ impl Graph {
                     0.0
                 };
                 for j in sf..=sy.saturating_add(1) {
-                    let y = self.to_screen(0.0, j as f32).y;
+                    let y = self.to_screen(0.0, j as f64).y;
                     painter.text(
                         Pos2::new(x, y),
                         Align2::LEFT_TOP,
@@ -601,9 +605,13 @@ impl Graph {
         let y1 = -p.x * sin_phi + p.y * cos_phi;
         let z2 = -p.z * cos_theta - y1 * sin_theta;
         let d = p.z * sin_theta - y1 * cos_theta;
+        let s = self.delta / self.box_size as f64;
         (
-            Pos2::new(x1, z2) * self.delta / self.box_size + self.screen / 2.0,
-            d / ((self.end - self.start) * 3.0f32.sqrt()) + 0.5,
+            Pos2::new(
+                (x1 * s + self.screen.x as f64 / 2.0) as f32,
+                (z2 * s + self.screen.y as f64 / 2.0) as f32,
+            ),
+            (d / ((self.end - self.start) * 3.0f64.sqrt()) + 0.5) as f32,
         )
     }
     /*fn vec3_to_pos(&self, p: Vec3) -> Pos2 {
@@ -631,6 +639,9 @@ impl Graph {
         if !x.is_finite() || !y.is_finite() || !z.is_finite() {
             return (None, draws);
         }
+        let x = x as f64;
+        let y = y as f64;
+        let z = z as f64;
         let z = z + self.offset.z;
         let v = Vec3::new(x, y, z);
         let pos = self.vec3_to_pos_depth(v);
@@ -796,7 +807,7 @@ impl Graph {
                 let end = vertices[*i.max(j)].0;
                 let st = self.start.ceil() as isize;
                 let e = self.end.floor() as isize;
-                let n = ((st + (e - st) / 2) as f32 - if s == "z" { self.offset.z } else { 0.0 })
+                let n = ((st + (e - st) / 2) as f64 - if s == "z" { self.offset.z } else { 0.0 })
                     .to_string();
                 painter.text(
                     p / 2.0,
@@ -813,7 +824,7 @@ impl Graph {
                     painter.text(
                         start + (i - st) as f32 * (end - start) / (e - st) as f32,
                         align,
-                        i as f32 - if s == "z" { self.offset.z } else { 0.0 },
+                        i as f64 - if s == "z" { self.offset.z } else { 0.0 },
                         FontId::monospace(16.0),
                         self.text_color,
                     );
@@ -847,10 +858,11 @@ impl Graph {
                 if let (Some(interact), Some(last)) = (interact, self.last_interact) {
                     let delta = interact - last;
                     if self.is_3d {
-                        self.phi = (self.phi - delta.x / 512.0).rem_euclid(TAU);
-                        self.theta = (self.theta + delta.y / 512.0).rem_euclid(TAU);
+                        self.phi = (self.phi - delta.x as f64 / 512.0).rem_euclid(TAU);
+                        self.theta = (self.theta + delta.y as f64 / 512.0).rem_euclid(TAU);
                     } else {
-                        self.offset += delta / self.zoom;
+                        self.offset.x += delta.x as f64 / self.zoom;
+                        self.offset.y += delta.y as f64 / self.zoom;
                         self.recalculate = true;
                     }
                 }
@@ -858,41 +870,64 @@ impl Graph {
             self.last_interact = interact;
             if let Some(multi) = multi {
                 match multi.zoom_delta.total_cmp(&1.0) {
-                    std::cmp::Ordering::Greater if self.zoom <= 2.0f32.powi(12) => {
+                    std::cmp::Ordering::Greater => {
                         if self.is_3d {
                             self.box_size /= multi.zoom_delta;
                         } else {
-                            self.zoom *= multi.zoom_delta;
-                            self.offset -= if self.mouse_moved && !self.is_3d {
+                            self.zoom *= multi.zoom_delta as f64;
+                            self.offset.x -= if self.mouse_moved && !self.is_3d {
                                 self.mouse_position.unwrap().to_vec2()
                             } else {
                                 self.screen_offset
-                            } / self.zoom
-                                * (multi.zoom_delta - 1.0);
+                            }
+                            .x as f64
+                                / self.zoom
+                                * (multi.zoom_delta as f64 - 1.0);
+                            self.offset.y -= if self.mouse_moved && !self.is_3d {
+                                self.mouse_position.unwrap().to_vec2()
+                            } else {
+                                self.screen_offset
+                            }
+                            .y as f64
+                                / self.zoom
+                                * (multi.zoom_delta as f64 - 1.0);
                             self.recalculate = true;
                         }
                     }
-                    std::cmp::Ordering::Less if self.zoom >= 2.0f32.powi(-12) => {
+                    std::cmp::Ordering::Less => {
                         if self.is_3d {
                             self.box_size /= multi.zoom_delta;
                         } else {
-                            self.offset += if self.mouse_moved && !self.is_3d {
+                            self.offset.x += if self.mouse_moved && !self.is_3d {
                                 self.mouse_position.unwrap().to_vec2()
                             } else {
                                 self.screen_offset
-                            } / self.zoom
-                                * (multi.zoom_delta.recip() - 1.0);
-                            self.zoom *= multi.zoom_delta;
+                            }
+                            .x as f64
+                                / self.zoom
+                                * ((multi.zoom_delta as f64).recip() - 1.0);
+                            self.offset.y += if self.mouse_moved && !self.is_3d {
+                                self.mouse_position.unwrap().to_vec2()
+                            } else {
+                                self.screen_offset
+                            }
+                            .y as f64
+                                / self.zoom
+                                * ((multi.zoom_delta as f64).recip() - 1.0);
+                            self.zoom *= multi.zoom_delta as f64;
                             self.recalculate = true;
                         }
                     }
                     _ => {}
                 }
                 if self.is_3d {
-                    self.phi = (self.phi - multi.translation_delta.x / 512.0).rem_euclid(TAU);
-                    self.theta = (self.theta + multi.translation_delta.y / 512.0).rem_euclid(TAU);
+                    self.phi =
+                        (self.phi - multi.translation_delta.x as f64 / 512.0).rem_euclid(TAU);
+                    self.theta =
+                        (self.theta + multi.translation_delta.y as f64 / 512.0).rem_euclid(TAU);
                 } else {
-                    self.offset += multi.translation_delta / self.zoom;
+                    self.offset.x += multi.translation_delta.x as f64 / self.zoom;
+                    self.offset.y += multi.translation_delta.y as f64 / self.zoom;
                     self.recalculate = true;
                 }
             }
@@ -1007,50 +1042,90 @@ impl Graph {
                 if i.key_pressed(Key::Y) {
                     self.show_box = !self.show_box
                 }
-                self.phi = (self.phi - i.raw_scroll_delta.x / 512.0).rem_euclid(TAU);
-                self.theta = (self.theta + i.raw_scroll_delta.y / 512.0).rem_euclid(TAU);
+                self.phi = (self.phi - i.raw_scroll_delta.x as f64 / 512.0).rem_euclid(TAU);
+                self.theta = (self.theta + i.raw_scroll_delta.y as f64 / 512.0).rem_euclid(TAU);
             } else {
                 let rt = 2.0;
-                if i.key_pressed(Key::Q) && self.zoom >= 2.0f32.powi(-12) {
-                    self.offset += if self.mouse_moved && !self.is_3d {
+                if i.key_pressed(Key::Q) {
+                    self.offset.x += if self.mouse_moved && !self.is_3d {
                         self.mouse_position.unwrap().to_vec2()
                     } else {
                         self.screen_offset
-                    } / self.zoom
+                    }
+                    .x as f64
+                        / self.zoom
+                        * (rt - 1.0);
+                    self.offset.y += if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().to_vec2()
+                    } else {
+                        self.screen_offset
+                    }
+                    .y as f64
+                        / self.zoom
                         * (rt - 1.0);
                     self.zoom /= rt;
                     self.recalculate = true;
                 }
-                if i.key_pressed(Key::E) && self.zoom <= 2.0f32.powi(12) {
+                if i.key_pressed(Key::E) {
                     self.zoom *= rt;
-                    self.offset -= if self.mouse_moved && !self.is_3d {
+                    self.offset.x -= if self.mouse_moved && !self.is_3d {
                         self.mouse_position.unwrap().to_vec2()
                     } else {
                         self.screen_offset
-                    } / self.zoom
+                    }
+                    .x as f64
+                        / self.zoom
+                        * (rt - 1.0);
+                    self.offset.y -= if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().to_vec2()
+                    } else {
+                        self.screen_offset
+                    }
+                    .y as f64
+                        / self.zoom
                         * (rt - 1.0);
                     self.recalculate = true;
                 }
                 let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
                 match rt.total_cmp(&1.0) {
-                    std::cmp::Ordering::Greater if self.zoom <= 2.0f32.powi(12) => {
-                        self.zoom *= rt;
-                        self.offset -= if self.mouse_moved && !self.is_3d {
+                    std::cmp::Ordering::Greater => {
+                        self.zoom *= rt as f64;
+                        self.offset.x -= if self.mouse_moved && !self.is_3d {
                             self.mouse_position.unwrap().to_vec2()
                         } else {
                             self.screen_offset
-                        } / self.zoom
-                            * (rt - 1.0);
+                        }
+                        .x as f64
+                            / self.zoom
+                            * (rt as f64 - 1.0);
+                        self.offset.y -= if self.mouse_moved && !self.is_3d {
+                            self.mouse_position.unwrap().to_vec2()
+                        } else {
+                            self.screen_offset
+                        }
+                        .y as f64
+                            / self.zoom
+                            * (rt as f64 - 1.0);
                         self.recalculate = true;
                     }
-                    std::cmp::Ordering::Less if self.zoom >= 2.0f32.powi(-12) => {
-                        self.offset += if self.mouse_moved && !self.is_3d {
+                    std::cmp::Ordering::Less => {
+                        self.offset.x += if self.mouse_moved && !self.is_3d {
                             self.mouse_position.unwrap().to_vec2()
                         } else {
                             self.screen_offset
-                        } / self.zoom
-                            * (rt.recip() - 1.0);
-                        self.zoom *= rt;
+                        }
+                        .x as f64
+                            / self.zoom
+                            * ((rt as f64).recip() - 1.0);
+                        self.offset.y += if self.mouse_moved && !self.is_3d {
+                            self.mouse_position.unwrap().to_vec2()
+                        } else {
+                            self.screen_offset
+                        }
+                        .y as f64
+                            / self.zoom
+                            * ((rt as f64).recip() - 1.0);
+                        self.zoom *= rt as f64;
                         self.recalculate = true;
                     }
                     _ => {}
@@ -1527,15 +1602,15 @@ impl Graph {
                             self.cache.as_ref().unwrap()
                         };
                         let a = (Pos2::new(*start_x, *start_y) * self.screen.x
-                            / (self.end - self.start)
+                            / (self.end - self.start) as f32
                             + self.screen_offset
                             + self.offset.get_2d())
-                            * self.zoom;
+                            * self.zoom as f32;
                         let b = (Pos2::new(*end_x, *end_y) * self.screen.x
-                            / (self.end - self.start)
+                            / (self.end - self.start) as f32
                             + self.screen_offset
                             + self.offset.get_2d())
-                            * self.zoom;
+                            * self.zoom as f32;
                         painter.image(
                             tex.id(),
                             Rect::from_points(&[a, b]),
@@ -1599,11 +1674,11 @@ impl Graph {
         let (x, y) = z.to_options();
         let (x, y) = (x.unwrap_or(0.0), y.unwrap_or(0.0));
         let abs = x.hypot(y);
-        let hue = 3.0 * (1.0 - y.atan2(x) / PI);
+        let hue = 3.0 * (1.0 - y.atan2(x) / std::f32::consts::TAU);
         let sat = (1.0 + abs.fract()) / 2.0;
         let val = {
-            let t1 = (x * PI).sin();
-            let t2 = (y * PI).sin();
+            let t1 = (x * std::f32::consts::PI).sin();
+            let t2 = (y * std::f32::consts::PI).sin();
             (t1 * t2).abs().powf(0.125)
         };
         hsv2rgb(hue, sat, val)
@@ -1677,11 +1752,11 @@ fn oklch_to_rgb(color: &mut [f32; 3]) {
     color[2] = -0.0041960761386754 * l - 0.7034186179359363 * m + 1.7076146940746116 * s;
 }
 fn shift_hue_by(color: &mut [f32; 3], diff: f32) {
-    let diff = TAU * diff;
+    let diff = std::f32::consts::TAU * diff;
     let (_, c, hue) = get_lch(*color);
-    let mut new_hue = (hue + diff) % TAU;
+    let mut new_hue = (hue + diff) % std::f32::consts::TAU;
     if new_hue.is_sign_negative() {
-        new_hue += TAU;
+        new_hue += std::f32::consts::TAU;
     }
     color[1] = c * new_hue.cos();
     color[2] = c * new_hue.sin();

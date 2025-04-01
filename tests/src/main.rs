@@ -42,13 +42,7 @@ impl eframe::App for App {
 
 impl App {
     fn new() -> Self {
-        /*let plot = Graph::new(
-            vec![grab_width3d("data/data12", -8.0, -8.0, 8.0, 8.0)],
-            true,
-            -8.0,
-            8.0,
-        );*/
-        let plot = Graph::new(vec![generate(-2.0, 2.0, 64)], true, -2.0, 2.0);
+        let plot = Graph::new(vec![generate(-2.0, 2.0, 1024)], true, -2.0, 2.0);
         Self { plot }
     }
     fn main(&mut self, ctx: &Context) {
