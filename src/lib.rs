@@ -25,8 +25,9 @@ pub enum Draw {
     Point(Pos2),
 }
 pub enum UpdateResult {
-    Width(f32, f32),
-    Width3D(f32, f32, f32, f32),
+    Width(f64, f64),
+    Width3D(f64, f64, f64, f64),
+    None,
 }
 pub enum Show {
     Real,
@@ -280,21 +281,21 @@ impl Graph {
         }
         self.graph_mode = mode;
     }
-    pub fn update(&mut self, ctx: &Context) -> Option<UpdateResult> {
+    pub fn update(&mut self, ctx: &Context) -> UpdateResult {
         CentralPanel::default()
             .frame(egui::Frame::default().fill(self.background_color))
             .show(ctx, |ui| self.plot_main(ctx, ui));
         if self.recalculate {
             self.recalculate = false;
             if self.is_3d {
-                Some(UpdateResult::Width3D(0.0, 0.0, 0.0, 0.0)) //TODO
+                UpdateResult::Width3D(self.start, self.start, self.end, self.end)
             } else {
                 let c = self.to_coord(Pos2::new(0.0, 0.0));
                 let cf = self.to_coord(self.screen.to_pos2());
-                Some(UpdateResult::Width(c.x, cf.x))
+                UpdateResult::Width(c.x as f64, cf.x as f64)
             }
         } else {
-            None
+            UpdateResult::None
         }
     }
     fn plot_main(&mut self, ctx: &Context, ui: &Ui) {
@@ -434,6 +435,9 @@ impl Graph {
             let sty = (c.y as f64 / r).round() * r;
             let enx = (cf.x as f64 / r).round() * r;
             let eny = (cf.y as f64 / r).round() * r;
+            if !stx.is_finite() || !sty.is_finite() || !enx.is_finite() || !eny.is_finite() {
+                return;
+            }
             let s: isize = 0;
             let f = ((enx - stx) / r).abs() as isize;
             let sy = ((eny - sty) / r).abs() as isize;
@@ -545,11 +549,13 @@ impl Graph {
                     }
                 }
             }
-            for i in s..=f {
+            for i in if self.zoom > 2.0f64.powi(-6) {
+                s..=f
+            } else {
+                0..=0
+            } {
                 let is_center = i == 0;
-                if (!self.disable_lines && (is_center || self.zoom > 2.0f64.powi(-6)))
-                    || (is_center && !self.disable_axis)
-                {
+                if !self.disable_lines || (is_center && !self.disable_axis) {
                     let x = self.to_screen(i as f64, 0.0).x;
                     painter.vline(
                         x,
@@ -558,7 +564,11 @@ impl Graph {
                     );
                 }
             }
-            for i in sf..=sy {
+            for i in if self.zoom > 2.0f64.powi(-6) {
+                sf..=sy
+            } else {
+                0..=0
+            } {
                 let is_center = i == 0;
                 if (!self.disable_lines && (is_center || self.zoom > 2.0f64.powi(-6)))
                     || (is_center && !self.disable_axis)

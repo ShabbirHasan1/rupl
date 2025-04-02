@@ -1,5 +1,5 @@
 use egui::{Context, FontData, FontDefinitions, FontFamily};
-use rupl::{Complex, Graph, GraphType};
+use rupl::{Complex, Graph, GraphType, UpdateResult};
 use std::fs;
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
@@ -46,10 +46,16 @@ impl App {
         Self { plot }
     }
     fn main(&mut self, ctx: &Context) {
-        let v = self.plot.update(ctx);
-        if let Some((s, e)) = v {
-            let plot = generate(s as f64, e as f64, 1024);
-            self.plot.set_data(vec![plot]);
+        match self.plot.update(ctx) {
+            UpdateResult::Width(s, e) => {
+                let plot = generate(s, e, 1024);
+                self.plot.set_data(vec![plot]);
+            }
+            UpdateResult::Width3D(sx, sy, ex, ey) => {
+                let plot = generate_3d(sx, sy, ex, ey, 64);
+                self.plot.set_data(vec![plot]);
+            }
+            UpdateResult::None => {}
         }
     }
 }
