@@ -57,7 +57,7 @@ pub struct Graph {
     lines: bool,
     box_size: f32,
     screen: Vec2,
-    screen_offset: Vec2,
+    screen_offset: (f64, f64),
     delta: f64,
     show: Show,
     anti_alias: bool,
@@ -81,6 +81,7 @@ pub struct Graph {
     last_interact: Option<Pos2>,
     recalculate: bool,
     no_points: bool,
+    ruler_pos: Option<(f64, f64)>,
 }
 #[derive(Copy, Clone)]
 pub enum Complex {
@@ -175,7 +176,7 @@ impl Graph {
             ignore_bounds: false,
             zoom,
             screen: Vec2::splat(0.0),
-            screen_offset: Vec2::splat(0.0),
+            screen_offset: (0.0, 0.0),
             delta: 0.0,
             show_box: false,
             view_x: false,
@@ -214,6 +215,7 @@ impl Graph {
             is_3d,
             recalculate: false,
             no_points: true,
+            ruler_pos: None,
         }
     }
     pub fn set_data(&mut self, data: Vec<GraphType>) {
@@ -292,7 +294,7 @@ impl Graph {
             } else {
                 let c = self.to_coord(Pos2::new(0.0, 0.0));
                 let cf = self.to_coord(self.screen.to_pos2());
-                UpdateResult::Width(c.x as f64, cf.x as f64)
+                UpdateResult::Width(c.0, cf.0)
             }
         } else {
             UpdateResult::None
@@ -307,9 +309,9 @@ impl Graph {
         } else {
             self.screen.x as f64
         } / (self.end - self.start);
-        let t = Vec2::new(
-            self.screen.x / 2.0 - (self.delta * (self.start + self.end) / 2.0) as f32,
-            self.screen.y / 2.0,
+        let t = (
+            self.screen.x as f64 / 2.0 - (self.delta * (self.start + self.end) / 2.0),
+            self.screen.y as f64 / 2.0,
         );
         if t != self.screen_offset {
             self.recalculate = true;
@@ -342,16 +344,35 @@ impl Graph {
         self.keybinds(ui);
     }
     fn write_coord(&self, painter: &Painter) {
-        if self.mouse_moved && !self.disable_coord {
+        if self.mouse_moved {
             if let Some(pos) = self.mouse_position {
                 let p = self.to_coord(pos);
-                painter.text(
-                    Pos2::new(0.0, self.screen.y),
-                    Align2::LEFT_BOTTOM,
-                    format!("{{{},{}}}", p.x, p.y),
-                    FontId::monospace(16.0),
-                    self.text_color,
-                );
+                if !self.disable_coord {
+                    painter.text(
+                        Pos2::new(0.0, self.screen.y),
+                        Align2::LEFT_BOTTOM,
+                        format!("{:e}\n{:e}", p.0, p.1),
+                        FontId::monospace(16.0),
+                        self.text_color,
+                    );
+                }
+                if let Some(ps) = self.ruler_pos {
+                    let dx = p.0 - ps.0;
+                    let dy = p.1 - ps.1;
+                    painter.text(
+                        Pos2::new(self.screen.x, self.screen.y),
+                        Align2::RIGHT_BOTTOM,
+                        format!(
+                            "{:e}\n{:e}\n{:e}\n{}",
+                            dx,
+                            dy,
+                            (dx * dx + dy * dy).sqrt(),
+                            dy.atan2(dx) * 360.0 / TAU
+                        ),
+                        FontId::monospace(16.0),
+                        self.text_color,
+                    );
+                }
             }
         }
     }
@@ -374,20 +395,20 @@ impl Graph {
     }
     fn to_screen(&self, x: f64, y: f64) -> Pos2 {
         let s = self.screen.x as f64 / (self.end - self.start);
-        let ox = self.screen_offset.x as f64 + self.offset.x;
-        let oy = self.screen_offset.y as f64 + self.offset.y;
+        let ox = self.screen_offset.0 + self.offset.x;
+        let oy = self.screen_offset.1 + self.offset.y;
         Pos2::new(
             ((x * s + ox) * self.zoom) as f32,
             ((-y * s + oy) * self.zoom) as f32,
         )
     }
-    fn to_coord(&self, p: Pos2) -> Pos2 {
-        let ox = self.offset.x + self.screen_offset.x as f64;
-        let oy = self.offset.y + self.screen_offset.y as f64;
+    fn to_coord(&self, p: Pos2) -> (f64, f64) {
+        let ox = self.offset.x + self.screen_offset.0;
+        let oy = self.offset.y + self.screen_offset.1;
         let s = (self.end - self.start) / self.screen.x as f64;
         let x = (p.x as f64 / self.zoom - ox) * s;
         let y = (p.y as f64 / self.zoom - oy) * s;
-        Pos2::new(x as f32, -y as f32)
+        (x, -y)
     }
     #[allow(clippy::too_many_arguments)]
     fn draw_point(
@@ -431,10 +452,10 @@ impl Graph {
             let c = self.to_coord(Pos2::new(0.0, 0.0));
             let cf = self.to_coord(self.screen.to_pos2());
             let r = self.zoom.recip() / 2.0;
-            let stx = (c.x as f64 / r).round() * r;
-            let sty = (c.y as f64 / r).round() * r;
-            let enx = (cf.x as f64 / r).round() * r;
-            let eny = (cf.y as f64 / r).round() * r;
+            let stx = (c.0 / r).round() * r;
+            let sty = (c.1 / r).round() * r;
+            let enx = (cf.0 / r).round() * r;
+            let eny = (cf.1 / r).round() * r;
             if !stx.is_finite() || !sty.is_finite() || !enx.is_finite() || !eny.is_finite() {
                 return;
             }
@@ -495,7 +516,7 @@ impl Graph {
                     painter.text(
                         Pos2::new(x, y),
                         Align2::LEFT_TOP,
-                        format!("{}", stx + r * j as f64),
+                        format!("{:e}", stx + r * j as f64),
                         FontId::monospace(16.0),
                         self.text_color,
                     );
@@ -510,7 +531,7 @@ impl Graph {
                     painter.text(
                         Pos2::new(x, y),
                         Align2::LEFT_TOP,
-                        format!("{}", sty - r * j as f64),
+                        format!("{:e}", sty - r * j as f64),
                         FontId::monospace(16.0),
                         self.text_color,
                     );
@@ -519,10 +540,10 @@ impl Graph {
         } else {
             let c = self.to_coord(Pos2::new(0.0, 0.0));
             let cf = self.to_coord(self.screen.to_pos2());
-            let s = c.x.ceil() as isize;
-            let f = cf.x.floor() as isize;
-            let sy = c.y.floor() as isize;
-            let sf = cf.y.ceil() as isize;
+            let s = c.0.ceil() as isize;
+            let f = cf.0.floor() as isize;
+            let sy = c.1.floor() as isize;
+            let sf = cf.1.ceil() as isize;
             if !self.disable_lines && self.zoom > 2.0f64.powi(-4) {
                 for i in s.saturating_sub(1)..=f.saturating_add(1) {
                     for j in -4..4 {
@@ -855,6 +876,16 @@ impl Graph {
     }
     fn keybinds(&mut self, ui: &Ui) {
         ui.input(|i| {
+            if let Some(mpos) = i.pointer.latest_pos() {
+                if let Some(pos) = self.mouse_position {
+                    if mpos != pos {
+                        self.mouse_moved = true;
+                        self.mouse_position = Some(mpos)
+                    }
+                } else {
+                    self.mouse_position = Some(mpos)
+                }
+            }
             let multi = i.multi_touch();
             let interact = i.pointer.interact_pos();
             if i.pointer.primary_down()
@@ -882,20 +913,16 @@ impl Graph {
                         } else {
                             self.zoom *= multi.zoom_delta as f64;
                             self.offset.x -= if self.mouse_moved && !self.is_3d {
-                                self.mouse_position.unwrap().to_vec2()
+                                self.mouse_position.unwrap().to_vec2().x as f64
                             } else {
-                                self.screen_offset
-                            }
-                            .x as f64
-                                / self.zoom
+                                self.screen_offset.0
+                            } / self.zoom
                                 * (multi.zoom_delta as f64 - 1.0);
                             self.offset.y -= if self.mouse_moved && !self.is_3d {
-                                self.mouse_position.unwrap().to_vec2()
+                                self.mouse_position.unwrap().to_vec2().y as f64
                             } else {
-                                self.screen_offset
-                            }
-                            .y as f64
-                                / self.zoom
+                                self.screen_offset.1
+                            } / self.zoom
                                 * (multi.zoom_delta as f64 - 1.0);
                             self.recalculate = true;
                         }
@@ -905,20 +932,16 @@ impl Graph {
                             self.box_size /= multi.zoom_delta;
                         } else {
                             self.offset.x += if self.mouse_moved && !self.is_3d {
-                                self.mouse_position.unwrap().to_vec2()
+                                self.mouse_position.unwrap().to_vec2().x as f64
                             } else {
-                                self.screen_offset
-                            }
-                            .x as f64
-                                / self.zoom
+                                self.screen_offset.0
+                            } / self.zoom
                                 * ((multi.zoom_delta as f64).recip() - 1.0);
                             self.offset.y += if self.mouse_moved && !self.is_3d {
-                                self.mouse_position.unwrap().to_vec2()
+                                self.mouse_position.unwrap().to_vec2().y as f64
                             } else {
-                                self.screen_offset
-                            }
-                            .y as f64
-                                / self.zoom
+                                self.screen_offset.1
+                            } / self.zoom
                                 * ((multi.zoom_delta as f64).recip() - 1.0);
                             self.zoom *= multi.zoom_delta as f64;
                             self.recalculate = true;
@@ -1056,39 +1079,31 @@ impl Graph {
                     std::cmp::Ordering::Greater => {
                         self.zoom *= rt as f64;
                         self.offset.x -= if self.mouse_moved && !self.is_3d {
-                            self.mouse_position.unwrap().to_vec2()
+                            self.mouse_position.unwrap().to_vec2().x as f64
                         } else {
-                            self.screen_offset
-                        }
-                        .x as f64
-                            / self.zoom
+                            self.screen_offset.0
+                        } / self.zoom
                             * (rt as f64 - 1.0);
                         self.offset.y -= if self.mouse_moved && !self.is_3d {
-                            self.mouse_position.unwrap().to_vec2()
+                            self.mouse_position.unwrap().to_vec2().y as f64
                         } else {
-                            self.screen_offset
-                        }
-                        .y as f64
-                            / self.zoom
+                            self.screen_offset.1
+                        } / self.zoom
                             * (rt as f64 - 1.0);
                         self.recalculate = true;
                     }
                     std::cmp::Ordering::Less => {
                         self.offset.x += if self.mouse_moved && !self.is_3d {
-                            self.mouse_position.unwrap().to_vec2()
+                            self.mouse_position.unwrap().to_vec2().x as f64
                         } else {
-                            self.screen_offset
-                        }
-                        .x as f64
-                            / self.zoom
+                            self.screen_offset.0
+                        } / self.zoom
                             * ((rt as f64).recip() - 1.0);
                         self.offset.y += if self.mouse_moved && !self.is_3d {
-                            self.mouse_position.unwrap().to_vec2()
+                            self.mouse_position.unwrap().to_vec2().y as f64
                         } else {
-                            self.screen_offset
-                        }
-                        .y as f64
-                            / self.zoom
+                            self.screen_offset.1
+                        } / self.zoom
                             * ((rt as f64).recip() - 1.0);
                         self.zoom *= rt as f64;
                         self.recalculate = true;
@@ -1096,45 +1111,32 @@ impl Graph {
                     _ => {}
                 }
             }
-            let rt = 2.0;
             if i.key_pressed(Key::Q) {
                 self.offset.x += if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().to_vec2()
+                    self.mouse_position.unwrap().to_vec2().x as f64
                 } else {
-                    self.screen_offset
-                }
-                .x as f64
-                    / self.zoom
-                    * (rt - 1.0);
+                    self.screen_offset.0
+                } / self.zoom;
                 self.offset.y += if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().to_vec2()
+                    self.mouse_position.unwrap().to_vec2().y as f64
                 } else {
-                    self.screen_offset
-                }
-                .y as f64
-                    / self.zoom
-                    * (rt - 1.0);
-                self.zoom /= rt;
+                    self.screen_offset.1
+                } / self.zoom;
+                self.zoom /= 2.0;
                 self.recalculate = true;
             }
             if i.key_pressed(Key::E) {
-                self.zoom *= rt;
+                self.zoom *= 2.0;
                 self.offset.x -= if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().to_vec2()
+                    self.mouse_position.unwrap().to_vec2().x as f64
                 } else {
-                    self.screen_offset
-                }
-                .x as f64
-                    / self.zoom
-                    * (rt - 1.0);
+                    self.screen_offset.0
+                } / self.zoom;
                 self.offset.y -= if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().to_vec2()
+                    self.mouse_position.unwrap().to_vec2().y as f64
                 } else {
-                    self.screen_offset
-                }
-                .y as f64
-                    / self.zoom
-                    * (rt - 1.0);
+                    self.screen_offset.1
+                } / self.zoom;
                 self.recalculate = true;
             }
             if matches!(
@@ -1154,6 +1156,13 @@ impl Graph {
             if i.key_pressed(Key::L) {
                 //TODO all keys should be optional an settings
                 self.lines = !self.lines
+            }
+            if i.key_pressed(Key::N) {
+                let last = self.ruler_pos;
+                self.ruler_pos = self.mouse_position.map(|a| self.to_coord(a));
+                if last == self.ruler_pos {
+                    self.ruler_pos = None;
+                }
             }
             if self.is_complex && i.key_pressed(Key::I) {
                 self.show = match self.show {
@@ -1247,16 +1256,6 @@ impl Graph {
                 self.mouse_position = None;
                 self.mouse_moved = false;
                 self.recalculate = true;
-            }
-            if let Some(mpos) = i.pointer.latest_pos() {
-                if let Some(pos) = self.mouse_position {
-                    if mpos != pos {
-                        self.mouse_moved = true;
-                        self.mouse_position = Some(mpos)
-                    }
-                } else {
-                    self.mouse_position = Some(mpos)
-                }
             }
         });
     }
@@ -1608,14 +1607,15 @@ impl Graph {
                             self.cache = Some(tex);
                             self.cache.as_ref().unwrap()
                         };
+                        let o = Vec2::new(self.screen_offset.0 as f32, self.screen_offset.1 as f32);
                         let a = (Pos2::new(*start_x as f32, *start_y as f32) * self.screen.x
                             / (self.end - self.start) as f32
-                            + self.screen_offset
+                            + o
                             + self.offset.get_2d())
                             * self.zoom as f32;
                         let b = (Pos2::new(*end_x as f32, *end_y as f32) * self.screen.x
                             / (self.end - self.start) as f32
-                            + self.screen_offset
+                            + o
                             + self.offset.get_2d())
                             * self.zoom as f32;
                         painter.image(
