@@ -24,6 +24,10 @@ pub enum Draw {
     Line(Pos2, Pos2, f32),
     Point(Pos2),
 }
+pub enum UpdateResult {
+    Width(f32, f32),
+    Width3D(f32, f32, f32, f32),
+}
 pub enum Show {
     Real,
     Imag,
@@ -214,7 +218,6 @@ impl Graph {
     pub fn set_data(&mut self, data: Vec<GraphType>) {
         self.data = data;
         self.cache = None;
-        self.is_3d = is_3d(&self.data);
     }
     pub fn clear_data(&mut self) {
         self.data.clear();
@@ -222,6 +225,8 @@ impl Graph {
     }
     pub fn push_data(&mut self, data: GraphType) {
         self.data.push(data);
+    }
+    pub fn reset_3d(&mut self) {
         self.is_3d = is_3d(&self.data);
     }
     pub fn set_lines(&mut self, lines: bool) {
@@ -275,15 +280,19 @@ impl Graph {
         }
         self.graph_mode = mode;
     }
-    pub fn update(&mut self, ctx: &Context) -> Option<(f32, f32)> {
+    pub fn update(&mut self, ctx: &Context) -> Option<UpdateResult> {
         CentralPanel::default()
             .frame(egui::Frame::default().fill(self.background_color))
             .show(ctx, |ui| self.plot_main(ctx, ui));
         if self.recalculate {
             self.recalculate = false;
-            let c = self.to_coord(Pos2::new(0.0, 0.0));
-            let cf = self.to_coord(self.screen.to_pos2());
-            Some((c.x, cf.x))
+            if self.is_3d {
+                Some(UpdateResult::Width3D(0.0, 0.0, 0.0, 0.0)) //TODO
+            } else {
+                let c = self.to_coord(Pos2::new(0.0, 0.0));
+                let cf = self.to_coord(self.screen.to_pos2());
+                Some(UpdateResult::Width(c.x, cf.x))
+            }
         } else {
             None
         }
@@ -614,16 +623,6 @@ impl Graph {
             (d / ((self.end - self.start) * 3.0f64.sqrt()) + 0.5) as f32,
         )
     }
-    /*fn vec3_to_pos(&self, p: Vec3) -> Pos2 {
-        let cos_phi = self.phi.cos();
-        let sin_phi = self.phi.sin();
-        let cos_theta = self.theta.cos();
-        let sin_theta = self.theta.sin();
-        let x1 = p.x * cos_phi + p.y * sin_phi;
-        let y1 = -p.x * sin_phi + p.y * cos_phi;
-        let z2 = -p.z * cos_theta - y1 * sin_theta;
-        Pos2::new(x1, z2) * self.delta / self.box_size + self.screen / 2.0
-    }*/
     #[allow(clippy::type_complexity)]
     #[allow(clippy::too_many_arguments)]
     fn draw_point_3d(
@@ -1042,47 +1041,6 @@ impl Graph {
                 self.phi = (self.phi - i.raw_scroll_delta.x as f64 / 512.0).rem_euclid(TAU);
                 self.theta = (self.theta + i.raw_scroll_delta.y as f64 / 512.0).rem_euclid(TAU);
             } else {
-                let rt = 2.0;
-                if i.key_pressed(Key::Q) {
-                    self.offset.x += if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().to_vec2()
-                    } else {
-                        self.screen_offset
-                    }
-                    .x as f64
-                        / self.zoom
-                        * (rt - 1.0);
-                    self.offset.y += if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().to_vec2()
-                    } else {
-                        self.screen_offset
-                    }
-                    .y as f64
-                        / self.zoom
-                        * (rt - 1.0);
-                    self.zoom /= rt;
-                    self.recalculate = true;
-                }
-                if i.key_pressed(Key::E) {
-                    self.zoom *= rt;
-                    self.offset.x -= if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().to_vec2()
-                    } else {
-                        self.screen_offset
-                    }
-                    .x as f64
-                        / self.zoom
-                        * (rt - 1.0);
-                    self.offset.y -= if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().to_vec2()
-                    } else {
-                        self.screen_offset
-                    }
-                    .y as f64
-                        / self.zoom
-                        * (rt - 1.0);
-                    self.recalculate = true;
-                }
                 let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
                 match rt.total_cmp(&1.0) {
                     std::cmp::Ordering::Greater => {
@@ -1128,6 +1086,47 @@ impl Graph {
                     _ => {}
                 }
             }
+            let rt = 2.0;
+            if i.key_pressed(Key::Q) {
+                self.offset.x += if self.mouse_moved && !self.is_3d {
+                    self.mouse_position.unwrap().to_vec2()
+                } else {
+                    self.screen_offset
+                }
+                .x as f64
+                    / self.zoom
+                    * (rt - 1.0);
+                self.offset.y += if self.mouse_moved && !self.is_3d {
+                    self.mouse_position.unwrap().to_vec2()
+                } else {
+                    self.screen_offset
+                }
+                .y as f64
+                    / self.zoom
+                    * (rt - 1.0);
+                self.zoom /= rt;
+                self.recalculate = true;
+            }
+            if i.key_pressed(Key::E) {
+                self.zoom *= rt;
+                self.offset.x -= if self.mouse_moved && !self.is_3d {
+                    self.mouse_position.unwrap().to_vec2()
+                } else {
+                    self.screen_offset
+                }
+                .x as f64
+                    / self.zoom
+                    * (rt - 1.0);
+                self.offset.y -= if self.mouse_moved && !self.is_3d {
+                    self.mouse_position.unwrap().to_vec2()
+                } else {
+                    self.screen_offset
+                }
+                .y as f64
+                    / self.zoom
+                    * (rt - 1.0);
+                self.recalculate = true;
+            }
             if matches!(
                 self.graph_mode,
                 GraphMode::Slice | GraphMode::SliceFlatten | GraphMode::SliceDepth
@@ -1143,6 +1142,7 @@ impl Graph {
                 }
             }
             if i.key_pressed(Key::L) {
+                //TODO all keys should be optional an settings
                 self.lines = !self.lines
             }
             if self.is_complex && i.key_pressed(Key::I) {
