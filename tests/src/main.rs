@@ -174,8 +174,9 @@ fn generate_3dc(startx: f64, starty: f64, endx: f64, endy: f64, len: usize) -> G
             let i = i as f64 / len as f64;
             let x = startx + i * (endx - startx);
             let y = starty + j * (endy - starty);
-            let r = x * x * x * x * x - 10.0 * x * x * x * y * y + 5.0 * x * y * y * y * y - 1.0;
-            let i = 5.0 * x * x * x * x * y - 10.0 * x * x * y * y * y + y * y * y * y * y;
+            let re = (x * x + y * y).recip();
+            let r = (x * re).sin() * (y * re).cosh();
+            let i = -(x * re).cos() * (y * re).sinh();
             data.push(Complex::Complex(r, i))
         }
     }

@@ -229,17 +229,22 @@ impl Graph {
                             let len = data.len().isqrt();
                             let i = ((p.0 - sx) / (ex - sx) * len as f64).round() as usize;
                             let j = ((p.1 - sy) / (ey - sy) * len as f64).round() as usize;
-                            let (x, y) = data[i + len * j].to_options();
-                            let (x, y) = (x.unwrap_or(0.0), y.unwrap_or(0.0));
-                            format!(
-                                "{:e}\n{:e}\n{:e}\n{:e}\n{:e}\n{:e}",
-                                p.0,
-                                p.1,
-                                x,
-                                y,
-                                x.hypot(y),
-                                y.atan2(x)
-                            )
+                            let ind = i + len * j;
+                            if ind < data.len() {
+                                let (x, y) = data[ind].to_options();
+                                let (x, y) = (x.unwrap_or(0.0), y.unwrap_or(0.0));
+                                format!(
+                                    "{:e}\n{:e}\n{:e}\n{:e}\n{:e}\n{:e}",
+                                    p.0,
+                                    p.1,
+                                    x,
+                                    y,
+                                    x.hypot(y),
+                                    y.atan2(x)
+                                )
+                            } else {
+                                format!("{:e}\n{:e}", p.0, p.1)
+                            }
                         } else {
                             format!("{:e}\n{:e}", p.0, p.1)
                         }
@@ -934,6 +939,9 @@ impl Graph {
                         self.theta = ((self.theta / b - 1.0).round() * b).rem_euclid(TAU);
                     }
                 } else {
+                    if self.graph_mode == GraphMode::DomainColoring {
+                        self.recalculate = true;
+                    }
                     self.offset.y += a;
                 }
             }
@@ -946,6 +954,9 @@ impl Graph {
                         self.theta = ((self.theta / b + 1.0).round() * b).rem_euclid(TAU);
                     }
                 } else {
+                    if self.graph_mode == GraphMode::DomainColoring {
+                        self.recalculate = true;
+                    }
                     self.offset.y -= a;
                 }
             }
