@@ -11,9 +11,9 @@ pub enum GraphMode {
 }
 pub enum GraphType {
     Width(Vec<Complex>, f64, f64),
-    Coord(Vec<(f32, Complex)>),
+    Coord(Vec<(f64, Complex)>),
     Width3D(Vec<Complex>, f64, f64, f64, f64),
-    Coord3D(Vec<(f32, f32, Complex)>),
+    Coord3D(Vec<(f64, f64, Complex)>),
 }
 #[derive(Copy, Clone)]
 pub enum Draw {
@@ -52,7 +52,7 @@ pub struct Graph {
     pub zoom: f64,
     pub slice: usize,
     pub lines: bool,
-    pub box_size: f32,
+    pub box_size: f64,
     pub screen: egui::Vec2,
     pub screen_offset: (f64, f64),
     pub delta: f64,
@@ -83,24 +83,24 @@ pub struct Graph {
 }
 #[derive(Copy, Clone)]
 pub enum Complex {
-    Real(f32),
-    Imag(f32),
-    Complex(f32, f32),
+    Real(f64),
+    Imag(f64),
+    Complex(f64, f64),
 }
 impl Complex {
-    pub fn to_options(self) -> (Option<f32>, Option<f32>) {
+    pub fn to_options(self) -> (Option<f64>, Option<f64>) {
         match self {
             Complex::Real(y) => (Some(y), None),
             Complex::Imag(z) => (None, Some(z)),
             Complex::Complex(y, z) => (Some(y), Some(z)),
         }
     }
-    pub fn from(y: Option<f32>, z: Option<f32>) -> Self {
+    pub fn from(y: Option<f64>, z: Option<f64>) -> Self {
         match (y, z) {
             (Some(y), Some(z)) => Self::Complex(y, z),
             (Some(y), None) => Self::Real(y),
             (None, Some(z)) => Self::Imag(z),
-            (None, None) => Self::Complex(f32::NAN, f32::NAN),
+            (None, None) => Self::Complex(f64::NAN, f64::NAN),
         }
     }
 }

@@ -43,8 +43,8 @@ impl eframe::App for App {
 impl App {
     fn new() -> Self {
         let plot = Graph::new(
-            vec![generate_3dc(-2.0, -2.0, 2.0, 2.0, 256)],
-            //vec![generate(-2.0, 2.0, 256)],
+            //vec![generate_3dc(-2.0, -2.0, 2.0, 2.0, 256)],
+            vec![generate(-2.0, 2.0, 256)],
             true,
             -2.0,
             2.0,
@@ -67,7 +67,7 @@ impl App {
 }
 fn to_complex(c: &str) -> Complex {
     if !c.contains('i') {
-        Complex::Real(c.parse::<f32>().unwrap_or(0.0))
+        Complex::Real(c.parse::<f64>().unwrap_or(0.0))
     } else {
         let n = c.starts_with('-');
         let c = if n {
@@ -80,14 +80,14 @@ fn to_complex(c: &str) -> Complex {
             .split(['-', '+'])
             .map(|c| {
                 if c.eq_ignore_ascii_case("in") {
-                    f32::INFINITY
+                    f64::INFINITY
                 } else if c.eq_ignore_ascii_case("na") {
-                    f32::NAN
+                    f64::NAN
                 } else {
-                    c.parse::<f32>().unwrap_or(0.0)
+                    c.parse::<f64>().unwrap_or(0.0)
                 }
             })
-            .collect::<Vec<f32>>();
+            .collect::<Vec<f64>>();
         let s = if n { -l[0] } else { l[0] };
         if l.len() == 1 {
             Complex::Imag(s)
@@ -139,11 +139,11 @@ fn grab_coord(f: &str) -> GraphType {
                 let a = c.split(',').map(to_complex).collect::<Vec<Complex>>();
                 (real(a[0]), a[1])
             })
-            .collect::<Vec<(f32, Complex)>>(),
+            .collect::<Vec<(f64, Complex)>>(),
     )
 }
 #[allow(dead_code)]
-fn real(c: Complex) -> f32 {
+fn real(c: Complex) -> f64 {
     match c {
         Complex::Real(y) => y,
         Complex::Imag(_) => 0.0,
@@ -160,7 +160,7 @@ fn generate_3d(startx: f64, starty: f64, endx: f64, endy: f64, len: usize) -> Gr
             let x = startx + i * (endx - startx);
             let y = starty + j * (endy - starty);
             let v = (x.powi(3) + y).exp();
-            data.push(Complex::Real(v as f32))
+            data.push(Complex::Real(v))
         }
     }
     GraphType::Width3D(data, startx, starty, endx, endy)
@@ -176,7 +176,7 @@ fn generate_3dc(startx: f64, starty: f64, endx: f64, endy: f64, len: usize) -> G
             let y = starty + j * (endy - starty);
             let r = x.sin() * y.cosh();
             let i = x.cos() * y.sinh();
-            data.push(Complex::Complex(r as f32, i as f32))
+            data.push(Complex::Complex(r, i))
         }
     }
     GraphType::Width3D(data, startx, starty, endx, endy)
@@ -189,7 +189,7 @@ fn generate(start: f64, end: f64, len: usize) -> GraphType {
         let x = start + i * (end - start);
         let r = x.cos();
         let i = x.sin();
-        data.push(Complex::Complex(r as f32, i as f32))
+        data.push(Complex::Complex(r, i))
     }
     GraphType::Width(data, start, end)
 }
