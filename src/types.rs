@@ -1,5 +1,6 @@
 use egui::{Color32, Pos2, TextureHandle};
 use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
+#[derive(PartialEq)]
 pub enum GraphMode {
     Normal,
     Slice,
@@ -53,6 +54,7 @@ pub struct Graph {
     pub slice: usize,
     pub lines: bool,
     pub box_size: f64,
+    pub domain_alternate: bool,
     pub screen: egui::Vec2,
     pub screen_offset: (f64, f64),
     pub delta: f64,

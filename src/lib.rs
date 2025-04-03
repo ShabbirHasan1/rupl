@@ -36,6 +36,7 @@ impl Graph {
             box_size: 3.0f64.sqrt(),
             anti_alias: true,
             lines: true,
+            domain_alternate: false,
             last_interact: None,
             main_colors: vec![
                 Color32::from_rgb(255, 85, 85),
@@ -188,8 +189,13 @@ impl Graph {
             self.screen_offset = t;
         }
         if !self.is_3d {
-            self.write_axis(painter);
-            self.plot(painter, ui);
+            if self.graph_mode != GraphMode::DomainColoring {
+                self.write_axis(painter);
+                self.plot(painter, ui);
+            } else {
+                self.plot(painter, ui);
+                self.write_axis(painter);
+            }
         } else {
             let mut pts = self.plot(painter, ui);
             pts.extend(self.write_axis_3d(painter));
@@ -218,10 +224,32 @@ impl Graph {
             if let Some(pos) = self.mouse_position {
                 let p = self.to_coord(pos);
                 if !self.disable_coord {
+                    let s = if self.graph_mode == GraphMode::DomainColoring {
+                        if let GraphType::Width3D(data, sx, sy, ex, ey) = &self.data[0] {
+                            let len = data.len().isqrt();
+                            let i = ((p.0 - sx) / (ex - sx) * len as f64).round() as usize;
+                            let j = ((p.1 - sy) / (ey - sy) * len as f64).round() as usize;
+                            let (x, y) = data[i + len * j].to_options();
+                            let (x, y) = (x.unwrap_or(0.0), y.unwrap_or(0.0));
+                            format!(
+                                "{:e}\n{:e}\n{:e}\n{:e}\n{:e}\n{:e}",
+                                p.0,
+                                p.1,
+                                x,
+                                y,
+                                x.hypot(y),
+                                y.atan2(x)
+                            )
+                        } else {
+                            format!("{:e}\n{:e}", p.0, p.1)
+                        }
+                    } else {
+                        format!("{:e}\n{:e}", p.0, p.1)
+                    };
                     painter.text(
                         Pos2::new(0.0, self.screen.y),
                         Align2::LEFT_BOTTOM,
-                        format!("{:e}\n{:e}", p.0, p.1),
+                        s,
                         FontId::monospace(16.0),
                         self.text_color,
                     );
@@ -337,7 +365,7 @@ impl Graph {
             let f = ((enx - stx) / r).abs() as isize;
             let sy = ((eny - sty) / r).abs() as isize;
             let sf: isize = 0;
-            if !self.disable_lines {
+            if !self.disable_lines && self.graph_mode != GraphMode::DomainColoring {
                 for i in s.saturating_sub(1)..=f.saturating_add(1) {
                     for j in -2..2 {
                         if j != 0 {
@@ -418,7 +446,10 @@ impl Graph {
             let f = cf.0.floor() as isize;
             let sy = c.1.floor() as isize;
             let sf = cf.1.ceil() as isize;
-            if !self.disable_lines && self.zoom > 2.0f64.powi(-4) {
+            if !self.disable_lines
+                && self.zoom > 2.0f64.powi(-4)
+                && self.graph_mode != GraphMode::DomainColoring
+            {
                 for i in s.saturating_sub(1)..=f.saturating_add(1) {
                     for j in -4..4 {
                         if j != 0 {
@@ -977,6 +1008,10 @@ impl Graph {
                 self.theta = (self.theta + i.raw_scroll_delta.y as f64 / 512.0).rem_euclid(TAU);
             } else {
                 let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
+                if i.key_pressed(Key::Y) {
+                    self.recalculate = true;
+                    self.domain_alternate = !self.domain_alternate
+                }
                 match rt.total_cmp(&1.0) {
                     std::cmp::Ordering::Greater => {
                         self.zoom *= rt as f64;
@@ -1061,11 +1096,11 @@ impl Graph {
             }
             if i.key_pressed(Key::OpenBracket) {
                 self.recalculate = true;
-                self.prec /= 1.5;
+                self.prec /= 2.0;
             }
             if i.key_pressed(Key::CloseBracket) {
                 self.recalculate = true;
-                self.prec *= 1.5;
+                self.prec *= 2.0;
             }
             if i.key_pressed(Key::N) {
                 let last = self.ruler_pos;
@@ -1582,13 +1617,34 @@ impl Graph {
     fn get_color(&self, z: &Complex) -> [u8; 3] {
         let (x, y) = z.to_options();
         let (x, y) = (x.unwrap_or(0.0), y.unwrap_or(0.0));
-        let abs = x.hypot(y);
         let hue = 6.0 * (1.0 - y.atan2(x) / TAU);
-        let sat = (1.0 + abs.fract()) / 2.0;
-        let val = {
+        let abs = x.hypot(y);
+        let (sat, val) = if self.domain_alternate {
+            let sat = (abs * PI).sin().abs().powf(0.125);
+            let t1 = x * x;
+            let t2 = y * y;
+            let n1 = t1 / (t1 + 1.0);
+            let n2 = t2 / (t2 + 1.0);
+            let n3 = (n1 * n2).abs().powf(0.0625);
+            let n4 = abs.atan() * 2.0 / PI;
+            let lig = 0.8 * (n3 * (n4 - 0.5) + 0.5);
+            let val = if lig < 0.5 {
+                lig * (1.0 + sat)
+            } else {
+                lig * (1.0 - sat) + sat
+            };
+            let sat = if val == 0.0 {
+                0.0
+            } else {
+                2.0 * (1.0 - lig / val)
+            };
+            (sat, val)
+        } else {
             let t1 = (x * PI).sin();
             let t2 = (y * PI).sin();
-            (t1 * t2).abs().powf(0.125)
+            let sat = (1.0 + abs.fract()) / 2.0;
+            let val = (t1 * t2).abs().powf(0.125);
+            (sat, val)
         };
         hsv2rgb(hue, sat, val)
     }
