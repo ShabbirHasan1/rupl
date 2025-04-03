@@ -1,5 +1,5 @@
 use egui::{Context, FontData, FontDefinitions, FontFamily};
-use rupl::{Complex, Graph, GraphType, UpdateResult};
+use rupl::types::{Complex, Graph, GraphType, UpdateResult};
 use std::fs;
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
@@ -42,17 +42,23 @@ impl eframe::App for App {
 
 impl App {
     fn new() -> Self {
-        let plot = Graph::new(vec![generate(-2.0, 2.0, 1024)], true, -2.0, 2.0);
+        let plot = Graph::new(
+            vec![generate_3dc(-2.0, -2.0, 2.0, 2.0, 256)],
+            //vec![generate(-2.0, 2.0, 256)],
+            true,
+            -2.0,
+            2.0,
+        );
         Self { plot }
     }
     fn main(&mut self, ctx: &Context) {
         match self.plot.update(ctx) {
-            UpdateResult::Width(s, e) => {
-                let plot = generate(s, e, 1024);
+            UpdateResult::Width(s, e, p) => {
+                let plot = generate(s, e, (p * 1024.0) as usize);
                 self.plot.set_data(vec![plot]);
             }
-            UpdateResult::Width3D(sx, sy, ex, ey) => {
-                let plot = generate_3d(sx, sy, ex, ey, 64);
+            UpdateResult::Width3D(sx, sy, ex, ey, p) => {
+                let plot = generate_3dc(sx, sy, ex, ey, (p * 256.0) as usize);
                 self.plot.set_data(vec![plot]);
             }
             UpdateResult::None => {}
@@ -155,6 +161,22 @@ fn generate_3d(startx: f64, starty: f64, endx: f64, endy: f64, len: usize) -> Gr
             let y = starty + j * (endy - starty);
             let v = (x.powi(3) + y).exp();
             data.push(Complex::Real(v as f32))
+        }
+    }
+    GraphType::Width3D(data, startx, starty, endx, endy)
+}
+#[allow(dead_code)]
+fn generate_3dc(startx: f64, starty: f64, endx: f64, endy: f64, len: usize) -> GraphType {
+    let mut data = Vec::new();
+    for j in 0..=len {
+        let j = j as f64 / len as f64;
+        for i in 0..=len {
+            let i = i as f64 / len as f64;
+            let x = startx + i * (endx - startx);
+            let y = starty + j * (endy - starty);
+            let r = x.sin() * y.cosh();
+            let i = x.cos() * y.sinh();
+            data.push(Complex::Complex(r as f32, i as f32))
         }
     }
     GraphType::Width3D(data, startx, starty, endx, endy)
