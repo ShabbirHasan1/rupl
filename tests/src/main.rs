@@ -2,12 +2,11 @@ use egui::{Context, FontData, FontDefinitions, FontFamily};
 use rupl::types::{Complex, Graph, GraphType, UpdateResult};
 use std::fs;
 fn main() -> eframe::Result {
-    let options = eframe::NativeOptions {
-        ..Default::default()
-    };
     eframe::run_native(
         "eplot",
-        options,
+        eframe::NativeOptions {
+            ..Default::default()
+        },
         Box::new(|cc| {
             let mut fonts = FontDefinitions::default();
             fonts.font_data.insert(

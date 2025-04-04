@@ -31,7 +31,7 @@ impl Graph {
             screen_offset: (0.0, 0.0),
             delta: 0.0,
             show_box: true,
-            view_x: false,
+            view_x: true,
             color_depth: false,
             box_size: 3.0f64.sqrt(),
             anti_alias: true,
@@ -155,10 +155,18 @@ impl Graph {
                         self.end + self.offset3d.y,
                         self.prec,
                     )
-                } else {
+                } else if self.graph_mode == GraphMode::DomainColoring {
                     let c = self.to_coord(Pos2::new(0.0, 0.0));
                     let cf = self.to_coord(self.screen.to_pos2());
                     UpdateResult::Width3D(c.0, c.1, cf.0, cf.1, self.prec)
+                } else if self.view_x {
+                    let c = self.to_coord(Pos2::new(0.0, 0.0));
+                    let cf = self.to_coord(self.screen.to_pos2());
+                    UpdateResult::Width3D(c.0, self.start, cf.0, self.end, self.prec)
+                } else {
+                    let c = self.to_coord(Pos2::new(0.0, 0.0));
+                    let cf = self.to_coord(self.screen.to_pos2());
+                    UpdateResult::Width3D(self.start, c.0, self.end, cf.0, self.prec)
                 }
             } else if !self.is_3d {
                 let c = self.to_coord(Pos2::new(0.0, 0.0));
@@ -1098,6 +1106,7 @@ impl Graph {
                     self.slice = self.slice.saturating_sub(c)
                 }
                 if i.key_pressed(Key::Slash) {
+                    self.recalculate = true;
                     self.view_x = !self.view_x
                 }
             }
@@ -1436,9 +1445,18 @@ impl Graph {
                     GraphMode::Slice => {
                         let len = data.len().isqrt();
                         self.slice = self.slice.min(len - 1);
-                        let mut body = |i: usize, y: &Complex| {
-                            let x = (i as f64 / (len - 1) as f64 - 0.5) * (end_x - start_x)
-                                + (start_x + end_x) / 2.0;
+                        let mut body = |i: usize, y: &Complex, view_x: bool| {
+                            let x = (i as f64 / (len - 1) as f64 - 0.5)
+                                * if view_x {
+                                    end_x - start_x
+                                } else {
+                                    end_y - start_y
+                                }
+                                + if view_x {
+                                    start_x + end_x
+                                } else {
+                                    start_y + end_y
+                                } / 2.0;
                             let (y, z) = y.to_options();
                             a = if !self.show.real() {
                                 None
@@ -1474,11 +1492,11 @@ impl Graph {
                                 .iter()
                                 .enumerate()
                             {
-                                body(i, y)
+                                body(i, y, true)
                             }
                         } else {
                             for (i, y) in data.iter().skip(self.slice).step_by(len).enumerate() {
-                                body(i, y)
+                                body(i, y, false)
                             }
                         }
                     }
