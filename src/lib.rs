@@ -36,7 +36,7 @@ impl Graph {
             box_size: 3.0f64.sqrt(),
             anti_alias: true,
             lines: true,
-            domain_alternate: false,
+            domain_alternate: true,
             last_interact: None,
             main_colors: vec![
                 Color32::from_rgb(255, 85, 85),
@@ -1117,10 +1117,12 @@ impl Graph {
             if i.key_pressed(Key::OpenBracket) {
                 self.recalculate = true;
                 self.prec /= 2.0;
+                self.slice /= 2;
             }
             if i.key_pressed(Key::CloseBracket) {
                 self.recalculate = true;
                 self.prec *= 2.0;
+                self.slice *= 2;
             }
             if i.key_pressed(Key::N) {
                 let last = self.ruler_pos;
@@ -1567,7 +1569,7 @@ impl Graph {
                         let len = data.len().isqrt();
                         let tex = if let Some(tex) = &self.cache {
                             tex
-                        } else {
+                        } else if data.len().isqrt().pow(2) == data.len() {
                             let mut rgb = Vec::new();
                             for z in data {
                                 rgb.extend(self.get_color(z));
@@ -1583,6 +1585,8 @@ impl Graph {
                             );
                             self.cache = Some(tex);
                             self.cache.as_ref().unwrap()
+                        } else {
+                            return vec![];
                         };
                         painter.image(
                             tex.id(),

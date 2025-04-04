@@ -1,4 +1,6 @@
 use egui::{Context, FontData, FontDefinitions, FontFamily};
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::ParallelIterator;
 use rupl::types::{Complex, Graph, GraphType, UpdateResult};
 use std::fs;
 fn main() -> eframe::Result {
@@ -166,19 +168,25 @@ fn generate_3d(startx: f64, starty: f64, endx: f64, endy: f64, len: usize) -> Gr
 }
 #[allow(dead_code)]
 fn generate_3dc(startx: f64, starty: f64, endx: f64, endy: f64, len: usize) -> GraphType {
-    let mut data = Vec::new();
-    for j in 0..=len {
-        let j = j as f64 / len as f64;
-        for i in 0..=len {
-            let i = i as f64 / len as f64;
-            let x = startx + i * (endx - startx);
+    let data = (0..=len)
+        .into_par_iter()
+        .flat_map(|j| {
+            let j = j as f64 / len as f64;
             let y = starty + j * (endy - starty);
-            let re = (x * x + y * y).recip();
-            let r = (x * re).sin() * (y * re).cosh();
-            let i = -(x * re).cos() * (y * re).sinh();
-            data.push(Complex::Complex(r, i))
-        }
-    }
+            let yr = y * y;
+            (0..=len)
+                .into_par_iter()
+                .map(|i| {
+                    let i = i as f64 / len as f64;
+                    let x = startx + i * (endx - startx);
+                    let re = (x * x + yr).recip();
+                    let r = (x * re).sin() * (y * re).cosh();
+                    let i = -(x * re).cos() * (y * re).sinh();
+                    Complex::Complex(r, i)
+                })
+                .collect::<Vec<Complex>>()
+        })
+        .collect::<Vec<Complex>>();
     GraphType::Width3D(data, startx, starty, endx, endy)
 }
 #[allow(dead_code)]

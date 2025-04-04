@@ -7,3 +7,4 @@ edition = "2024"
 egui="0.31.1"
 eframe="0.31.1"
 rupl={path=".."}
+rayon="1.10.0"
