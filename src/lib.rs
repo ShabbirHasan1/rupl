@@ -29,6 +29,7 @@ impl Graph {
             screen_offset: Vec2::splat(0.0),
             delta: 0.0,
             show_box: true,
+            log_scale: false,
             view_x: true,
             color_depth: false,
             box_size: 3.0f64.sqrt(),
@@ -1133,7 +1134,12 @@ impl Graph {
             }
             if i.key_pressed(Key::L) {
                 //TODO all keys should be optional an settings
-                self.lines = !self.lines
+                if self.graph_mode == GraphMode::DomainColoring {
+                    self.cache = None;
+                    self.log_scale = !self.log_scale
+                } else {
+                    self.lines = !self.lines
+                }
             }
             if i.key_pressed(Key::OpenBracket) {
                 self.recalculate = true;
@@ -1676,12 +1682,15 @@ impl Graph {
         let hue = 6.0 * (1.0 - y.atan2(x) / TAU);
         let abs = x.hypot(y);
         let (sat, val) = if self.domain_alternate {
-            let sat = (abs.log10() * PI).sin().abs().powf(0.125);
+            let sat = (if self.log_scale { abs.log10() } else { abs } * PI)
+                .sin()
+                .abs()
+                .powf(0.125);
             let t1 = x * x;
             let t2 = y * y;
             let n1 = t1 / (t1 + 1.0);
             let n2 = t2 / (t2 + 1.0);
-            let n3 = (n1 * n2).abs().powf(0.0625);
+            let n3 = (n1 * n2).powf(0.0625);
             let n4 = abs.atan() * 2.0 / PI;
             let lig = 0.8 * (n3 * (n4 - 0.5) + 0.5);
             let val = if lig < 0.5 {
@@ -1696,9 +1705,9 @@ impl Graph {
             };
             (sat, val)
         } else {
-            let t1 = (x * PI).sin();
-            let t2 = (y * PI).sin();
-            let sat = (1.0 + abs.fract()) / 2.0;
+            let t1 = (if self.log_scale { x.abs().log10() } else { x } * PI).sin();
+            let t2 = (if self.log_scale { y.abs().log10() } else { y } * PI).sin();
+            let sat = (1.0 + if self.log_scale { abs.log10() } else { abs }.fract()) / 2.0;
             let val = (t1 * t2).abs().powf(0.125);
             (sat, val)
         };

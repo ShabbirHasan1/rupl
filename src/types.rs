@@ -52,6 +52,7 @@ pub struct Graph {
     pub slice: usize,
     pub lines: bool,
     pub var: Vec2,
+    pub log_scale: bool,
     pub box_size: f64,
     pub domain_alternate: bool,
     pub screen: egui::Vec2,
