@@ -318,7 +318,7 @@ impl Graph {
                 Pos2::new(0.0, self.screen.y),
                 Align2::LEFT_BOTTOM,
                 format!(
-                    "{{{},{}}}",
+                    "{}\n{}",
                     (self.angle.x / TAU * 360.0).round(),
                     ((0.25 - self.angle.y / TAU) * 360.0)
                         .round()
@@ -335,7 +335,7 @@ impl Graph {
         let oy = self.screen_offset.y + self.offset.y;
         Pos2::new(
             ((x * s + ox) * self.zoom) as f32,
-            ((-y * s + oy) * self.zoom) as f32,
+            ((oy - y * s) * self.zoom) as f32,
         )
     }
     fn to_coord(&self, p: Pos2) -> (f64, f64) {
@@ -343,8 +343,8 @@ impl Graph {
         let oy = self.offset.y + self.screen_offset.y;
         let s = (self.bound.y - self.bound.x) / self.screen.x as f64;
         let x = (p.x as f64 / self.zoom - ox) * s;
-        let y = (p.y as f64 / self.zoom - oy) * s;
-        (x, -y)
+        let y = (oy - p.y as f64 / self.zoom) * s;
+        (x, y)
     }
     #[allow(clippy::too_many_arguments)]
     fn draw_point(
@@ -1676,7 +1676,7 @@ impl Graph {
         let hue = 6.0 * (1.0 - y.atan2(x) / TAU);
         let abs = x.hypot(y);
         let (sat, val) = if self.domain_alternate {
-            let sat = (abs * PI).sin().abs().powf(0.125);
+            let sat = (abs.log10() * PI).sin().abs().powf(0.125);
             let t1 = x * x;
             let t2 = y * y;
             let n1 = t1 / (t1 + 1.0);
