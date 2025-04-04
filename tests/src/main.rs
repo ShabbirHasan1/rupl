@@ -55,10 +55,12 @@ impl App {
     fn main(&mut self, ctx: &Context) {
         match self.plot.update(ctx) {
             UpdateResult::Width(s, e, p) => {
+                self.plot.clear_data();
                 let plot = generate(s, e, (p * 1024.0) as usize);
                 self.plot.set_data(vec![plot]);
             }
             UpdateResult::Width3D(sx, sy, ex, ey, p) => {
+                self.plot.clear_data();
                 let plot = generate_3dc(sx, sy, ex, ey, (p * 256.0) as usize);
                 self.plot.set_data(vec![plot]);
             }
@@ -153,21 +155,28 @@ fn real(c: Complex) -> f64 {
 }
 #[allow(dead_code)]
 fn generate_3d(startx: f64, starty: f64, endx: f64, endy: f64, len: usize) -> GraphType {
-    let mut data = Vec::new();
-    for j in 0..=len {
-        let j = j as f64 / len as f64;
-        for i in 0..=len {
-            let i = i as f64 / len as f64;
-            let x = startx + i * (endx - startx);
+    let len = len.min(8192);
+    let data = (0..=len)
+        .into_par_iter()
+        .flat_map(|j| {
+            let j = j as f64 / len as f64;
             let y = starty + j * (endy - starty);
-            let v = (x.powi(3) + y).exp();
-            data.push(Complex::Real(v))
-        }
-    }
+            (0..=len)
+                .into_par_iter()
+                .map(|i| {
+                    let i = i as f64 / len as f64;
+                    let x = startx + i * (endx - startx);
+                    let v = (x.powi(3) + y).exp();
+                    Complex::Real(v)
+                })
+                .collect::<Vec<Complex>>()
+        })
+        .collect::<Vec<Complex>>();
     GraphType::Width3D(data, startx, starty, endx, endy)
 }
 #[allow(dead_code)]
 fn generate_3dc(startx: f64, starty: f64, endx: f64, endy: f64, len: usize) -> GraphType {
+    let len = len.min(8192);
     let data = (0..=len)
         .into_par_iter()
         .flat_map(|j| {
@@ -191,13 +200,15 @@ fn generate_3dc(startx: f64, starty: f64, endx: f64, endy: f64, len: usize) -> G
 }
 #[allow(dead_code)]
 fn generate(start: f64, end: f64, len: usize) -> GraphType {
-    let mut data = Vec::new();
-    for i in 0..=len {
-        let i = i as f64 / len as f64;
-        let x = start + i * (end - start);
-        let r = x.cos();
-        let i = x.sin();
-        data.push(Complex::Complex(r, i))
-    }
+    let len = len.min(67108864);
+    let data = (0..=len)
+        .map(|i| {
+            let i = i as f64 / len as f64;
+            let x = start + i * (end - start);
+            let r = x.cos();
+            let i = x.sin();
+            Complex::Complex(r, i)
+        })
+        .collect::<Vec<Complex>>();
     GraphType::Width(data, start, end)
 }

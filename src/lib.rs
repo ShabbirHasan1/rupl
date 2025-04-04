@@ -16,19 +16,17 @@ impl Graph {
         Self {
             data,
             cache: None,
-            start,
-            end,
+            bound: Vec2::new(start, end),
             offset3d: Vec3::splat(0.0),
             offset: Vec2::splat(0.0),
-            theta: PI / 6.0,
-            phi: PI / 6.0,
+            angle: Vec2::splat(PI / 6.0),
             slice: 0,
             is_complex,
             show: Show::Complex,
             ignore_bounds: false,
             zoom,
             screen: egui::Vec2::splat(0.0),
-            screen_offset: (0.0, 0.0),
+            screen_offset: Vec2::splat(0.0),
             delta: 0.0,
             show_box: true,
             view_x: true,
@@ -37,6 +35,7 @@ impl Graph {
             anti_alias: true,
             lines: true,
             domain_alternate: true,
+            var: Vec2::new(-16.0, 16.0),
             last_interact: None,
             main_colors: vec![
                 Color32::from_rgb(255, 85, 85),
@@ -147,26 +146,48 @@ impl Graph {
         if self.recalculate {
             self.recalculate = false;
             if is_3d(&self.data) {
-                if self.is_3d {
-                    UpdateResult::Width3D(
-                        self.start + self.offset3d.x,
-                        self.start + self.offset3d.y,
-                        self.end + self.offset3d.x,
-                        self.end + self.offset3d.y,
+                match self.graph_mode {
+                    GraphMode::Normal => UpdateResult::Width3D(
+                        self.bound.x + self.offset3d.x,
+                        self.bound.x + self.offset3d.y,
+                        self.bound.y + self.offset3d.x,
+                        self.bound.y + self.offset3d.y,
                         self.prec,
-                    )
-                } else if self.graph_mode == GraphMode::DomainColoring {
-                    let c = self.to_coord(Pos2::new(0.0, 0.0));
-                    let cf = self.to_coord(self.screen.to_pos2());
-                    UpdateResult::Width3D(c.0, c.1, cf.0, cf.1, self.prec)
-                } else if self.view_x {
-                    let c = self.to_coord(Pos2::new(0.0, 0.0));
-                    let cf = self.to_coord(self.screen.to_pos2());
-                    UpdateResult::Width3D(c.0, self.start, cf.0, self.end, self.prec)
-                } else {
-                    let c = self.to_coord(Pos2::new(0.0, 0.0));
-                    let cf = self.to_coord(self.screen.to_pos2());
-                    UpdateResult::Width3D(self.start, c.0, self.end, cf.0, self.prec)
+                    ),
+                    GraphMode::DomainColoring => {
+                        let c = self.to_coord(Pos2::new(0.0, 0.0));
+                        let cf = self.to_coord(self.screen.to_pos2());
+                        UpdateResult::Width3D(c.0, c.1, cf.0, cf.1, self.prec)
+                    }
+                    GraphMode::Slice => {
+                        let c = self.to_coord(Pos2::new(0.0, 0.0));
+                        let cf = self.to_coord(self.screen.to_pos2());
+                        if self.view_x {
+                            UpdateResult::Width3D(c.0, self.bound.x, cf.0, self.bound.y, self.prec)
+                        } else {
+                            UpdateResult::Width3D(self.bound.x, c.0, self.bound.y, cf.0, self.prec)
+                        }
+                    }
+                    GraphMode::SliceFlatten | GraphMode::SliceDepth => {
+                        if self.view_x {
+                            UpdateResult::Width3D(
+                                self.var.x,
+                                self.bound.x,
+                                self.var.y,
+                                self.bound.y,
+                                self.prec,
+                            )
+                        } else {
+                            UpdateResult::Width3D(
+                                self.bound.x,
+                                self.var.x,
+                                self.bound.y,
+                                self.var.y,
+                                self.prec,
+                            )
+                        }
+                    }
+                    _ => UpdateResult::None,
                 }
             } else if !self.is_3d {
                 let c = self.to_coord(Pos2::new(0.0, 0.0));
@@ -187,9 +208,9 @@ impl Graph {
             self.screen.x.min(self.screen.y) as f64
         } else {
             self.screen.x as f64
-        } / (self.end - self.start);
-        let t = (
-            self.screen.x as f64 / 2.0 - (self.delta * (self.start + self.end) / 2.0),
+        } / (self.bound.y - self.bound.x);
+        let t = Vec2::new(
+            self.screen.x as f64 / 2.0 - (self.delta * (self.bound.x + self.bound.y) / 2.0),
             self.screen.y as f64 / 2.0,
         );
         if t != self.screen_offset {
@@ -268,8 +289,8 @@ impl Graph {
                     );
                 }
                 if let Some(ps) = self.ruler_pos {
-                    let dx = p.0 - ps.0;
-                    let dy = p.1 - ps.1;
+                    let dx = p.0 - ps.x;
+                    let dy = p.1 - ps.y;
                     painter.text(
                         Pos2::new(self.screen.x, self.screen.y),
                         Align2::RIGHT_BOTTOM,
@@ -284,7 +305,7 @@ impl Graph {
                         self.text_color,
                     );
                     painter.line_segment(
-                        [pos, self.to_screen(ps.0, ps.1)],
+                        [pos, self.to_screen(ps.x, ps.y)],
                         Stroke::new(1.0, self.axis_color),
                     );
                 }
@@ -298,8 +319,8 @@ impl Graph {
                 Align2::LEFT_BOTTOM,
                 format!(
                     "{{{},{}}}",
-                    (self.phi / TAU * 360.0).round(),
-                    ((0.25 - self.theta / TAU) * 360.0)
+                    (self.angle.x / TAU * 360.0).round(),
+                    ((0.25 - self.angle.y / TAU) * 360.0)
                         .round()
                         .rem_euclid(360.0),
                 ),
@@ -309,18 +330,18 @@ impl Graph {
         }
     }
     fn to_screen(&self, x: f64, y: f64) -> Pos2 {
-        let s = self.screen.x as f64 / (self.end - self.start);
-        let ox = self.screen_offset.0 + self.offset.x;
-        let oy = self.screen_offset.1 + self.offset.y;
+        let s = self.screen.x as f64 / (self.bound.y - self.bound.x);
+        let ox = self.screen_offset.x + self.offset.x;
+        let oy = self.screen_offset.y + self.offset.y;
         Pos2::new(
             ((x * s + ox) * self.zoom) as f32,
             ((-y * s + oy) * self.zoom) as f32,
         )
     }
     fn to_coord(&self, p: Pos2) -> (f64, f64) {
-        let ox = self.offset.x + self.screen_offset.0;
-        let oy = self.offset.y + self.screen_offset.1;
-        let s = (self.end - self.start) / self.screen.x as f64;
+        let ox = self.offset.x + self.screen_offset.x;
+        let oy = self.offset.y + self.screen_offset.y;
+        let s = (self.bound.y - self.bound.x) / self.screen.x as f64;
         let x = (p.x as f64 / self.zoom - ox) * s;
         let y = (p.y as f64 / self.zoom - oy) * s;
         (x, -y)
@@ -555,10 +576,10 @@ impl Graph {
         }
     }
     fn vec3_to_pos_depth(&self, p: Vec3) -> (Pos2, f32) {
-        let cos_phi = self.phi.cos();
-        let sin_phi = self.phi.sin();
-        let cos_theta = self.theta.cos();
-        let sin_theta = self.theta.sin();
+        let cos_phi = self.angle.x.cos();
+        let sin_phi = self.angle.x.sin();
+        let cos_theta = self.angle.y.cos();
+        let sin_theta = self.angle.y.sin();
         let x1 = p.x * cos_phi + p.y * sin_phi;
         let y1 = -p.x * sin_phi + p.y * cos_phi;
         let z2 = -p.z * cos_theta - y1 * sin_theta;
@@ -569,7 +590,7 @@ impl Graph {
                 (x1 * s + self.screen.x as f64 / 2.0) as f32,
                 (z2 * s + self.screen.y as f64 / 2.0) as f32,
             ),
-            (d / ((self.end - self.start) * 3.0f64.sqrt()) + 0.5) as f32,
+            (d / ((self.bound.y - self.bound.x) * 3.0f64.sqrt()) + 0.5) as f32,
         )
     }
     #[allow(clippy::type_complexity)]
@@ -593,12 +614,12 @@ impl Graph {
         let v = Vec3::new(x, y, z);
         let pos = self.vec3_to_pos_depth(v);
         let inside = self.ignore_bounds
-            || (x >= self.start
-                && x <= self.end
-                && y >= self.start
-                && y <= self.end
-                && z >= self.start
-                && z <= self.end);
+            || (x >= self.bound.x
+                && x <= self.bound.y
+                && y >= self.bound.x
+                && y <= self.bound.y
+                && z >= self.bound.x
+                && z <= self.bound.y);
         if !self.no_points && inside {
             draws.push((pos.1, Draw::Point(pos.0), self.shift_hue(pos.1, color)));
         }
@@ -614,22 +635,22 @@ impl Graph {
                 } else if inside {
                     let mut vi = last.1;
                     let xi = vi.x;
-                    if xi < self.start {
-                        vi = v + (vi - v) * ((self.start - x) / (xi - x));
-                    } else if xi > self.end {
-                        vi = v + (vi - v) * ((self.end - x) / (xi - x));
+                    if xi < self.bound.x {
+                        vi = v + (vi - v) * ((self.bound.x - x) / (xi - x));
+                    } else if xi > self.bound.y {
+                        vi = v + (vi - v) * ((self.bound.y - x) / (xi - x));
                     }
                     let yi = vi.y;
-                    if yi < self.start {
-                        vi = v + (vi - v) * ((self.start - y) / (yi - y));
-                    } else if yi > self.end {
-                        vi = v + (vi - v) * ((self.end - y) / (yi - y));
+                    if yi < self.bound.x {
+                        vi = v + (vi - v) * ((self.bound.x - y) / (yi - y));
+                    } else if yi > self.bound.y {
+                        vi = v + (vi - v) * ((self.bound.y - y) / (yi - y));
                     }
                     let zi = vi.z;
-                    if zi < self.start {
-                        vi = v + (vi - v) * ((self.start - z) / (zi - z));
-                    } else if zi > self.end {
-                        vi = v + (vi - v) * ((self.end - z) / (zi - z));
+                    if zi < self.bound.x {
+                        vi = v + (vi - v) * ((self.bound.x - z) / (zi - z));
+                    } else if zi > self.bound.y {
+                        vi = v + (vi - v) * ((self.bound.y - z) / (zi - z));
                     }
                     let last = self.vec3_to_pos_depth(vi);
                     let d = (pos.1 + last.1) / 2.0;
@@ -640,22 +661,22 @@ impl Graph {
                     let (x, y, z) = (v.x, v.y, v.z);
                     let pos = self.vec3_to_pos_depth(v);
                     let xi = vi.x;
-                    if xi < self.start {
-                        vi = v + (vi - v) * ((self.start - x) / (xi - x));
-                    } else if xi > self.end {
-                        vi = v + (vi - v) * ((self.end - x) / (xi - x));
+                    if xi < self.bound.x {
+                        vi = v + (vi - v) * ((self.bound.x - x) / (xi - x));
+                    } else if xi > self.bound.y {
+                        vi = v + (vi - v) * ((self.bound.y - x) / (xi - x));
                     }
                     let yi = vi.y;
-                    if yi < self.start {
-                        vi = v + (vi - v) * ((self.start - y) / (yi - y));
-                    } else if yi > self.end {
-                        vi = v + (vi - v) * ((self.end - y) / (yi - y));
+                    if yi < self.bound.x {
+                        vi = v + (vi - v) * ((self.bound.x - y) / (yi - y));
+                    } else if yi > self.bound.y {
+                        vi = v + (vi - v) * ((self.bound.y - y) / (yi - y));
                     }
                     let zi = vi.z;
-                    if zi < self.start {
-                        vi = v + (vi - v) * ((self.start - z) / (zi - z));
-                    } else if zi > self.end {
-                        vi = v + (vi - v) * ((self.end - z) / (zi - z));
+                    if zi < self.bound.x {
+                        vi = v + (vi - v) * ((self.bound.x - z) / (zi - z));
+                    } else if zi > self.bound.y {
+                        vi = v + (vi - v) * ((self.bound.y - z) / (zi - z));
                     }
                     let last = self.vec3_to_pos_depth(vi);
                     let d = (pos.1 + last.1) / 2.0;
@@ -679,7 +700,7 @@ impl Graph {
         if self.disable_axis {
             return lines;
         }
-        let s = (self.end - self.start) / 2.0;
+        let s = (self.bound.y - self.bound.x) / 2.0;
         let vertices = [
             self.vec3_to_pos_depth(Vec3::new(-s, -s, -s)),
             self.vec3_to_pos_depth(Vec3::new(-s, -s, s)),
@@ -752,8 +773,8 @@ impl Graph {
                 };
                 let start = vertices[*i.min(j)].0;
                 let end = vertices[*i.max(j)].0;
-                let st = self.start.ceil() as isize;
-                let e = self.end.floor() as isize;
+                let st = self.bound.x.ceil() as isize;
+                let e = self.bound.y.floor() as isize;
                 let o = if s == "z" {
                     -self.offset3d.z
                 } else if s == "\nx" {
@@ -823,8 +844,8 @@ impl Graph {
                 if let (Some(interact), Some(last)) = (interact, self.last_interact) {
                     let delta = interact - last;
                     if self.is_3d {
-                        self.phi = (self.phi - delta.x as f64 / 512.0).rem_euclid(TAU);
-                        self.theta = (self.theta + delta.y as f64 / 512.0).rem_euclid(TAU);
+                        self.angle.x = (self.angle.x - delta.x as f64 / 512.0).rem_euclid(TAU);
+                        self.angle.y = (self.angle.y + delta.y as f64 / 512.0).rem_euclid(TAU);
                     } else {
                         self.offset.x += delta.x as f64 / self.zoom;
                         self.offset.y += delta.y as f64 / self.zoom;
@@ -843,13 +864,13 @@ impl Graph {
                             self.offset.x -= if self.mouse_moved && !self.is_3d {
                                 self.mouse_position.unwrap().to_vec2().x as f64
                             } else {
-                                self.screen_offset.0
+                                self.screen_offset.x
                             } / self.zoom
                                 * (multi.zoom_delta as f64 - 1.0);
                             self.offset.y -= if self.mouse_moved && !self.is_3d {
                                 self.mouse_position.unwrap().to_vec2().y as f64
                             } else {
-                                self.screen_offset.1
+                                self.screen_offset.y
                             } / self.zoom
                                 * (multi.zoom_delta as f64 - 1.0);
                             self.recalculate = true;
@@ -862,13 +883,13 @@ impl Graph {
                             self.offset.x += if self.mouse_moved && !self.is_3d {
                                 self.mouse_position.unwrap().to_vec2().x as f64
                             } else {
-                                self.screen_offset.0
+                                self.screen_offset.x
                             } / self.zoom
                                 * ((multi.zoom_delta as f64).recip() - 1.0);
                             self.offset.y += if self.mouse_moved && !self.is_3d {
                                 self.mouse_position.unwrap().to_vec2().y as f64
                             } else {
-                                self.screen_offset.1
+                                self.screen_offset.y
                             } / self.zoom
                                 * ((multi.zoom_delta as f64).recip() - 1.0);
                             self.zoom *= multi.zoom_delta as f64;
@@ -878,10 +899,10 @@ impl Graph {
                     _ => {}
                 }
                 if self.is_3d {
-                    self.phi =
-                        (self.phi - multi.translation_delta.x as f64 / 512.0).rem_euclid(TAU);
-                    self.theta =
-                        (self.theta + multi.translation_delta.y as f64 / 512.0).rem_euclid(TAU);
+                    self.angle.x =
+                        (self.angle.x - multi.translation_delta.x as f64 / 512.0).rem_euclid(TAU);
+                    self.angle.y =
+                        (self.angle.y + multi.translation_delta.y as f64 / 512.0).rem_euclid(TAU);
                 } else {
                     self.offset.x += multi.translation_delta.x as f64 / self.zoom;
                     self.offset.y += multi.translation_delta.y as f64 / self.zoom;
@@ -918,7 +939,7 @@ impl Graph {
                         self.recalculate = true;
                         self.offset3d.x -= 1.0
                     } else {
-                        self.phi = ((self.phi / b - 1.0).round() * b).rem_euclid(TAU);
+                        self.angle.x = ((self.angle.x / b - 1.0).round() * b).rem_euclid(TAU);
                     }
                 } else {
                     self.offset.x += a;
@@ -931,7 +952,7 @@ impl Graph {
                         self.recalculate = true;
                         self.offset3d.x += 1.0
                     } else {
-                        self.phi = ((self.phi / b + 1.0).round() * b).rem_euclid(TAU);
+                        self.angle.x = ((self.angle.x / b + 1.0).round() * b).rem_euclid(TAU);
                     }
                 } else {
                     self.offset.x -= a;
@@ -944,7 +965,7 @@ impl Graph {
                         self.recalculate = true;
                         self.offset3d.y -= 1.0
                     } else {
-                        self.theta = ((self.theta / b - 1.0).round() * b).rem_euclid(TAU);
+                        self.angle.y = ((self.angle.y / b - 1.0).round() * b).rem_euclid(TAU);
                     }
                 } else {
                     if self.graph_mode == GraphMode::DomainColoring {
@@ -959,7 +980,7 @@ impl Graph {
                         self.recalculate = true;
                         self.offset3d.y += 1.0
                     } else {
-                        self.theta = ((self.theta / b + 1.0).round() * b).rem_euclid(TAU);
+                        self.angle.y = ((self.angle.y / b + 1.0).round() * b).rem_euclid(TAU);
                     }
                 } else {
                     if self.graph_mode == GraphMode::DomainColoring {
@@ -1023,8 +1044,8 @@ impl Graph {
                 if i.key_pressed(Key::Y) {
                     self.show_box = !self.show_box
                 }
-                self.phi = (self.phi - i.raw_scroll_delta.x as f64 / 512.0).rem_euclid(TAU);
-                self.theta = (self.theta + i.raw_scroll_delta.y as f64 / 512.0).rem_euclid(TAU);
+                self.angle.x = (self.angle.x - i.raw_scroll_delta.x as f64 / 512.0).rem_euclid(TAU);
+                self.angle.y = (self.angle.y + i.raw_scroll_delta.y as f64 / 512.0).rem_euclid(TAU);
             } else {
                 let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
                 if i.key_pressed(Key::Y) {
@@ -1037,13 +1058,13 @@ impl Graph {
                         self.offset.x -= if self.mouse_moved && !self.is_3d {
                             self.mouse_position.unwrap().to_vec2().x as f64
                         } else {
-                            self.screen_offset.0
+                            self.screen_offset.x
                         } / self.zoom
                             * (rt as f64 - 1.0);
                         self.offset.y -= if self.mouse_moved && !self.is_3d {
                             self.mouse_position.unwrap().to_vec2().y as f64
                         } else {
-                            self.screen_offset.1
+                            self.screen_offset.y
                         } / self.zoom
                             * (rt as f64 - 1.0);
                         self.recalculate = true;
@@ -1052,13 +1073,13 @@ impl Graph {
                         self.offset.x += if self.mouse_moved && !self.is_3d {
                             self.mouse_position.unwrap().to_vec2().x as f64
                         } else {
-                            self.screen_offset.0
+                            self.screen_offset.x
                         } / self.zoom
                             * ((rt as f64).recip() - 1.0);
                         self.offset.y += if self.mouse_moved && !self.is_3d {
                             self.mouse_position.unwrap().to_vec2().y as f64
                         } else {
-                            self.screen_offset.1
+                            self.screen_offset.y
                         } / self.zoom
                             * ((rt as f64).recip() - 1.0);
                         self.zoom *= rt as f64;
@@ -1071,12 +1092,12 @@ impl Graph {
                 self.offset.x += if self.mouse_moved && !self.is_3d {
                     self.mouse_position.unwrap().to_vec2().x as f64
                 } else {
-                    self.screen_offset.0
+                    self.screen_offset.x
                 } / self.zoom;
                 self.offset.y += if self.mouse_moved && !self.is_3d {
                     self.mouse_position.unwrap().to_vec2().y as f64
                 } else {
-                    self.screen_offset.1
+                    self.screen_offset.y
                 } / self.zoom;
                 self.zoom /= 2.0;
                 self.recalculate = true;
@@ -1086,12 +1107,12 @@ impl Graph {
                 self.offset.x -= if self.mouse_moved && !self.is_3d {
                     self.mouse_position.unwrap().to_vec2().x as f64
                 } else {
-                    self.screen_offset.0
+                    self.screen_offset.x
                 } / self.zoom;
                 self.offset.y -= if self.mouse_moved && !self.is_3d {
                     self.mouse_position.unwrap().to_vec2().y as f64
                 } else {
-                    self.screen_offset.1
+                    self.screen_offset.y
                 } / self.zoom;
                 self.recalculate = true;
             }
@@ -1126,7 +1147,10 @@ impl Graph {
             }
             if i.key_pressed(Key::N) {
                 let last = self.ruler_pos;
-                self.ruler_pos = self.mouse_position.map(|a| self.to_coord(a));
+                self.ruler_pos = self.mouse_position.map(|a| {
+                    let a = self.to_coord(a);
+                    Vec2::new(a.0, a.1)
+                });
                 if last == self.ruler_pos {
                     self.ruler_pos = None;
                 }
@@ -1219,8 +1243,7 @@ impl Graph {
                 self.offset3d = Vec3::splat(0.0);
                 self.offset = Vec2::splat(0.0);
                 self.zoom = 1.0;
-                self.theta = PI / 6.0;
-                self.phi = PI / 6.0;
+                self.angle = Vec2::splat(PI / 6.0);
                 self.box_size = 3.0f64.sqrt();
                 self.prec = 1.0;
                 self.mouse_position = None;

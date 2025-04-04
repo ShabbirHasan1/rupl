@@ -42,21 +42,20 @@ impl Show {
 pub struct Graph {
     pub data: Vec<GraphType>,
     pub cache: Option<TextureHandle>,
-    pub start: f64,
-    pub end: f64,
+    pub bound: Vec2,
     pub is_complex: bool,
     pub offset3d: Vec3,
     pub offset: Vec2,
-    pub theta: f64,
-    pub phi: f64,
+    pub angle: Vec2,
     pub ignore_bounds: bool,
     pub zoom: f64,
     pub slice: usize,
     pub lines: bool,
+    pub var: Vec2,
     pub box_size: f64,
     pub domain_alternate: bool,
     pub screen: egui::Vec2,
-    pub screen_offset: (f64, f64),
+    pub screen_offset: Vec2,
     pub delta: f64,
     pub show: Show,
     pub anti_alias: bool,
@@ -80,7 +79,7 @@ pub struct Graph {
     pub last_interact: Option<Pos2>,
     pub recalculate: bool,
     pub no_points: bool,
-    pub ruler_pos: Option<(f64, f64)>,
+    pub ruler_pos: Option<Vec2>,
     pub prec: f64,
 }
 #[derive(Copy, Clone)]
@@ -106,7 +105,7 @@ impl Complex {
         }
     }
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Vec2 {
     pub x: f64,
     pub y: f64,
