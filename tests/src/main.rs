@@ -1,7 +1,7 @@
 use egui::{Context, FontData, FontDefinitions, FontFamily};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
-use rupl::types::{Complex, Graph, GraphType, UpdateResult};
+use rupl::types::{Complex, Graph, GraphMode, GraphType, UpdateResult};
 use std::fs;
 fn main() -> eframe::Result {
     eframe::run_native(
@@ -33,6 +33,7 @@ fn main() -> eframe::Result {
 
 struct App {
     plot: Graph,
+    current: bool,
 }
 
 impl eframe::App for App {
@@ -45,12 +46,14 @@ impl App {
     fn new() -> Self {
         let plot = Graph::new(
             vec![generate_3dc(-2.0, -2.0, 2.0, 2.0, 256)],
-            //vec![generate(-2.0, 2.0, 256)],
             true,
             -2.0,
             2.0,
         );
-        Self { plot }
+        Self {
+            plot,
+            current: false,
+        }
     }
     fn main(&mut self, ctx: &Context) {
         match self.plot.update(ctx) {
@@ -63,6 +66,20 @@ impl App {
                 self.plot.clear_data();
                 let plot = generate_3dc(sx, sy, ex, ey, (p * 256.0) as usize);
                 self.plot.set_data(vec![plot]);
+            }
+            UpdateResult::Switch => {
+                self.current = !self.current;
+                if self.current {
+                    self.plot.clear_data();
+                    self.plot.set_mode(GraphMode::Normal);
+                    let plot = generate(-2.0, 2.0, 256);
+                    self.plot.set_data(vec![plot]);
+                } else {
+                    self.plot.clear_data();
+                    self.plot.set_mode(GraphMode::Normal);
+                    let plot = generate_3d(-2.0, -2.0, 2.0, 2.0, 256);
+                    self.plot.set_data(vec![plot]);
+                }
             }
             UpdateResult::None => {}
         }

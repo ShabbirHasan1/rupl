@@ -21,6 +21,7 @@ impl Graph {
             offset: Vec2::splat(0.0),
             angle: Vec2::splat(PI / 6.0),
             slice: 0,
+            switch: false,
             is_complex,
             show: Show::Complex,
             ignore_bounds: false,
@@ -144,7 +145,10 @@ impl Graph {
         CentralPanel::default()
             .frame(egui::Frame::default().fill(self.background_color))
             .show(ctx, |ui| self.plot_main(ctx, ui));
-        if self.recalculate {
+        if self.switch {
+            self.switch = false;
+            UpdateResult::Switch
+        } else if self.recalculate {
             self.recalculate = false;
             if is_3d(&self.data) {
                 match self.graph_mode {
@@ -683,7 +687,6 @@ impl Graph {
                     let d = (pos.1 + last.1) / 2.0;
                     draws.push((d, Draw::Line(last.0, pos.0, 1.0), self.shift_hue(d, color)));
                 }
-                //TODO deal with lines only intersecting
             };
             if let Some(last) = a {
                 body(last)
@@ -1032,7 +1035,7 @@ impl Graph {
                     changed = true
                 }
                 if changed {
-                    if (self.box_size - 1.0).abs() < 0.1 {
+                    if (self.box_size - 1.0).abs() < 0.05 {
                         self.box_size = 1.0
                     }
                     if (self.box_size - 2.0f64.sqrt()).abs() < 0.1 {
@@ -1050,7 +1053,7 @@ impl Graph {
             } else {
                 let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
                 if i.key_pressed(Key::Y) {
-                    self.recalculate = true;
+                    self.cache = None;
                     self.domain_alternate = !self.domain_alternate
                 }
                 match rt.total_cmp(&1.0) {
@@ -1169,10 +1172,12 @@ impl Graph {
                 }
             }
             if i.key_pressed(Key::B) {
-                self.recalculate = true; //TODO not always needed
-                if self.is_complex {
+                if i.modifiers.ctrl {
+                    self.switch = true
+                } else if self.is_complex {
                     self.graph_mode = match self.graph_mode {
                         GraphMode::Normal if shift => {
+                            self.recalculate = true;
                             if self.is_3d {
                                 self.is_3d = false;
                                 GraphMode::DomainColoring
@@ -1183,16 +1188,24 @@ impl Graph {
                         }
                         GraphMode::Slice if shift => {
                             self.is_3d = true;
+                            self.recalculate = true;
                             GraphMode::Normal
                         }
                         GraphMode::SliceDepth if shift => {
                             self.is_3d = false;
                             GraphMode::SliceFlatten
                         }
-                        GraphMode::SliceFlatten if shift => GraphMode::Slice,
-                        GraphMode::Flatten if shift => GraphMode::Normal,
+                        GraphMode::SliceFlatten if shift => {
+                            self.recalculate = true;
+                            GraphMode::Slice
+                        }
+                        GraphMode::Flatten if shift => {
+                            self.recalculate = true;
+                            GraphMode::Normal
+                        }
                         GraphMode::DomainColoring if shift => {
                             self.is_3d = true;
+                            self.recalculate = true;
                             GraphMode::SliceDepth
                         }
                         GraphMode::Depth if shift => {
@@ -1200,6 +1213,7 @@ impl Graph {
                             GraphMode::Flatten
                         }
                         GraphMode::Normal => {
+                            self.recalculate = true;
                             if self.is_3d {
                                 self.is_3d = false;
                                 GraphMode::Slice
@@ -1207,13 +1221,17 @@ impl Graph {
                                 GraphMode::Flatten
                             }
                         }
-                        GraphMode::Slice => GraphMode::SliceFlatten,
+                        GraphMode::Slice => {
+                            self.recalculate = true;
+                            GraphMode::SliceFlatten
+                        }
                         GraphMode::SliceFlatten => {
                             self.is_3d = true;
                             GraphMode::SliceDepth
                         }
                         GraphMode::SliceDepth => {
                             self.is_3d = false;
+                            self.recalculate = true;
                             GraphMode::DomainColoring
                         }
                         GraphMode::Flatten => {
@@ -1222,9 +1240,11 @@ impl Graph {
                         }
                         GraphMode::Depth => {
                             self.is_3d = false;
+                            self.recalculate = true;
                             GraphMode::Normal
                         }
                         GraphMode::DomainColoring => {
+                            self.recalculate = true;
                             self.is_3d = true;
                             GraphMode::Normal
                         }
@@ -1233,11 +1253,13 @@ impl Graph {
                     match self.graph_mode {
                         GraphMode::Normal => {
                             if self.is_3d {
+                                self.recalculate = true;
                                 self.is_3d = false;
                                 self.graph_mode = GraphMode::Slice
                             }
                         }
                         GraphMode::Slice => {
+                            self.recalculate = true;
                             self.is_3d = true;
                             self.graph_mode = GraphMode::Normal;
                         }
@@ -1686,10 +1708,8 @@ impl Graph {
                 .sin()
                 .abs()
                 .powf(0.125);
-            let t1 = x * x;
-            let t2 = y * y;
-            let n1 = t1 / (t1 + 1.0);
-            let n2 = t2 / (t2 + 1.0);
+            let n1 = x.abs() / (x.abs() + 1.0);
+            let n2 = y.abs() / (y.abs() + 1.0);
             let n3 = (n1 * n2).powf(0.0625);
             let n4 = abs.atan() * 2.0 / PI;
             let lig = 0.8 * (n3 * (n4 - 0.5) + 0.5);

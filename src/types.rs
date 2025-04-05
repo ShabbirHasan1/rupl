@@ -24,6 +24,7 @@ pub enum Draw {
 pub enum UpdateResult {
     Width(f64, f64, f64),
     Width3D(f64, f64, f64, f64, f64),
+    Switch,
     None,
 }
 pub enum Show {
@@ -50,6 +51,7 @@ pub struct Graph {
     pub ignore_bounds: bool,
     pub zoom: f64,
     pub slice: usize,
+    pub switch: bool,
     pub lines: bool,
     pub var: Vec2,
     pub log_scale: bool,
