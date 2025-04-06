@@ -77,6 +77,9 @@ impl Graph {
         self.data = data;
         self.cache = None;
     }
+    pub fn set_complex(&mut self, complex: bool) {
+        self.is_complex = complex
+    }
     pub fn clear_data(&mut self) {
         self.data.clear();
         self.cache = None;

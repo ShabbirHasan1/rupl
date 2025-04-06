@@ -1,7 +1,7 @@
 use egui::{Context, FontData, FontDefinitions, FontFamily};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
-use rupl::types::{Complex, Graph, GraphMode, GraphType, UpdateResult};
+use rupl::types::{Complex, Graph, GraphMode, GraphType, UpdateResult, Vec3};
 use std::fs;
 fn main() -> eframe::Result {
     eframe::run_native(
@@ -45,7 +45,7 @@ impl eframe::App for App {
 impl App {
     fn new() -> Self {
         let plot = Graph::new(
-            vec![generate_3dc(-2.0, -2.0, 2.0, 2.0, 256)],
+            vec![generate_3dc(-2.0, -2.0, 2.0, 2.0, 64)],
             true,
             -2.0,
             2.0,
@@ -59,12 +59,12 @@ impl App {
         match self.plot.update(ctx) {
             UpdateResult::Width(s, e, p) => {
                 self.plot.clear_data();
-                let plot = generate(s, e, (p * 1024.0) as usize);
+                let plot = generate(s, e, (p * 256.0) as usize);
                 self.plot.set_data(vec![plot]);
             }
             UpdateResult::Width3D(sx, sy, ex, ey, p) => {
                 self.plot.clear_data();
-                let plot = generate_3dc(sx, sy, ex, ey, (p * 256.0) as usize);
+                let plot = generate_3dc(sx, sy, ex, ey, (p * 64.0) as usize);
                 self.plot.set_data(vec![plot]);
             }
             UpdateResult::Switch => {
@@ -74,11 +74,16 @@ impl App {
                     self.plot.set_mode(GraphMode::Normal);
                     let plot = generate(-2.0, 2.0, 256);
                     self.plot.set_data(vec![plot]);
+                    self.plot.set_complex(true);
+                    self.plot.reset_3d();
                 } else {
                     self.plot.clear_data();
                     self.plot.set_mode(GraphMode::Normal);
-                    let plot = generate_3d(-2.0, -2.0, 2.0, 2.0, 256);
+                    let plot = generate_3d(-2.0, -2.0, 2.0, 2.0, 64);
                     self.plot.set_data(vec![plot]);
+                    self.plot.set_complex(false);
+                    self.plot.set_offset3d(Vec3::new(0.0, 0.0, -2.0));
+                    self.plot.reset_3d();
                 }
             }
             UpdateResult::None => {}
