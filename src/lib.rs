@@ -157,9 +157,9 @@ impl Graph {
                 match self.graph_mode {
                     GraphMode::Normal => UpdateResult::Width3D(
                         self.bound.x + self.offset3d.x,
-                        self.bound.x + self.offset3d.y,
+                        self.bound.x - self.offset3d.y,
                         self.bound.y + self.offset3d.x,
-                        self.bound.y + self.offset3d.y,
+                        self.bound.y - self.offset3d.y,
                         self.prec,
                     ),
                     GraphMode::DomainColoring => {
@@ -593,11 +593,10 @@ impl Graph {
         let z2 = -p.z * cos_theta - y1 * sin_theta;
         let d = p.z * sin_theta - y1 * cos_theta;
         let s = self.delta / self.box_size;
+        let x = (x1 * s + self.screen.x as f64 / 2.0) as f32;
+        let y = (z2 * s + self.screen.y as f64 / 2.0) as f32;
         (
-            Pos2::new(
-                (x1 * s + self.screen.x as f64 / 2.0) as f32,
-                (z2 * s + self.screen.y as f64 / 2.0) as f32,
-            ),
+            Pos2::new(x, y),
             (d / ((self.bound.y - self.bound.x) * 3.0f64.sqrt()) + 0.5) as f32,
         )
     }
@@ -613,12 +612,12 @@ impl Graph {
         b: Option<((Pos2, f32), Vec3, bool)>,
     ) -> (Option<((Pos2, f32), Vec3, bool)>, Vec<(f32, Draw, Color32)>) {
         let mut draws = Vec::new();
+        let x = x - self.offset3d.x;
+        let y = y + self.offset3d.y;
+        let z = z + self.offset3d.z;
         if !x.is_finite() || !y.is_finite() || !z.is_finite() {
             return (None, draws);
         }
-        let x = x - self.offset3d.x;
-        let y = y - self.offset3d.y;
-        let z = z + self.offset3d.z;
         let v = Vec3::new(x, y, z);
         let pos = self.vec3_to_pos_depth(v);
         let inside = self.ignore_bounds
