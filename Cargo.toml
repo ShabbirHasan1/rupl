@@ -6,3 +6,6 @@ edition = "2024"
 [dependencies]
 egui="0.31.1"
 eyre = "0.6.12"
+
+[workspace]
+members = ["tests"]

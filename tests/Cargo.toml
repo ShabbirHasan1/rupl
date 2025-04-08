@@ -7,4 +7,6 @@ edition = "2024"
 egui="0.31.1"
 eframe="0.31.1"
 rupl={path=".."}
+rug="1.27.0"
 rayon="1.10.0"
+kalc-lib={path="../../kalc"}

@@ -1,4 +1,9 @@
 use egui::{Context, FontData, FontDefinitions, FontFamily};
+use kalc_lib::complex::NumStr::Num;
+use kalc_lib::math::do_math;
+use kalc_lib::misc::{place_funcvar, place_var};
+use kalc_lib::parse::simplify;
+use kalc_lib::units::{Number, Options};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use rupl::types::{Complex, Graph, GraphMode, GraphType, UpdateResult, Vec3};
@@ -199,21 +204,49 @@ fn generate_3d(startx: f64, starty: f64, endx: f64, endy: f64, len: usize) -> Gr
 #[allow(dead_code)]
 fn generate_3dc(startx: f64, starty: f64, endx: f64, endy: f64, len: usize) -> GraphType {
     let len = len.min(8192);
+    let opts = Options {
+        prec: 64,
+        ..Options::default()
+    };
+    let Ok((func, funcvar, _, _, _)) = kalc_lib::parse::input_var(
+        "(x+yi)^(x+yi)",
+        &Vec::new(),
+        &mut Vec::new(),
+        &mut 0,
+        opts,
+        false,
+        0,
+        Vec::new(),
+        false,
+        &mut Vec::new(),
+        None,
+    ) else {
+        return GraphType::Width(Vec::new(), 0.0, 0.0);
+    };
     let data = (0..=len)
         .into_par_iter()
         .flat_map(|j| {
             let j = j as f64 / len as f64;
             let y = starty + j * (endy - starty);
-            let yr = y * y;
+            let y = Num(Number::from(rug::Complex::with_val(opts.prec, y), None));
+            let mut modified = place_var(func.clone(), "y", y.clone());
+            let mut modifiedvars = place_funcvar(funcvar.clone(), "y", y.clone());
+            simplify(&mut modified, &mut modifiedvars, opts);
             (0..=len)
                 .into_par_iter()
                 .map(|i| {
                     let i = i as f64 / len as f64;
                     let x = startx + i * (endx - startx);
-                    let re = (x * x + yr).recip();
-                    let r = (x * re).sin() * (y * re).cosh();
-                    let i = -(x * re).cos() * (y * re).sinh();
-                    Complex::Complex(r, i)
+                    let x = Num(Number::from(rug::Complex::with_val(opts.prec, x), None));
+                    if let Ok(Num(n)) = do_math(
+                        place_var(modified.clone(), "x", x.clone()),
+                        opts,
+                        place_funcvar(modifiedvars.clone(), "x", x),
+                    ) {
+                        Complex::Complex(n.number.real().to_f64(), n.number.imag().to_f64())
+                    } else {
+                        Complex::Complex(0.0, 0.0)
+                    }
                 })
                 .collect::<Vec<Complex>>()
         })
