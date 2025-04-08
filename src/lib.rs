@@ -11,9 +11,8 @@ fn is_3d(data: &[GraphType]) -> bool {
 }
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
-        let zoom = 1.0;
-        let is_3d = is_3d(&data);
         Self {
+            is_3d: is_3d(&data),
             data,
             cache: None,
             bound: Vec2::new(start, end),
@@ -25,7 +24,8 @@ impl Graph {
             is_complex,
             show: Show::Complex,
             ignore_bounds: false,
-            zoom,
+            zoom: 1.0,
+            zoom3d: 1.0,
             screen: egui::Vec2::splat(0.0),
             screen_offset: Vec2::splat(0.0),
             delta: 0.0,
@@ -67,7 +67,6 @@ impl Graph {
             disable_coord: false,
             graph_mode: GraphMode::Normal,
             prec: 1.0,
-            is_3d,
             recalculate: false,
             no_points: true,
             ruler_pos: None,
@@ -1095,31 +1094,41 @@ impl Graph {
                 }
             }
             if i.key_pressed(Key::Q) {
-                self.offset.x += if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().to_vec2().x as f64
+                if self.is_3d {
+                    self.zoom3d *= 2.0;
+                    self.bound *= 2.0;
                 } else {
-                    self.screen_offset.x
-                } / self.zoom;
-                self.offset.y += if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().to_vec2().y as f64
-                } else {
-                    self.screen_offset.y
-                } / self.zoom;
-                self.zoom /= 2.0;
+                    self.offset.x += if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().to_vec2().x as f64
+                    } else {
+                        self.screen_offset.x
+                    } / self.zoom;
+                    self.offset.y += if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().to_vec2().y as f64
+                    } else {
+                        self.screen_offset.y
+                    } / self.zoom;
+                    self.zoom /= 2.0;
+                }
                 self.recalculate = true;
             }
             if i.key_pressed(Key::E) {
-                self.zoom *= 2.0;
-                self.offset.x -= if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().to_vec2().x as f64
+                if self.is_3d {
+                    self.zoom3d /= 2.0;
+                    self.bound /= 2.0;
                 } else {
-                    self.screen_offset.x
-                } / self.zoom;
-                self.offset.y -= if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().to_vec2().y as f64
-                } else {
-                    self.screen_offset.y
-                } / self.zoom;
+                    self.zoom *= 2.0;
+                    self.offset.x -= if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().to_vec2().x as f64
+                    } else {
+                        self.screen_offset.x
+                    } / self.zoom;
+                    self.offset.y -= if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().to_vec2().y as f64
+                    } else {
+                        self.screen_offset.y
+                    } / self.zoom;
+                }
                 self.recalculate = true;
             }
             if matches!(
@@ -1139,9 +1148,10 @@ impl Graph {
             }
             if i.key_pressed(Key::L) {
                 //TODO all keys should be optional an settings
+                //TODO 3d zoom
                 if self.graph_mode == GraphMode::DomainColoring {
                     self.cache = None;
-                    self.log_scale = !self.log_scale
+                    self.log_scale = !self.log_scale //TODO 2d logscale
                 } else {
                     self.lines = !self.lines
                 }
@@ -1273,6 +1283,7 @@ impl Graph {
                 self.offset3d = Vec3::splat(0.0);
                 self.offset = Vec2::splat(0.0);
                 self.zoom = 1.0;
+                self.zoom3d = 1.0;
                 self.angle = Vec2::splat(PI / 6.0);
                 self.box_size = 3.0f64.sqrt();
                 self.prec = 1.0;

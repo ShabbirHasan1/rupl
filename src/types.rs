@@ -1,5 +1,5 @@
 use egui::{Color32, Pos2, TextureHandle};
-use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
+use std::ops::{Add, AddAssign, DivAssign, Mul, MulAssign, Sub, SubAssign};
 #[derive(PartialEq)]
 pub enum GraphMode {
     Normal,
@@ -64,6 +64,7 @@ pub struct Graph {
     pub anti_alias: bool,
     pub color_depth: bool,
     pub show_box: bool,
+    pub zoom3d: f64,
     pub main_colors: Vec<Color32>,
     pub alt_colors: Vec<Color32>,
     pub axis_color: Color32,
@@ -119,6 +120,18 @@ impl Vec2 {
     }
     pub fn new(x: f64, y: f64) -> Self {
         Self { x, y }
+    }
+}
+impl DivAssign<f64> for Vec2 {
+    fn div_assign(&mut self, rhs: f64) {
+        self.x /= rhs;
+        self.y /= rhs;
+    }
+}
+impl MulAssign<f64> for Vec2 {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.x *= rhs;
+        self.y *= rhs;
     }
 }
 #[derive(Copy, Clone)]
