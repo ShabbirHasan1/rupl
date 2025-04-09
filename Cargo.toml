@@ -7,5 +7,10 @@ edition = "2024"
 egui="0.31.1"
 eyre = "0.6.12"
 
+[profile.release]
+lto = true
+strip = true
+
 [workspace]
-members = ["tests"]
+resolver = "2"
+members = ["kalc-plot"]

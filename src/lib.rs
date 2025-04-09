@@ -147,10 +147,7 @@ impl Graph {
         CentralPanel::default()
             .frame(egui::Frame::default().fill(self.background_color))
             .show(ctx, |ui| self.plot_main(ctx, ui));
-        if self.switch {
-            self.switch = false;
-            UpdateResult::Switch
-        } else if self.recalculate {
+        if self.recalculate {
             self.recalculate = false;
             if is_3d(&self.data) {
                 match self.graph_mode {
@@ -1184,9 +1181,7 @@ impl Graph {
                 }
             }
             if i.key_pressed(Key::B) {
-                if i.modifiers.ctrl {
-                    self.switch = true
-                } else if self.is_complex {
+                if self.is_complex {
                     self.graph_mode = match self.graph_mode {
                         GraphMode::Normal if shift => {
                             self.recalculate = true;
@@ -1294,7 +1289,18 @@ impl Graph {
         });
     }
     fn plot(&mut self, painter: &Painter, ui: &Ui) -> Vec<(f32, Draw, Color32)> {
-        let mut pts = Vec::new();
+        let mut pts = Vec::with_capacity(
+            self.data
+                .iter()
+                .map(|a| match a {
+                    GraphType::Coord(_) => 0,
+                    GraphType::Coord3D(d) => d.len(),
+                    GraphType::Width(_, _, _) => 0,
+                    GraphType::Width3D(d, _, _, _, _) => d.len(),
+                })
+                .sum::<usize>()
+                * 6,
+        );
         for (k, data) in self.data.iter().enumerate() {
             let (mut a, mut b, mut c) = (None, None, None);
             match data {

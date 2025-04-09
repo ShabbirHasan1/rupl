@@ -24,7 +24,6 @@ pub enum Draw {
 pub enum UpdateResult {
     Width(f64, f64, f64),
     Width3D(f64, f64, f64, f64, f64),
-    Switch,
     None,
 }
 pub enum Show {
