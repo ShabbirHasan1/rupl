@@ -119,11 +119,12 @@ impl Data {
         len: usize,
     ) -> (Vec<Complex>, bool) {
         let len = len.min(8192);
+        let dx = (endx - startx) / len as f64;
+        let dy = (endy - starty) / len as f64;
         let data = (0..=len)
             .into_par_iter()
             .flat_map(|j| {
-                let j = j as f64 / len as f64;
-                let y = starty + j * (endy - starty);
+                let y = starty + j as f64 * dy;
                 let y = Num(Number::from(
                     rug::Complex::with_val(self.options.prec, y),
                     None,
@@ -131,15 +132,14 @@ impl Data {
                 let mut modified = place_var(self.parsed.clone(), "y", y.clone());
                 let mut modifiedvars = place_funcvar(self.parsed_vars.clone(), "y", y.clone());
                 simplify(&mut modified, &mut modifiedvars, self.options);
-                (0..=len)
-                    .into_par_iter()
-                    .map(|i| {
-                        let i = i as f64 / len as f64;
-                        let x = startx + i * (endx - startx);
-                        let x = Num(Number::from(
-                            rug::Complex::with_val(self.options.prec, x),
-                            None,
-                        ));
+                let mut data = Vec::with_capacity(len + 1);
+                for i in 0..=len {
+                    let x = startx + i as f64 * dx;
+                    let x = Num(Number::from(
+                        rug::Complex::with_val(self.options.prec, x),
+                        None,
+                    ));
+                    data.push(
                         if let Ok(Num(n)) = do_math(
                             place_var(modified.clone(), "x", x.clone()),
                             self.options,
@@ -148,20 +148,21 @@ impl Data {
                             Complex::Complex(n.number.real().to_f64(), n.number.imag().to_f64())
                         } else {
                             Complex::Complex(0.0, 0.0)
-                        }
-                    })
-                    .collect::<Vec<Complex>>()
+                        },
+                    )
+                }
+                data
             })
             .collect::<Vec<Complex>>();
         compact(data)
     }
     fn generate_2d(&self, start: f64, end: f64, len: usize) -> (Vec<Complex>, bool) {
         let len = len.min(8192usize.pow(2));
+        let dx = (end - start) / len as f64;
         let data = (0..=len)
             .into_par_iter()
             .map(|i| {
-                let i = i as f64 / len as f64;
-                let x = start + i * (end - start);
+                let x = start + i as f64 * dx;
                 let x = Num(Number::from(
                     rug::Complex::with_val(self.options.prec, x),
                     None,

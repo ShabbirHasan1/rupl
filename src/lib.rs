@@ -37,7 +37,7 @@ impl Graph {
             anti_alias: true,
             lines: true,
             domain_alternate: true,
-            var: Vec2::new(-16.0, 16.0),
+            var: Vec2::new(-16.0, 16.0), //TODO keybinds for this
             last_interact: None,
             main_colors: vec![
                 Color32::from_rgb(255, 85, 85),
@@ -218,7 +218,9 @@ impl Graph {
             self.screen.y as f64 / 2.0,
         );
         if t != self.screen_offset {
-            self.recalculate = true;
+            if self.graph_mode == GraphMode::DomainColoring {
+                self.recalculate = true;
+            }
             self.screen_offset = t;
         }
         if !self.is_3d {
