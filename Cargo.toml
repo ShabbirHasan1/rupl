@@ -6,11 +6,3 @@ edition = "2024"
 [dependencies]
 egui="0.31.1"
 eyre = "0.6.12"
-
-[profile.release]
-lto = true
-strip = true
-
-[workspace]
-resolver = "2"
-members = ["kalc-plot"]
