@@ -157,7 +157,7 @@ impl Data {
         compact(data)
     }
     fn generate_2d(&self, start: f64, end: f64, len: usize) -> (Vec<Complex>, bool) {
-        let len = len.min(8192usize.pow(2));
+        let len = len.min(67108864);
         let dx = (end - start) / len as f64;
         let data = (0..=len)
             .into_par_iter()

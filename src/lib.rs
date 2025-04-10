@@ -26,6 +26,7 @@ impl Graph {
             ignore_bounds: false,
             zoom: 1.0,
             zoom3d: 1.0,
+            mouse_held: false,
             screen: egui::Vec2::splat(0.0),
             screen_offset: Vec2::splat(0.0),
             delta: 0.0,
@@ -854,8 +855,16 @@ impl Graph {
                         self.offset.x += delta.x as f64 / self.zoom;
                         self.offset.y += delta.y as f64 / self.zoom;
                         self.recalculate = true;
+                        if !self.mouse_held {
+                            self.mouse_held = true;
+                            self.prec /= 4.0;
+                        }
                     }
                 }
+            } else if self.mouse_held {
+                self.mouse_held = false;
+                self.prec *= 4.0;
+                self.recalculate = true;
             }
             self.last_interact = interact;
             if let Some(multi) = multi {
