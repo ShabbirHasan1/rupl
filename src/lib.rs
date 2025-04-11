@@ -869,90 +869,93 @@ impl Graph {
             }
             let multi = i.multi_touch();
             let interact = i.pointer.interact_pos();
-            if i.pointer.primary_down()
-                && i.pointer.press_start_time().unwrap_or(0.0) < i.time
-                && multi.is_none()
-            {
-                if let (Some(interact), Some(last)) = (interact, self.last_interact) {
-                    let delta = interact - last;
+            match multi {
+                Some(multi) => {
+                    match multi.zoom_delta.total_cmp(&1.0) {
+                        std::cmp::Ordering::Greater => {
+                            if self.is_3d {
+                                self.box_size /= multi.zoom_delta as f64;
+                            } else {
+                                self.zoom *= multi.zoom_delta as f64;
+                                self.offset.x -= if self.mouse_moved && !self.is_3d {
+                                    self.mouse_position.unwrap().to_vec2().x as f64
+                                } else {
+                                    self.screen_offset.x
+                                } / self.zoom
+                                    * (multi.zoom_delta as f64 - 1.0);
+                                self.offset.y -= if self.mouse_moved && !self.is_3d {
+                                    self.mouse_position.unwrap().to_vec2().y as f64
+                                } else {
+                                    self.screen_offset.y
+                                } / self.zoom
+                                    * (multi.zoom_delta as f64 - 1.0);
+                                self.recalculate = true;
+                            }
+                        }
+                        std::cmp::Ordering::Less => {
+                            if self.is_3d {
+                                self.box_size /= multi.zoom_delta as f64;
+                            } else {
+                                self.offset.x += if self.mouse_moved && !self.is_3d {
+                                    self.mouse_position.unwrap().to_vec2().x as f64
+                                } else {
+                                    self.screen_offset.x
+                                } / self.zoom
+                                    * ((multi.zoom_delta as f64).recip() - 1.0);
+                                self.offset.y += if self.mouse_moved && !self.is_3d {
+                                    self.mouse_position.unwrap().to_vec2().y as f64
+                                } else {
+                                    self.screen_offset.y
+                                } / self.zoom
+                                    * ((multi.zoom_delta as f64).recip() - 1.0);
+                                self.zoom *= multi.zoom_delta as f64;
+                                self.recalculate = true;
+                            }
+                        }
+                        _ => {}
+                    }
                     if self.is_3d {
-                        self.angle.x = (self.angle.x - delta.x as f64 / 512.0).rem_euclid(TAU);
-                        self.angle.y = (self.angle.y + delta.y as f64 / 512.0).rem_euclid(TAU);
+                        self.angle.x = (self.angle.x - multi.translation_delta.x as f64 / 512.0)
+                            .rem_euclid(TAU);
+                        self.angle.y = (self.angle.y + multi.translation_delta.y as f64 / 512.0)
+                            .rem_euclid(TAU);
                     } else {
-                        self.offset.x += delta.x as f64 / self.zoom;
-                        self.offset.y += delta.y as f64 / self.zoom;
+                        self.offset.x += multi.translation_delta.x as f64 / self.zoom;
+                        self.offset.y += multi.translation_delta.y as f64 / self.zoom;
                         self.recalculate = true;
                         if !self.mouse_held {
                             self.mouse_held = true;
-                            self.prec = (self.prec + 1.0).log10();
+                            self.prec = 10.0f64.powf(self.prec) - 1.0;
                         }
                     }
                 }
-            } else if self.mouse_held {
-                self.mouse_held = false;
-                self.prec = 10.0f64.powf(self.prec) - 1.0;
-                self.recalculate = true;
+                _ if i.pointer.primary_down()
+                    && i.pointer.press_start_time().unwrap_or(0.0) < i.time =>
+                {
+                    if let (Some(interact), Some(last)) = (interact, self.last_interact) {
+                        let delta = interact - last;
+                        if self.is_3d {
+                            self.angle.x = (self.angle.x - delta.x as f64 / 512.0).rem_euclid(TAU);
+                            self.angle.y = (self.angle.y + delta.y as f64 / 512.0).rem_euclid(TAU);
+                        } else {
+                            self.offset.x += delta.x as f64 / self.zoom;
+                            self.offset.y += delta.y as f64 / self.zoom;
+                            self.recalculate = true;
+                            if !self.mouse_held {
+                                self.mouse_held = true;
+                                self.prec = (self.prec + 1.0).log10();
+                            }
+                        }
+                    }
+                }
+                _ if self.mouse_held => {
+                    self.mouse_held = false;
+                    self.prec = 10.0f64.powf(self.prec) - 1.0;
+                    self.recalculate = true;
+                }
+                _ => {}
             }
             self.last_interact = interact;
-            if let Some(multi) = multi {
-                match multi.zoom_delta.total_cmp(&1.0) {
-                    std::cmp::Ordering::Greater => {
-                        if self.is_3d {
-                            self.box_size /= multi.zoom_delta as f64;
-                        } else {
-                            self.zoom *= multi.zoom_delta as f64;
-                            self.offset.x -= if self.mouse_moved && !self.is_3d {
-                                self.mouse_position.unwrap().to_vec2().x as f64
-                            } else {
-                                self.screen_offset.x
-                            } / self.zoom
-                                * (multi.zoom_delta as f64 - 1.0);
-                            self.offset.y -= if self.mouse_moved && !self.is_3d {
-                                self.mouse_position.unwrap().to_vec2().y as f64
-                            } else {
-                                self.screen_offset.y
-                            } / self.zoom
-                                * (multi.zoom_delta as f64 - 1.0);
-                            self.recalculate = true;
-                        }
-                    }
-                    std::cmp::Ordering::Less => {
-                        if self.is_3d {
-                            self.box_size /= multi.zoom_delta as f64;
-                        } else {
-                            self.offset.x += if self.mouse_moved && !self.is_3d {
-                                self.mouse_position.unwrap().to_vec2().x as f64
-                            } else {
-                                self.screen_offset.x
-                            } / self.zoom
-                                * ((multi.zoom_delta as f64).recip() - 1.0);
-                            self.offset.y += if self.mouse_moved && !self.is_3d {
-                                self.mouse_position.unwrap().to_vec2().y as f64
-                            } else {
-                                self.screen_offset.y
-                            } / self.zoom
-                                * ((multi.zoom_delta as f64).recip() - 1.0);
-                            self.zoom *= multi.zoom_delta as f64;
-                            self.recalculate = true;
-                        }
-                    }
-                    _ => {}
-                }
-                if self.is_3d {
-                    self.angle.x =
-                        (self.angle.x - multi.translation_delta.x as f64 / 512.0).rem_euclid(TAU);
-                    self.angle.y =
-                        (self.angle.y + multi.translation_delta.y as f64 / 512.0).rem_euclid(TAU);
-                } else {
-                    self.offset.x += multi.translation_delta.x as f64 / self.zoom;
-                    self.offset.y += multi.translation_delta.y as f64 / self.zoom;
-                    if self.graph_mode == GraphMode::SliceFlatten
-                        || self.graph_mode == GraphMode::Flatten
-                    {
-                        self.recalculate = true;
-                    }
-                }
-            }
             let shift = i.modifiers.shift;
             let (a, b, c) = if shift {
                 (
