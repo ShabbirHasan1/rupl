@@ -10,7 +10,6 @@ fn is_3d(data: &[GraphType]) -> bool {
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
 }
 //TODO dont calculate extra stuff for slice
-//TODO calculate domain coloring based off of screen ratio
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
         Self {
@@ -159,20 +158,41 @@ impl Graph {
                         self.bound.x - self.offset3d.y,
                         self.bound.y + self.offset3d.x,
                         self.bound.y - self.offset3d.y,
-                        self.prec,
+                        Prec::Mult(self.prec),
                     ),
                     GraphMode::DomainColoring => {
                         let c = self.to_coord(Pos2::new(0.0, 0.0));
                         let cf = self.to_coord(self.screen.to_pos2());
-                        UpdateResult::Width3D(c.0, c.1, cf.0, cf.1, self.prec)
+                        UpdateResult::Width3D(
+                            c.0,
+                            c.1,
+                            cf.0,
+                            cf.1,
+                            Prec::Dimension(
+                                (self.screen.x as f64 * self.prec / 16.0) as usize,
+                                (self.screen.y as f64 * self.prec / 16.0) as usize,
+                            ),
+                        )
                     }
                     GraphMode::Slice => {
                         let c = self.to_coord(Pos2::new(0.0, 0.0));
                         let cf = self.to_coord(self.screen.to_pos2());
                         if self.view_x {
-                            UpdateResult::Width3D(c.0, self.bound.x, cf.0, self.bound.y, self.prec)
+                            UpdateResult::Width3D(
+                                c.0,
+                                self.bound.x,
+                                cf.0,
+                                self.bound.y,
+                                Prec::Mult(self.prec),
+                            )
                         } else {
-                            UpdateResult::Width3D(self.bound.x, c.0, self.bound.y, cf.0, self.prec)
+                            UpdateResult::Width3D(
+                                self.bound.x,
+                                c.0,
+                                self.bound.y,
+                                cf.0,
+                                Prec::Mult(self.prec),
+                            )
                         }
                     }
                     GraphMode::SliceFlatten => {
@@ -182,7 +202,7 @@ impl Graph {
                                 self.bound.x,
                                 self.var.y,
                                 self.bound.y,
-                                self.prec,
+                                Prec::Mult(self.prec),
                             )
                         } else {
                             UpdateResult::Width3D(
@@ -190,7 +210,7 @@ impl Graph {
                                 self.var.x,
                                 self.bound.y,
                                 self.var.y,
-                                self.prec,
+                                Prec::Mult(self.prec),
                             )
                         }
                     }
@@ -201,7 +221,7 @@ impl Graph {
                                 self.bound.x,
                                 self.bound.y - self.offset3d.z,
                                 self.bound.y,
-                                self.prec,
+                                Prec::Mult(self.prec),
                             )
                         } else {
                             UpdateResult::Width3D(
@@ -209,7 +229,7 @@ impl Graph {
                                 self.bound.x - self.offset3d.z,
                                 self.bound.y,
                                 self.bound.y - self.offset3d.z,
-                                self.prec,
+                                Prec::Mult(self.prec),
                             )
                         }
                     }
@@ -219,15 +239,15 @@ impl Graph {
                 UpdateResult::Width(
                     self.bound.x - self.offset3d.z,
                     self.bound.y - self.offset3d.z,
-                    self.prec,
+                    Prec::Mult(self.prec),
                 )
             } else if !self.is_3d {
                 if self.graph_mode == GraphMode::Flatten {
-                    UpdateResult::Width(self.var.x, self.var.y, self.prec)
+                    UpdateResult::Width(self.var.x, self.var.y, Prec::Mult(self.prec))
                 } else {
                     let c = self.to_coord(Pos2::new(0.0, 0.0));
                     let cf = self.to_coord(self.screen.to_pos2());
-                    UpdateResult::Width(c.0, cf.0, self.prec)
+                    UpdateResult::Width(c.0, cf.0, Prec::Mult(self.prec))
                 }
             } else {
                 UpdateResult::None
@@ -1368,6 +1388,7 @@ impl Graph {
             if i.key_pressed(Key::T) {
                 self.offset3d = Vec3::splat(0.0);
                 self.offset = Vec2::splat(0.0);
+                self.var = self.bound;
                 self.zoom = 1.0;
                 self.zoom3d = 1.0;
                 self.angle = Vec2::splat(PI / 6.0);
@@ -1732,17 +1753,18 @@ impl Graph {
                         }
                     }
                     GraphMode::DomainColoring => {
-                        let len = data.len().isqrt();
+                        let lenx = (self.screen.x as f64 * self.prec / 16.0) as usize + 1;
+                        let leny = (self.screen.y as f64 * self.prec / 16.0) as usize + 1;
                         let tex = if let Some(tex) = &self.cache {
                             tex
-                        } else if data.len().isqrt().pow(2) == data.len() {
+                        } else {
                             let mut rgb = Vec::new();
                             for z in data {
                                 rgb.extend(self.get_color(z));
                             }
                             let tex = ui.ctx().load_texture(
                                 "dc",
-                                ColorImage::from_rgb([len, len], &rgb),
+                                ColorImage::from_rgb([lenx, leny], &rgb),
                                 if self.anti_alias {
                                     TextureOptions::LINEAR
                                 } else {
@@ -1751,8 +1773,6 @@ impl Graph {
                             );
                             self.cache = Some(tex);
                             self.cache.as_ref().unwrap()
-                        } else {
-                            return vec![];
                         };
                         painter.image(
                             tex.id(),

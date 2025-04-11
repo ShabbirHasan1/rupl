@@ -21,9 +21,13 @@ pub enum Draw {
     Line(Pos2, Pos2, f32),
     Point(Pos2),
 }
+pub enum Prec {
+    Mult(f64),
+    Dimension(usize, usize),
+}
 pub enum UpdateResult {
-    Width(f64, f64, f64),
-    Width3D(f64, f64, f64, f64, f64),
+    Width(f64, f64, Prec),
+    Width3D(f64, f64, f64, f64, Prec),
     None,
 }
 pub enum Show {
