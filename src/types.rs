@@ -23,6 +23,7 @@ pub enum Draw {
 }
 pub enum Prec {
     Mult(f64),
+    Slice(f64, bool, isize),
     Dimension(usize, usize),
 }
 pub enum UpdateResult {
@@ -53,7 +54,7 @@ pub struct Graph {
     pub angle: Vec2,
     pub ignore_bounds: bool,
     pub zoom: f64,
-    pub slice: usize,
+    pub slice: isize,
     pub switch: bool,
     pub lines: bool,
     pub var: Vec2,

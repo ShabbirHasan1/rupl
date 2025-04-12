@@ -9,7 +9,8 @@ fn is_3d(data: &[GraphType]) -> bool {
     data.iter()
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
 }
-//TODO dont calculate extra stuff for slice
+//TODO all keys should be optional an settings
+//TODO 2d logscale
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
         Self {
@@ -183,7 +184,7 @@ impl Graph {
                                 self.bound.x,
                                 cf.0,
                                 self.bound.y,
-                                Prec::Mult(self.prec),
+                                Prec::Slice(self.prec, self.view_x, self.slice),
                             )
                         } else {
                             UpdateResult::Width3D(
@@ -191,7 +192,7 @@ impl Graph {
                                 c.0,
                                 self.bound.y,
                                 cf.0,
-                                Prec::Mult(self.prec),
+                                Prec::Slice(self.prec, self.view_x, self.slice),
                             )
                         }
                     }
@@ -202,7 +203,7 @@ impl Graph {
                                 self.bound.x,
                                 self.var.y,
                                 self.bound.y,
-                                Prec::Mult(self.prec),
+                                Prec::Slice(self.prec, self.view_x, self.slice),
                             )
                         } else {
                             UpdateResult::Width3D(
@@ -210,7 +211,7 @@ impl Graph {
                                 self.var.x,
                                 self.bound.y,
                                 self.var.y,
-                                Prec::Mult(self.prec),
+                                Prec::Slice(self.prec, self.view_x, self.slice),
                             )
                         }
                     }
@@ -221,7 +222,7 @@ impl Graph {
                                 self.bound.x,
                                 self.bound.y - self.offset3d.z,
                                 self.bound.y,
-                                Prec::Mult(self.prec),
+                                Prec::Slice(self.prec, self.view_x, self.slice),
                             )
                         } else {
                             UpdateResult::Width3D(
@@ -229,10 +230,11 @@ impl Graph {
                                 self.bound.x - self.offset3d.z,
                                 self.bound.y,
                                 self.bound.y - self.offset3d.z,
-                                Prec::Mult(self.prec),
+                                Prec::Slice(self.prec, self.view_x, self.slice),
                             )
                         }
                     }
+
                     _ => UpdateResult::None,
                 }
             } else if self.graph_mode == GraphMode::Depth {
@@ -1212,10 +1214,12 @@ impl Graph {
                 GraphMode::Slice | GraphMode::SliceFlatten | GraphMode::SliceDepth
             ) {
                 if i.key_pressed(Key::Period) {
+                    self.recalculate = true;
                     self.slice += c
                 }
                 if i.key_pressed(Key::Comma) {
-                    self.slice = self.slice.saturating_sub(c)
+                    self.recalculate = true;
+                    self.slice -= c
                 }
                 if i.key_pressed(Key::Slash) {
                     self.recalculate = true;
@@ -1223,10 +1227,9 @@ impl Graph {
                 }
             }
             if i.key_pressed(Key::L) {
-                //TODO all keys should be optional an settings
                 if self.graph_mode == GraphMode::DomainColoring {
                     self.cache = None;
-                    self.log_scale = !self.log_scale //TODO 2d logscale
+                    self.log_scale = !self.log_scale
                 } else {
                     self.lines = !self.lines
                 }
@@ -1391,6 +1394,7 @@ impl Graph {
                 self.var = self.bound;
                 self.zoom = 1.0;
                 self.zoom3d = 1.0;
+                self.slice = 0;
                 self.angle = Vec2::splat(PI / 6.0);
                 self.box_size = 3.0f64.sqrt();
                 self.prec = 1.0;
@@ -1627,16 +1631,15 @@ impl Graph {
                         }
                     }
                     GraphMode::Slice => {
-                        let len = data.len().isqrt();
-                        self.slice = self.slice.min(len - 1);
-                        let mut body = |i: usize, y: &Complex, view_x: bool| {
+                        let len = data.len();
+                        let mut body = |i: usize, y: &Complex| {
                             let x = (i as f64 / (len - 1) as f64 - 0.5)
-                                * if view_x {
+                                * if self.view_x {
                                     end_x - start_x
                                 } else {
                                     end_y - start_y
                                 }
-                                + if view_x {
+                                + if self.view_x {
                                     start_x + end_x
                                 } else {
                                     start_y + end_y
@@ -1671,22 +1674,11 @@ impl Graph {
                                 None
                             };
                         };
-                        if self.view_x {
-                            for (i, y) in data[self.slice * len..(self.slice + 1) * len]
-                                .iter()
-                                .enumerate()
-                            {
-                                body(i, y, true)
-                            }
-                        } else {
-                            for (i, y) in data.iter().skip(self.slice).step_by(len).enumerate() {
-                                body(i, y, false)
-                            }
+                        for (i, y) in data.iter().enumerate() {
+                            body(i, y)
                         }
                     }
                     GraphMode::SliceFlatten => {
-                        let len = data.len().isqrt();
-                        self.slice = self.slice.min(len - 1);
                         let mut body = |y: &Complex| {
                             let (y, z) = y.to_options();
                             a = if let (Some(y), Some(z)) = (y, z) {
@@ -1702,19 +1694,12 @@ impl Graph {
                                 None
                             };
                         };
-                        if self.view_x {
-                            for y in &data[self.slice * len..(self.slice + 1) * len] {
-                                body(y)
-                            }
-                        } else {
-                            for y in data.iter().skip(self.slice).step_by(len) {
-                                body(y)
-                            }
+                        for y in data.iter() {
+                            body(y)
                         }
                     }
                     GraphMode::SliceDepth => {
-                        let len = data.len().isqrt();
-                        self.slice = self.slice.min(len - 1);
+                        let len = data.len();
                         let mut body = |i: usize, y: &Complex| {
                             let (y, z) = y.to_options();
                             c = if let (Some(x), Some(y)) = (y, z) {
@@ -1739,17 +1724,8 @@ impl Graph {
                                 None
                             };
                         };
-                        if self.view_x {
-                            for (i, y) in data[self.slice * len..(self.slice + 1) * len]
-                                .iter()
-                                .enumerate()
-                            {
-                                body(i, y)
-                            }
-                        } else {
-                            for (i, y) in data.iter().skip(self.slice).step_by(len).enumerate() {
-                                body(i, y)
-                            }
+                        for (i, y) in data.iter().enumerate() {
+                            body(i, y)
                         }
                     }
                     GraphMode::DomainColoring => {
