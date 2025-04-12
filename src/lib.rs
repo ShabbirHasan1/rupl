@@ -11,6 +11,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 }
 //TODO all keys should be optional an settings
 //TODO 2d logscale
+//TODO labels
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
         Self {
@@ -28,7 +29,7 @@ impl Graph {
             ignore_bounds: false,
             zoom: 1.0,
             zoom3d: 1.0,
-            mouse_held: false,
+            mouse_held: 0.0,
             screen: egui::Vec2::splat(0.0),
             screen_offset: Vec2::splat(0.0),
             delta: 0.0,
@@ -945,10 +946,10 @@ impl Graph {
                         self.offset.x += multi.translation_delta.x as f64 / self.zoom;
                         self.offset.y += multi.translation_delta.y as f64 / self.zoom;
                         self.recalculate = true;
-                        if !self.mouse_held {
-                            self.mouse_held = true;
+                        if self.mouse_held == 0.0 {
                             self.prec = 10.0f64.powf(self.prec) - 1.0;
                         }
+                        self.mouse_held = i.time;
                     }
                 }
                 _ if i.pointer.primary_down()
@@ -963,15 +964,15 @@ impl Graph {
                             self.offset.x += delta.x as f64 / self.zoom;
                             self.offset.y += delta.y as f64 / self.zoom;
                             self.recalculate = true;
-                            if !self.mouse_held {
-                                self.mouse_held = true;
+                            if self.mouse_held == 0.0 {
                                 self.prec = (self.prec + 1.0).log10();
                             }
+                            self.mouse_held = i.time;
                         }
                     }
                 }
-                _ if self.mouse_held => {
-                    self.mouse_held = false;
+                _ if i.time - self.mouse_held > 1.0 => {
+                    self.mouse_held = 0.0;
                     self.prec = 10.0f64.powf(self.prec) - 1.0;
                     self.recalculate = true;
                 }

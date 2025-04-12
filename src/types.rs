@@ -89,7 +89,7 @@ pub struct Graph {
     pub no_points: bool,
     pub ruler_pos: Option<Vec2>,
     pub prec: f64,
-    pub mouse_held: bool,
+    pub mouse_held: f64,
 }
 #[derive(Copy, Clone)]
 pub enum Complex {
