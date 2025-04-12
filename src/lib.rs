@@ -11,6 +11,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 }
 //TODO all keys should be optional an settings
 //TODO 2d logscale
+//TODO labels
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
         Self {
@@ -947,7 +948,7 @@ impl Graph {
                         self.recalculate = true;
                         if !self.mouse_held {
                             self.mouse_held = true;
-                            self.prec = 10.0f64.powf(self.prec) - 1.0;
+                            self.prec = (self.prec + 1.0).log10();
                         }
                     }
                 }
