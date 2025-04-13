@@ -171,8 +171,8 @@ impl Graph {
                             cf.0,
                             cf.1,
                             Prec::Dimension(
-                                (self.screen.x as f64 * self.prec / 16.0) as usize,
-                                (self.screen.y as f64 * self.prec / 16.0) as usize,
+                                (self.screen.x as f64 * self.prec) as usize,
+                                (self.screen.y as f64 * self.prec) as usize,
                             ),
                         )
                     }
@@ -1422,11 +1422,11 @@ impl Graph {
             let (mut a, mut b, mut c) = (None, None, None);
             match data {
                 GraphType::Width(data, start, end) => match self.graph_mode {
-                    GraphMode::Normal
-                    | GraphMode::DomainColoring
+                    GraphMode::DomainColoring
                     | GraphMode::Slice
                     | GraphMode::SliceFlatten
-                    | GraphMode::SliceDepth => {
+                    | GraphMode::SliceDepth => unreachable!(),
+                    GraphMode::Normal => {
                         for (i, y) in data.iter().enumerate() {
                             let x = (i as f64 / (data.len() - 1) as f64 - 0.5) * (end - start)
                                 + (start + end) / 2.0;
@@ -1501,11 +1501,11 @@ impl Graph {
                     }
                 },
                 GraphType::Coord(data) => match self.graph_mode {
-                    GraphMode::Normal
-                    | GraphMode::DomainColoring
+                    GraphMode::DomainColoring
                     | GraphMode::Slice
                     | GraphMode::SliceFlatten
-                    | GraphMode::SliceDepth => {
+                    | GraphMode::SliceDepth => unreachable!(),
+                    GraphMode::Normal => {
                         for (x, y) in data {
                             let (y, z) = y.to_options();
                             a = if !self.show.real() {
@@ -1576,7 +1576,8 @@ impl Graph {
                     }
                 },
                 GraphType::Width3D(data, start_x, start_y, end_x, end_y) => match self.graph_mode {
-                    GraphMode::Flatten | GraphMode::Depth | GraphMode::Normal => {
+                    GraphMode::Flatten | GraphMode::Depth => unreachable!(),
+                    GraphMode::Normal => {
                         let len = data.len().isqrt();
                         let mut last = Vec::new();
                         let mut cur = Vec::new();
@@ -1765,8 +1766,8 @@ impl Graph {
                     | GraphMode::SliceDepth
                     | GraphMode::DomainColoring
                     | GraphMode::Flatten
-                    | GraphMode::Depth
-                    | GraphMode::Normal => {
+                    | GraphMode::Depth => unreachable!(),
+                    GraphMode::Normal => {
                         let mut last = None;
                         let mut lasti = None;
                         for (x, y, z) in data {
