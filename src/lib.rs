@@ -147,11 +147,11 @@ impl Graph {
         }
         self.graph_mode = mode;
     }
-    pub fn update(&mut self, ctx: &Context) -> UpdateResult {
+    pub fn update(&mut self, ctx: &Context, no_repaint: bool) -> UpdateResult {
         CentralPanel::default()
             .frame(egui::Frame::default().fill(self.background_color))
-            .show(ctx, |ui| self.plot_main(ctx, ui));
-        if self.recalculate {
+            .show(ctx, |ui| self.plot_main(ctx, ui, no_repaint));
+        if self.recalculate && !no_repaint {
             self.recalculate = false;
             if is_3d(&self.data) {
                 match self.graph_mode {
@@ -259,7 +259,13 @@ impl Graph {
             UpdateResult::None
         }
     }
-    fn plot_main(&mut self, ctx: &Context, ui: &Ui) {
+    fn plot_main(&mut self, ctx: &Context, ui: &Ui, no_repaint: bool) {
+        if !no_repaint {
+            self.keybinds(ui);
+            if self.recalculate {
+                return;
+            }
+        }
         let painter = ui.painter();
         let rect = ctx.available_rect();
         self.screen = egui::Vec2::new(rect.width(), rect.height());
@@ -307,7 +313,6 @@ impl Graph {
         } else {
             self.write_angle(painter);
         }
-        self.keybinds(ui);
     }
     fn write_coord(&self, painter: &Painter) {
         if self.mouse_moved {
