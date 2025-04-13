@@ -90,6 +90,7 @@ pub struct Graph {
     pub ruler_pos: Option<Vec2>,
     pub prec: f64,
     pub mouse_held: bool,
+    pub buffer: Vec<(f32, Draw, Color32)>,
 }
 #[derive(Copy, Clone)]
 pub enum Complex {

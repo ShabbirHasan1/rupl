@@ -5,6 +5,7 @@ use egui::{
     Stroke, TextureOptions, Ui,
 };
 use std::f64::consts::{PI, TAU};
+use rayon::prelude::ParallelSliceMut;
 fn is_3d(data: &[GraphType]) -> bool {
     data.iter()
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
@@ -40,6 +41,7 @@ impl Graph {
             box_size: 3.0f64.sqrt(),
             anti_alias: true,
             lines: true,
+            buffer: Vec::new(),
             domain_alternate: true,
             var: Vec2::new(start, end),
             last_interact: None,
@@ -293,10 +295,10 @@ impl Graph {
                 self.write_axis(painter);
             }
         } else {
-            let mut pts = self.plot(painter, ui);
-            pts.extend(self.write_axis_3d(painter));
-            pts.sort_by(|a, b| a.0.total_cmp(&b.0));
-            for (_, a, c) in pts.into_iter() {
+            self.plot(painter, ui);
+            self.write_axis_3d(painter);
+            self.buffer.par_sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
+            for (_, a, c) in self.buffer.drain(..) {
                 match a {
                     Draw::Line(a, b, t) => {
                         painter.line_segment([a, b], Stroke::new(t, c));
@@ -756,8 +758,7 @@ impl Graph {
             (None, draws)
         }
     }
-    fn write_axis_3d(&self, painter: &Painter) -> Vec<(f32, Draw, Color32)> {
-        let mut lines = Vec::new();
+    fn write_axis_3d(&mut self, painter: &Painter) {
         let s = (self.bound.y - self.bound.x) / 2.0;
         let vertices = [
             self.vec3_to_pos_depth(Vec3::new(-s, -s, -s)),
@@ -807,7 +808,7 @@ impl Graph {
                 _ => unreachable!(),
             };
             if (s == "z" && [i, j].contains(&&zl)) || (s != "z" && [i, j].contains(&&xl)) {
-                lines.push((
+                self.buffer.push((
                     if vertices[*i].1 < 0.5 || vertices[*j].1 < 0.5 {
                         0.0
                     } else {
@@ -820,6 +821,7 @@ impl Graph {
                     ),
                     self.axis_color,
                 ));
+                if !self.disable_axis {
                 let p = vertices[*i].0 + vertices[*j].0.to_vec2();
                 let align = match s {
                     "\nx" if p.x > self.screen.x => Align2::LEFT_TOP,
@@ -854,7 +856,6 @@ impl Graph {
                     FontId::monospace(16.0),
                     self.text_color,
                 );
-                if !self.disable_axis {
                     for i in st..=e {
                         painter.text(
                             start + (i - st) as f32 * (end - start) / (e - st) as f32,
@@ -866,7 +867,7 @@ impl Graph {
                     }
                 }
             } else if self.show_box {
-                lines.push((
+                self.buffer.push((
                     if vertices[*i].1 < 0.5 || vertices[*j].1 < 0.5 {
                         0.0
                     } else {
@@ -881,7 +882,6 @@ impl Graph {
                 ));
             }
         }
-        lines
     }
     fn keybinds(&mut self, ui: &Ui) {
         ui.input(|i| {
@@ -1410,7 +1410,7 @@ impl Graph {
             }
         });
     }
-    fn plot(&mut self, painter: &Painter, ui: &Ui) -> Vec<(f32, Draw, Color32)> {
+    fn plot(&mut self, painter: &Painter, ui: &Ui) {
         let mut pts = Vec::with_capacity(
             self.data
                 .iter()
@@ -1814,7 +1814,7 @@ impl Graph {
                 },
             }
         }
-        pts
+        self.buffer.extend(pts);
     }
     fn get_color(&self, z: &Complex) -> [u8; 3] {
         let (x, y) = z.to_options();
