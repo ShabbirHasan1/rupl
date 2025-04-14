@@ -495,7 +495,7 @@ impl Graph {
             let sy = c.1.floor() as isize;
             let sf = cf.1.ceil() as isize;
             if !self.disable_lines && self.graph_mode != GraphMode::DomainColoring {
-                let n = self.zoom.round() as isize + 3;
+                let n = (self.zoom.round() * 4.0) as isize;
                 let minor = if self.zoom < 1.0 {
                     self.zoom.log2().floor() as isize + 3
                 } else if n < 0 || (n as usize).is_power_of_two() {
@@ -516,7 +516,7 @@ impl Graph {
                         for j in n..=m {
                             if j != 0 {
                                 let x = self
-                                    .to_screen(i as f64 + j as f64 / (2 * minor) as f64, 0.0)
+                                    .to_screen(i as f64 + j as f64 / (2.0 * minor as f64), 0.0)
                                     .x;
                                 painter.vline(
                                     x,
@@ -538,7 +538,7 @@ impl Graph {
                         for j in m..=n {
                             if j != 0 {
                                 let y = self
-                                    .to_screen(0.0, i as f64 + j as f64 / (2 * minor) as f64)
+                                    .to_screen(0.0, i as f64 + j as f64 / (2.0 * minor as f64))
                                     .y;
                                 painter.hline(
                                     Rangef::new(0.0, self.screen.x),
