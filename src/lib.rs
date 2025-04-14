@@ -38,10 +38,10 @@ impl Graph {
             show_box: true,
             log_scale: false,
             view_x: true,
-            color_depth: false,
+            color_depth: DepthColor::None,
             box_size: 3.0f64.sqrt(),
             anti_alias: true,
-            lines: true,
+            lines: Lines::Lines,
             buffer: Vec::new(),
             domain_alternate: true,
             var: Vec2::new(start, end),
@@ -75,7 +75,6 @@ impl Graph {
             graph_mode: GraphMode::Normal,
             prec: 1.0,
             recalculate: false,
-            no_points: true,
             ruler_pos: None,
         }
     }
@@ -378,7 +377,7 @@ impl Graph {
             return None;
         }
         let pos = self.to_screen(x, y);
-        if !self.no_points
+        if !matches!(self.lines, Lines::Lines)
             && pos.x > -2.0
             && pos.x < self.screen.x + 2.0
             && pos.y > -2.0
@@ -387,7 +386,7 @@ impl Graph {
             let rect = Rect::from_center_size(pos, egui::Vec2::splat(3.0));
             painter.rect_filled(rect, 0.0, *color);
         }
-        if self.lines {
+        if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
                 if ui.is_rect_visible(Rect::from_points(&[last, pos])) {
                     painter.line_segment([last, pos], Stroke::new(1.0, *color));
@@ -499,7 +498,7 @@ impl Graph {
                 let n = self.zoom.round() as isize + 3;
                 let minor = if self.zoom < 1.0 {
                     self.zoom.log2().floor() as isize + 3
-                }else if n < 0 || (n as usize).is_power_of_two() {
+                } else if n < 0 || (n as usize).is_power_of_two() {
                     n
                 } else {
                     (n as usize).next_power_of_two() as isize
@@ -661,17 +660,17 @@ impl Graph {
                 && y <= self.bound.y
                 && z >= self.bound.x
                 && z <= self.bound.y);
-        if !self.no_points && inside {
-            draws.push((pos.1, Draw::Point(pos.0), self.shift_hue(pos.1, color)));
+        if !matches!(self.lines, Lines::Lines) && inside {
+            draws.push((pos.1, Draw::Point(pos.0), self.shift_hue(pos.1, z, color)));
         }
-        if self.lines {
+        if !matches!(self.lines, Lines::Points) {
             let mut body = |last: ((Pos2, f32), Vec3, bool)| {
                 if inside && last.2 {
                     let d = (pos.1 + last.0.1) / 2.0;
                     draws.push((
                         d,
                         Draw::Line(last.0.0, pos.0, 1.0),
-                        self.shift_hue(d, color),
+                        self.shift_hue(d, z, color),
                     ));
                 } else if inside {
                     let mut vi = last.1;
@@ -695,7 +694,11 @@ impl Graph {
                     }
                     let last = self.vec3_to_pos_depth(vi);
                     let d = (pos.1 + last.1) / 2.0;
-                    draws.push((d, Draw::Line(last.0, pos.0, 1.0), self.shift_hue(d, color)));
+                    draws.push((
+                        d,
+                        Draw::Line(last.0, pos.0, 1.0),
+                        self.shift_hue(d, z, color),
+                    ));
                 } else if last.2 {
                     let mut vi = v;
                     let v = last.1;
@@ -721,7 +724,11 @@ impl Graph {
                     }
                     let last = self.vec3_to_pos_depth(vi);
                     let d = (pos.1 + last.1) / 2.0;
-                    draws.push((d, Draw::Line(last.0, pos.0, 1.0), self.shift_hue(d, color)));
+                    draws.push((
+                        d,
+                        Draw::Line(last.0, pos.0, 1.0),
+                        self.shift_hue(d, z, color),
+                    ));
                 }
             };
             if let Some(last) = a {
@@ -1065,9 +1072,6 @@ impl Graph {
                 self.anti_alias = !self.anti_alias;
                 self.cache = None;
             }
-            if i.key_pressed(Key::U) {
-                self.no_points = !self.no_points;
-            }
             if self.is_3d {
                 if i.key_pressed(Key::F) {
                     self.offset3d.z += 1.0;
@@ -1085,7 +1089,11 @@ impl Graph {
                     self.ignore_bounds = !self.ignore_bounds;
                 }
                 if i.key_pressed(Key::O) {
-                    self.color_depth = !self.color_depth;
+                    self.color_depth = match self.color_depth {
+                        DepthColor::None => DepthColor::Vertical,
+                        DepthColor::Vertical => DepthColor::Depth,
+                        DepthColor::Depth => DepthColor::None,
+                    };
                 }
                 let mut changed = false;
                 if i.key_pressed(Key::Semicolon) && self.box_size > 0.1 {
@@ -1214,7 +1222,11 @@ impl Graph {
                     self.cache = None;
                     self.log_scale = !self.log_scale
                 } else {
-                    self.lines = !self.lines
+                    self.lines = match self.lines {
+                        Lines::Lines => Lines::Points,
+                        Lines::Points => Lines::LinesPoints,
+                        Lines::LinesPoints => Lines::Lines,
+                    };
                 }
             }
             if self.graph_mode == GraphMode::Flatten || self.graph_mode == GraphMode::SliceFlatten {
@@ -1828,11 +1840,11 @@ impl Graph {
         };
         hsv2rgb(hue, sat, val)
     }
-    fn shift_hue(&self, diff: f32, color: &Color32) -> Color32 {
-        if self.color_depth {
-            shift_hue(diff, color)
-        } else {
-            *color
+    fn shift_hue(&self, diff: f32, z: f64, color: &Color32) -> Color32 {
+        match self.color_depth {
+            DepthColor::Vertical => shift_hue((z / (2.0 * self.bound.y)) as f32, color),
+            DepthColor::Depth => shift_hue(diff, color),
+            DepthColor::None => *color,
         }
     }
 }

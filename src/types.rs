@@ -44,6 +44,16 @@ impl Show {
         matches!(self, Self::Complex | Self::Imag)
     }
 }
+pub enum Lines {
+    Points,
+    LinesPoints,
+    Lines,
+}
+pub enum DepthColor {
+    Vertical,
+    Depth,
+    None,
+}
 pub struct Graph {
     pub data: Vec<GraphType>,
     pub cache: Option<TextureHandle>,
@@ -56,7 +66,6 @@ pub struct Graph {
     pub zoom: f64,
     pub slice: isize,
     pub switch: bool,
-    pub lines: bool,
     pub var: Vec2,
     pub log_scale: bool,
     pub box_size: f64,
@@ -66,7 +75,7 @@ pub struct Graph {
     pub delta: f64,
     pub show: Show,
     pub anti_alias: bool,
-    pub color_depth: bool,
+    pub color_depth: DepthColor,
     pub show_box: bool,
     pub zoom3d: f64,
     pub main_colors: Vec<Color32>,
@@ -86,7 +95,7 @@ pub struct Graph {
     pub is_3d: bool,
     pub last_interact: Option<Pos2>,
     pub recalculate: bool,
-    pub no_points: bool,
+    pub lines: Lines,
     pub ruler_pos: Option<Vec2>,
     pub prec: f64,
     pub mouse_held: bool,
