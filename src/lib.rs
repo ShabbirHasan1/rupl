@@ -4,8 +4,8 @@ use egui::{
     Align2, CentralPanel, Color32, ColorImage, Context, FontId, Key, Painter, Pos2, Rangef, Rect,
     Stroke, TextureOptions, Ui,
 };
+use rayon::slice::ParallelSliceMut;
 use std::f64::consts::{PI, TAU};
-use rayon::prelude::ParallelSliceMut;
 fn is_3d(data: &[GraphType]) -> bool {
     data.iter()
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
@@ -25,6 +25,7 @@ impl Graph {
             angle: Vec2::splat(PI / 6.0),
             slice: 0,
             switch: false,
+            mult: 1.0,
             is_complex,
             show: Show::Complex,
             ignore_bounds: false,
@@ -82,63 +83,12 @@ impl Graph {
         self.data = data;
         self.cache = None;
     }
-    pub fn set_complex(&mut self, complex: bool) {
-        self.is_complex = complex
-    }
     pub fn clear_data(&mut self) {
         self.data.clear();
         self.cache = None;
     }
-    pub fn push_data(&mut self, data: GraphType) {
-        self.data.push(data);
-    }
     pub fn reset_3d(&mut self) {
         self.is_3d = is_3d(&self.data);
-    }
-    pub fn set_lines(&mut self, lines: bool) {
-        self.lines = lines
-    }
-    pub fn set_points(&mut self, points: bool) {
-        self.no_points = !points
-    }
-    pub fn set_anti_alias(&mut self, anti_alias: bool) {
-        self.anti_alias = anti_alias
-    }
-    pub fn set_main_colors(&mut self, colors: Vec<Color32>) {
-        self.main_colors = colors
-    }
-    pub fn set_alt_colors(&mut self, colors: Vec<Color32>) {
-        self.alt_colors = colors
-    }
-    pub fn set_axis_color(&mut self, color: Color32) {
-        self.axis_color = color
-    }
-    pub fn set_axis_color_light(&mut self, color: Color32) {
-        self.axis_color_light = color
-    }
-    pub fn set_background_color(&mut self, color: Color32) {
-        self.background_color = color
-    }
-    pub fn set_text_color(&mut self, color: Color32) {
-        self.text_color = color
-    }
-    pub fn set_scale_axis(&mut self, scale: bool) {
-        self.scale_axis = scale
-    }
-    pub fn disable_lines(&mut self, disable: bool) {
-        self.disable_lines = disable
-    }
-    pub fn disable_axis(&mut self, disable: bool) {
-        self.disable_axis = disable
-    }
-    pub fn disable_coord(&mut self, disable: bool) {
-        self.disable_coord = disable
-    }
-    pub fn set_offset(&mut self, offset: Vec2) {
-        self.offset = offset
-    }
-    pub fn set_offset3d(&mut self, offset: Vec3) {
-        self.offset3d = offset
     }
     pub fn set_mode(&mut self, mode: GraphMode) {
         match mode {
@@ -822,40 +772,40 @@ impl Graph {
                     self.axis_color,
                 ));
                 if !self.disable_axis {
-                let p = vertices[*i].0 + vertices[*j].0.to_vec2();
-                let align = match s {
-                    "\nx" if p.x > self.screen.x => Align2::LEFT_TOP,
-                    "\ny" if p.x < self.screen.x => Align2::RIGHT_TOP,
-                    "\nx" => Align2::RIGHT_TOP,
-                    "\ny" => Align2::LEFT_TOP,
-                    "z" => Align2::RIGHT_CENTER,
-                    _ => unreachable!(),
-                };
-                let start = vertices[*i.min(j)].0;
-                let end = vertices[*i.max(j)].0;
-                let st = self.bound.x.ceil() as isize;
-                let e = self.bound.y.floor() as isize;
-                let o = if s == "z" {
-                    self.offset3d.z
-                } else if s == "\nx" {
-                    -self.offset3d.x
-                } else if s == "\ny" {
-                    self.offset3d.y
-                } else {
-                    unreachable!()
-                };
-                let n = ((st + (e - st) / 2) as f64 - o).to_string();
-                painter.text(
-                    p / 2.0,
-                    align,
-                    if s == "z" {
-                        format!("z{}", " ".repeat(n.len()))
+                    let p = vertices[*i].0 + vertices[*j].0.to_vec2();
+                    let align = match s {
+                        "\nx" if p.x > self.screen.x => Align2::LEFT_TOP,
+                        "\ny" if p.x < self.screen.x => Align2::RIGHT_TOP,
+                        "\nx" => Align2::RIGHT_TOP,
+                        "\ny" => Align2::LEFT_TOP,
+                        "z" => Align2::RIGHT_CENTER,
+                        _ => unreachable!(),
+                    };
+                    let start = vertices[*i.min(j)].0;
+                    let end = vertices[*i.max(j)].0;
+                    let st = self.bound.x.ceil() as isize;
+                    let e = self.bound.y.floor() as isize;
+                    let o = if s == "z" {
+                        self.offset3d.z
+                    } else if s == "\nx" {
+                        -self.offset3d.x
+                    } else if s == "\ny" {
+                        self.offset3d.y
                     } else {
-                        s.to_string()
-                    },
-                    FontId::monospace(16.0),
-                    self.text_color,
-                );
+                        unreachable!()
+                    };
+                    let n = ((st + (e - st) / 2) as f64 - o).to_string();
+                    painter.text(
+                        p / 2.0,
+                        align,
+                        if s == "z" {
+                            format!("z{}", " ".repeat(n.len()))
+                        } else {
+                            s.to_string()
+                        },
+                        FontId::monospace(16.0),
+                        self.text_color,
+                    );
                     for i in st..=e {
                         painter.text(
                             start + (i - st) as f32 * (end - start) / (e - st) as f32,
@@ -1736,8 +1686,8 @@ impl Graph {
                         }
                     }
                     GraphMode::DomainColoring => {
-                        let lenx = (self.screen.x as f64 * self.prec / 16.0) as usize + 1;
-                        let leny = (self.screen.y as f64 * self.prec / 16.0) as usize + 1;
+                        let lenx = (self.screen.x as f64 * self.prec * self.mult) as usize + 1;
+                        let leny = (self.screen.y as f64 * self.prec * self.mult) as usize + 1;
                         let tex = if let Some(tex) = &self.cache {
                             tex
                         } else {
