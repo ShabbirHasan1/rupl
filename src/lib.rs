@@ -11,6 +11,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO all keys should be optional an settings
 //TODO 2d logscale
 //TODO labels
+//TODO scale axis
 /*{TODO other backend
     let time = std::time::Instant::now();
     let mut canvas = skia_safe::surfaces::raster_n32_premul((1920, 1080)).unwrap();
@@ -123,10 +124,19 @@ impl Graph {
         }
         self.graph_mode = mode;
     }
+    #[cfg(feature = "egui")]
     pub fn update(&mut self, ctx: &egui::Context, no_repaint: bool) -> UpdateResult {
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(self.background_color.to_col()))
             .show(ctx, |ui| self.plot_main(ctx, ui, no_repaint));
+        self.update_res(no_repaint)
+    }
+    #[cfg(feature = "skia")]
+    pub fn update(&mut self, no_repaint: bool) -> UpdateResult {
+        //self.plot_main(no_repaint);
+        self.update_res(no_repaint)
+    }
+    fn update_res(&mut self, no_repaint: bool) -> UpdateResult {
         if self.recalculate && !no_repaint {
             self.recalculate = false;
             if is_3d(&self.data) {
@@ -235,6 +245,7 @@ impl Graph {
             UpdateResult::None
         }
     }
+    #[cfg(feature = "egui")]
     fn plot_main(&mut self, ctx: &egui::Context, ui: &egui::Ui, no_repaint: bool) {
         if !no_repaint {
             self.keybinds(ui);
@@ -384,6 +395,7 @@ impl Graph {
         (x, y)
     }
     #[allow(clippy::too_many_arguments)]
+    #[cfg(feature = "egui")]
     fn draw_point(
         &self,
         painter: &Painter,
@@ -410,6 +422,36 @@ impl Graph {
                 if ui.is_rect_visible(egui::Rect::from_points(&[last.to_pos2(), pos.to_pos2()])) {
                     painter.line_segment([last, pos], 1.0, color);
                 }
+            }
+            Some(pos)
+        } else {
+            None
+        }
+    }
+    #[cfg(feature = "skia")]
+    fn draw_point(
+        &self,
+        painter: &Painter,
+        x: f64,
+        y: f64,
+        color: &Color,
+        last: Option<Pos>,
+    ) -> Option<Pos> {
+        if !x.is_finite() || !y.is_finite() {
+            return None;
+        }
+        let pos = self.to_screen(x, y);
+        if !matches!(self.lines, Lines::Lines)
+            && pos.x > -2.0
+            && pos.x < self.screen.x as f32 + 2.0
+            && pos.y > -2.0
+            && pos.y < self.screen.y as f32 + 2.0
+        {
+            painter.rect_filled(pos, 0.0, color);
+        }
+        if !matches!(self.lines, Lines::Points) {
+            if let Some(last) = last {
+                painter.line_segment([last, pos], 1.0, color);
             }
             Some(pos)
         } else {
@@ -854,6 +896,7 @@ impl Graph {
             }
         }
     }
+    #[cfg(feature = "egui")]
     fn keybinds(&mut self, ui: &egui::Ui) {
         ui.input(|i| {
             if let Some(mpos) = i.pointer.latest_pos() {
@@ -1390,6 +1433,7 @@ impl Graph {
             }
         });
     }
+    #[cfg(feature = "egui")]
     fn plot(&mut self, painter: &Painter, ui: &egui::Ui) {
         let n = self
             .data
@@ -1750,6 +1794,413 @@ impl Graph {
                             self.cache.as_ref().unwrap()
                         };
                         painter.image(tex.id(), self.screen);
+                    }
+                },
+                GraphType::Coord3D(data) => match self.graph_mode {
+                    GraphMode::Slice
+                    | GraphMode::SliceFlatten
+                    | GraphMode::SliceDepth
+                    | GraphMode::DomainColoring
+                    | GraphMode::Flatten
+                    | GraphMode::Depth => unreachable!(),
+                    GraphMode::Normal => {
+                        let mut last = None;
+                        let mut lasti = None;
+                        for (x, y, z) in data {
+                            let (z, w) = z.to_options();
+                            last = if !self.show.real() {
+                                None
+                            } else if let Some(z) = z {
+                                let (c, d) = self.draw_point_3d(
+                                    *x,
+                                    *y,
+                                    z,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    last,
+                                    None,
+                                );
+                                pts.extend(d);
+                                c
+                            } else {
+                                None
+                            };
+                            lasti = if !self.show.imag() {
+                                None
+                            } else if let Some(w) = w {
+                                let (c, d) = self.draw_point_3d(
+                                    *x,
+                                    *y,
+                                    w,
+                                    &self.alt_colors[k % self.alt_colors.len()],
+                                    lasti,
+                                    None,
+                                );
+                                pts.extend(d);
+                                c
+                            } else {
+                                None
+                            };
+                        }
+                    }
+                },
+            }
+        }
+        self.buffer.extend(pts);
+    }
+    #[cfg(feature = "skia")]
+    fn plot(&mut self, painter: &Painter) {
+        let n = self
+            .data
+            .iter()
+            .map(|a| match a {
+                GraphType::Coord(_) => 0,
+                GraphType::Coord3D(d) => d.len(),
+                GraphType::Width(_, _, _) => 0,
+                GraphType::Width3D(d, _, _, _, _) => d.len(),
+            })
+            .sum::<usize>()
+            * if self.is_complex && matches!(self.show, Show::Complex) {
+                2
+            } else {
+                1
+            }
+            * match self.lines {
+                Lines::Points => 1,
+                Lines::Lines => 2,
+                Lines::LinesPoints => 3,
+            };
+        if self.buffer.capacity() < n {
+            self.buffer = Vec::with_capacity(n + 12)
+        }
+        let mut pts = Vec::with_capacity(n);
+        for (k, data) in self.data.iter().enumerate() {
+            let (mut a, mut b, mut c) = (None, None, None);
+            match data {
+                GraphType::Width(data, start, end) => match self.graph_mode {
+                    GraphMode::DomainColoring
+                    | GraphMode::Slice
+                    | GraphMode::SliceFlatten
+                    | GraphMode::SliceDepth => unreachable!(),
+                    GraphMode::Normal => {
+                        for (i, y) in data.iter().enumerate() {
+                            let x = (i as f64 / (data.len() - 1) as f64 - 0.5) * (end - start)
+                                + (start + end) / 2.0;
+                            let (y, z) = y.to_options();
+                            a = if !self.show.real() {
+                                None
+                            } else if let Some(y) = y {
+                                self.draw_point(
+                                    painter,
+                                    x,
+                                    y,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    a,
+                                )
+                            } else {
+                                None
+                            };
+                            b = if !self.show.imag() {
+                                None
+                            } else if let Some(z) = z {
+                                self.draw_point(
+                                    painter,
+                                    x,
+                                    z,
+                                    &self.alt_colors[k % self.alt_colors.len()],
+                                    b,
+                                )
+                            } else {
+                                None
+                            };
+                        }
+                    }
+                    GraphMode::Flatten => {
+                        for y in data {
+                            let (y, z) = y.to_options();
+                            a = if let (Some(y), Some(z)) = (y, z) {
+                                self.draw_point(
+                                    painter,
+                                    y,
+                                    z,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    a,
+                                )
+                            } else {
+                                None
+                            };
+                        }
+                    }
+                    GraphMode::Depth => {
+                        for (i, y) in data.iter().enumerate() {
+                            let (y, z) = y.to_options();
+                            c = if let (Some(x), Some(y)) = (y, z) {
+                                let z = (i as f64 / (data.len() - 1) as f64 - 0.5) * (end - start)
+                                    + (start + end) / 2.0;
+                                let (c, d) = self.draw_point_3d(
+                                    x,
+                                    y,
+                                    z,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    c,
+                                    None,
+                                );
+                                pts.extend(d);
+                                c
+                            } else {
+                                None
+                            };
+                        }
+                    }
+                },
+                GraphType::Coord(data) => match self.graph_mode {
+                    GraphMode::DomainColoring
+                    | GraphMode::Slice
+                    | GraphMode::SliceFlatten
+                    | GraphMode::SliceDepth => unreachable!(),
+                    GraphMode::Normal => {
+                        for (x, y) in data {
+                            let (y, z) = y.to_options();
+                            a = if !self.show.real() {
+                                None
+                            } else if let Some(y) = y {
+                                self.draw_point(
+                                    painter,
+                                    *x,
+                                    y,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    a,
+                                )
+                            } else {
+                                None
+                            };
+                            b = if !self.show.imag() {
+                                None
+                            } else if let Some(z) = z {
+                                self.draw_point(
+                                    painter,
+                                    *x,
+                                    z,
+                                    &self.alt_colors[k % self.alt_colors.len()],
+                                    b,
+                                )
+                            } else {
+                                None
+                            };
+                        }
+                    }
+                    GraphMode::Flatten => {
+                        for (_, y) in data {
+                            let (y, z) = y.to_options();
+                            a = if let (Some(y), Some(z)) = (y, z) {
+                                self.draw_point(
+                                    painter,
+                                    y,
+                                    z,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    a,
+                                )
+                            } else {
+                                None
+                            };
+                        }
+                    }
+                    GraphMode::Depth => {
+                        for (i, y) in data {
+                            let (y, z) = y.to_options();
+                            c = if let (Some(x), Some(y)) = (y, z) {
+                                let (c, d) = self.draw_point_3d(
+                                    x,
+                                    y,
+                                    *i,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    c,
+                                    None,
+                                );
+                                pts.extend(d);
+                                c
+                            } else {
+                                None
+                            };
+                        }
+                    }
+                },
+                GraphType::Width3D(data, start_x, start_y, end_x, end_y) => match self.graph_mode {
+                    GraphMode::Flatten | GraphMode::Depth => unreachable!(),
+                    GraphMode::Normal => {
+                        let len = data.len().isqrt();
+                        let mut last = Vec::new();
+                        let mut cur = Vec::new();
+                        let mut lasti = Vec::new();
+                        let mut curi = Vec::new();
+                        for (i, z) in data.iter().enumerate() {
+                            let (i, j) = (i % len, i / len);
+                            let x = (i as f64 / (len - 1) as f64 - 0.5) * (end_x - start_x)
+                                + (start_x + end_x) / 2.0;
+                            let y = (j as f64 / (len - 1) as f64 - 0.5) * (end_y - start_y)
+                                + (start_y + end_y) / 2.0;
+                            let (z, w) = z.to_options();
+                            let p = if !self.show.real() {
+                                None
+                            } else if let Some(z) = z {
+                                let (c, d) = self.draw_point_3d(
+                                    x,
+                                    y,
+                                    z,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    if i == 0 { None } else { cur[i - 1] },
+                                    if j == 0 { None } else { last[i] },
+                                );
+                                pts.extend(d);
+                                c
+                            } else {
+                                None
+                            };
+                            cur.push(p);
+                            if i == len - 1 {
+                                last = std::mem::take(&mut cur);
+                            }
+                            let p = if !self.show.imag() {
+                                None
+                            } else if let Some(w) = w {
+                                let (c, d) = self.draw_point_3d(
+                                    x,
+                                    y,
+                                    w,
+                                    &self.alt_colors[k % self.alt_colors.len()],
+                                    if i == 0 { None } else { curi[i - 1] },
+                                    if j == 0 { None } else { lasti[i] },
+                                );
+                                pts.extend(d);
+                                c
+                            } else {
+                                None
+                            };
+                            curi.push(p);
+                            if i == len - 1 {
+                                lasti = std::mem::take(&mut curi);
+                            }
+                        }
+                    }
+                    GraphMode::Slice => {
+                        let len = data.len();
+                        let mut body = |i: usize, y: &Complex| {
+                            let x = (i as f64 / (len - 1) as f64 - 0.5)
+                                * if self.view_x {
+                                    end_x - start_x
+                                } else {
+                                    end_y - start_y
+                                }
+                                + if self.view_x {
+                                    start_x + end_x
+                                } else {
+                                    start_y + end_y
+                                } / 2.0;
+                            let (y, z) = y.to_options();
+                            a = if !self.show.real() {
+                                None
+                            } else if let Some(y) = y {
+                                self.draw_point(
+                                    painter,
+                                    x,
+                                    y,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    a,
+                                )
+                            } else {
+                                None
+                            };
+                            b = if !self.show.imag() {
+                                None
+                            } else if let Some(z) = z {
+                                self.draw_point(
+                                    painter,
+                                    x,
+                                    z,
+                                    &self.alt_colors[k % self.alt_colors.len()],
+                                    b,
+                                )
+                            } else {
+                                None
+                            };
+                        };
+                        for (i, y) in data.iter().enumerate() {
+                            body(i, y)
+                        }
+                    }
+                    GraphMode::SliceFlatten => {
+                        let mut body = |y: &Complex| {
+                            let (y, z) = y.to_options();
+                            a = if let (Some(y), Some(z)) = (y, z) {
+                                self.draw_point(
+                                    painter,
+                                    y,
+                                    z,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    a,
+                                )
+                            } else {
+                                None
+                            };
+                        };
+                        for y in data.iter() {
+                            body(y)
+                        }
+                    }
+                    GraphMode::SliceDepth => {
+                        let len = data.len();
+                        let mut body = |i: usize, y: &Complex| {
+                            let (y, z) = y.to_options();
+                            c = if let (Some(x), Some(y)) = (y, z) {
+                                let z = if self.view_x {
+                                    (i as f64 / (len - 1) as f64 - 0.5) * (end_x - start_x)
+                                        + (start_x + end_x) / 2.0
+                                } else {
+                                    (i as f64 / (len - 1) as f64 - 0.5) * (end_y - start_y)
+                                        + (start_y + end_y) / 2.0
+                                };
+                                let (c, d) = self.draw_point_3d(
+                                    x,
+                                    y,
+                                    z,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    c,
+                                    None,
+                                );
+                                pts.extend(d);
+                                c
+                            } else {
+                                None
+                            };
+                        };
+                        for (i, y) in data.iter().enumerate() {
+                            body(i, y)
+                        }
+                    }
+                    GraphMode::DomainColoring => {
+                        todo!()
+                        /*
+                        let lenx = (self.screen.x * self.prec * self.mult) as usize + 1;
+                        let leny = (self.screen.y * self.prec * self.mult) as usize + 1;
+                        let tex = if let Some(tex) = &self.cache {
+                            tex
+                        } else {
+                            let mut rgb = Vec::new();
+                            for z in data {
+                                rgb.extend(self.get_color(z));
+                            }
+                            let tex = ui.ctx().load_texture(
+                                "dc",
+                                egui::ColorImage::from_rgb([lenx, leny], &rgb),
+                                if self.anti_alias {
+                                    egui::TextureOptions::LINEAR
+                                } else {
+                                    egui::TextureOptions::NEAREST
+                                },
+                            );
+                            self.cache = Some(tex);
+                            self.cache.as_ref().unwrap()
+                        };
+                        painter.image(tex.id(), self.screen);*/
                     }
                 },
                 GraphType::Coord3D(data) => match self.graph_mode {
