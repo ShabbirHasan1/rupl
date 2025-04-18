@@ -101,10 +101,10 @@ pub struct Graph {
     pub mouse_held: bool,
     pub buffer: Vec<(f32, Draw, Color)>,
     pub mult: f64,
-    pub(crate) cos_phi :f64,
-    pub(crate) sin_phi :f64,
-    pub(crate) cos_theta :f64,
-    pub(crate) sin_theta :f64
+    pub(crate) cos_phi: f64,
+    pub(crate) sin_phi: f64,
+    pub(crate) cos_theta: f64,
+    pub(crate) sin_theta: f64,
 }
 #[derive(Copy, Clone)]
 pub struct Color {
@@ -265,5 +265,32 @@ impl Div<f32> for Pos {
     type Output = Pos;
     fn div(self, rhs: f32) -> Self::Output {
         Pos::new(self.x / rhs, self.y / rhs)
+    }
+}
+#[derive(Copy, Clone)]
+pub enum Align {
+    LeftBottom,
+    LeftCenter,
+    LeftTop,
+    CenterBottom,
+    CenterCenter,
+    CenterTop,
+    RightBottom,
+    RightCenter,
+    RightTop,
+}
+impl From<Align> for egui::Align2 {
+    fn from(val: Align) -> Self {
+        match val {
+            Align::LeftBottom => egui::Align2::LEFT_BOTTOM,
+            Align::LeftCenter => egui::Align2::LEFT_CENTER,
+            Align::LeftTop => egui::Align2::LEFT_TOP,
+            Align::CenterBottom => egui::Align2::CENTER_BOTTOM,
+            Align::CenterCenter => egui::Align2::CENTER_CENTER,
+            Align::CenterTop => egui::Align2::CENTER_TOP,
+            Align::RightBottom => egui::Align2::RIGHT_BOTTOM,
+            Align::RightCenter => egui::Align2::RIGHT_CENTER,
+            Align::RightTop => egui::Align2::RIGHT_TOP,
+        }
     }
 }
