@@ -1,4 +1,5 @@
 pub mod types;
+mod ui;
 use crate::types::*;
 use egui::{
     Align2, CentralPanel, Color32, ColorImage, Context, FontId, Key, Painter, Pos2, Rangef, Rect,
@@ -93,17 +94,25 @@ impl Graph {
             prec: 1.0,
             recalculate: false,
             ruler_pos: None,
+            cos_phi :0.0,
+            sin_phi :0.0,
+            cos_theta :0.0,
+            sin_theta :0.0
         }
     }
     pub fn set_data(&mut self, data: Vec<GraphType>) {
         self.data = data;
-            #[cfg(feature = "egui")]{
-        self.cache = None;}
+        #[cfg(feature = "egui")]
+        {
+            self.cache = None;
+        }
     }
     pub fn clear_data(&mut self) {
         self.data.clear();
-            #[cfg(feature = "egui")]{
-        self.cache = None;}
+        #[cfg(feature = "egui")]
+        {
+            self.cache = None;
+        }
     }
     pub fn reset_3d(&mut self) {
         self.is_3d = is_3d(&self.data);
@@ -263,13 +272,18 @@ impl Graph {
                 self.write_axis(painter);
             }
         } else {
+                    self.cos_phi = self.angle.x.cos();
+        self.sin_phi = self.angle.x.sin();
+        self.cos_theta = self.angle.y.cos();
+        self.sin_theta = self.angle.y.sin();
             self.plot(painter, ui);
             self.write_axis_3d(painter);
             self.buffer.par_sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
             for (_, a, c) in self.buffer.drain(..) {
                 match a {
                     Draw::Line(a, b, t) => {
-                        painter.line_segment([a.to_pos2(), b.to_pos2()], Stroke::new(t, c.to_col()));
+                        painter
+                            .line_segment([a.to_pos2(), b.to_pos2()], Stroke::new(t, c.to_col()));
                     }
                     Draw::Point(a) => {
                         let rect = Rect::from_center_size(a.to_pos2(), egui::Vec2::splat(3.0));
@@ -299,7 +313,7 @@ impl Graph {
                                 let (x, y) = data[ind].to_options();
                                 let (x, y) = (x.unwrap_or(0.0), y.unwrap_or(0.0));
                                 format!(
-                                    "{:e}\n{:e}\n{:e}\n{:e}\n{:e}\n{:e}",
+                                    "{:e}\n{:e}\n{:e}\n{:e}\n{:e}\n{}",
                                     p.0,
                                     p.1,
                                     x,
@@ -595,7 +609,7 @@ impl Graph {
                 {
                     let y = self.to_screen(0.0, i as f64).y;
                     painter.hline(
-                        Rangef::new(0.0, self.screen.x as f32 ),
+                        Rangef::new(0.0, self.screen.x as f32),
                         y,
                         Stroke::new(if is_center { 2.0 } else { 1.0 }, self.axis_color.to_col()),
                     );
@@ -636,14 +650,10 @@ impl Graph {
         }
     }
     fn vec3_to_pos_depth(&self, p: Vec3) -> (Pos, f32) {
-        let cos_phi = self.angle.x.cos();
-        let sin_phi = self.angle.x.sin();
-        let cos_theta = self.angle.y.cos();
-        let sin_theta = self.angle.y.sin();
-        let x1 = p.x * cos_phi + p.y * sin_phi;
-        let y1 = -p.x * sin_phi + p.y * cos_phi;
-        let z2 = -p.z * cos_theta - y1 * sin_theta;
-        let d = p.z * sin_theta - y1 * cos_theta;
+        let x1 = p.x * self.cos_phi + p.y * self.sin_phi;
+        let y1 = -p.x * self.sin_phi + p.y * self.cos_phi;
+        let z2 = -p.z * self.cos_theta - y1 * self.sin_theta;
+        let d = p.z * self.sin_theta - y1 * self.cos_theta;
         let s = self.delta / self.box_size;
         let x = (x1 * s + self.screen.x / 2.0) as f32;
         let y = (z2 * s + self.screen.y / 2.0) as f32;
@@ -663,7 +673,7 @@ impl Graph {
         a: Option<((Pos, f32), Vec3, bool)>,
         b: Option<((Pos, f32), Vec3, bool)>,
     ) -> (Option<((Pos, f32), Vec3, bool)>, Vec<(f32, Draw, Color)>) {
-        let mut draws = Vec::new();
+        let mut draws = Vec::with_capacity(4);
         let x = x - self.offset3d.x;
         let y = y + self.offset3d.y;
         let z = z + self.offset3d.z;
@@ -861,7 +871,7 @@ impl Graph {
                     );
                     for i in st..=e {
                         painter.text(
-                            (start + (end - start)* ((i - st) as f32 / (e - st) as f32)).to_pos2(),
+                            (start + (end - start) * ((i - st) as f32 / (e - st) as f32)).to_pos2(),
                             align,
                             i as f64 - o,
                             FontId::monospace(16.0),
@@ -891,7 +901,7 @@ impl Graph {
             if let Some(mpos) = i.pointer.latest_pos() {
                 let mpos = Pos {
                     x: mpos.x,
-                    y: mpos.y
+                    y: mpos.y,
                 };
                 if let Some(pos) = self.mouse_position {
                     if mpos != pos {
@@ -903,7 +913,7 @@ impl Graph {
                 }
             }
             let multi = i.multi_touch();
-            let interact = i.pointer.interact_pos().map(|a| Pos{x:a.x,y:a.y});
+            let interact = i.pointer.interact_pos().map(|a| Pos { x: a.x, y: a.y });
             match multi {
                 Some(multi) => {
                     match multi.zoom_delta.total_cmp(&1.0) {
@@ -1423,8 +1433,7 @@ impl Graph {
         });
     }
     fn plot(&mut self, painter: &Painter, ui: &Ui) {
-        let mut pts = Vec::with_capacity(
-            self.data
+        let n =             self.data
                 .iter()
                 .map(|a| match a {
                     GraphType::Coord(_) => 0,
@@ -1433,7 +1442,16 @@ impl Graph {
                     GraphType::Width3D(d, _, _, _, _) => d.len(),
                 })
                 .sum::<usize>()
-                * 6,
+                * if self.is_complex && matches!(self.show, Show::Complex) {2}else{1}
+                * match self.lines {
+                Lines::Points=>1,
+                Lines::Lines=>2,
+                Lines::LinesPoints=>3,
+            };
+        if self.buffer.capacity() < n {
+            self.buffer = Vec::with_capacity(n+12)
+        }
+        let mut pts = Vec::with_capacity(n
         );
         for (k, data) in self.data.iter().enumerate() {
             let (mut a, mut b, mut c) = (None, None, None);

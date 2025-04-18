@@ -101,6 +101,10 @@ pub struct Graph {
     pub mouse_held: bool,
     pub buffer: Vec<(f32, Draw, Color)>,
     pub mult: f64,
+    pub(crate) cos_phi :f64,
+    pub(crate) sin_phi :f64,
+    pub(crate) cos_theta :f64,
+    pub(crate) sin_theta :f64
 }
 #[derive(Copy, Clone)]
 pub struct Color {
@@ -109,26 +113,24 @@ pub struct Color {
     pub b: u8,
 }
 impl Color {
-    pub fn new(r: u8, g:u8,b:u8)-> Self {
-    Self {r,g,b}
+    pub fn new(r: u8, g: u8, b: u8) -> Self {
+        Self { r, g, b }
     }
-    pub fn splat(c: u8)-> Self {
-    Self {r:c,g:c,b:c}
+    pub fn splat(c: u8) -> Self {
+        Self { r: c, g: c, b: c }
     }
-    pub fn to_col(&self)->egui::Color32 {
-        egui::Color32::from_rgb(self.r,self.g,self.b)
+    pub fn to_col(&self) -> egui::Color32 {
+        egui::Color32::from_rgb(self.r, self.g, self.b)
     }
 }
-#[derive(Copy, Clone,PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Pos {
     pub x: f32,
     pub y: f32,
 }
 impl Pos {
-    pub fn new(x: f32, y:f32)-> Self{
-        Self {
-            x,y
-        }
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
     }
     pub fn to_pos2(&self) -> egui::Pos2 {
         egui::Pos2 {
@@ -256,12 +258,12 @@ impl Sub for Pos {
 impl Mul<f32> for Pos {
     type Output = Pos;
     fn mul(self, rhs: f32) -> Self::Output {
-        Pos::new(self.x *rhs, self.y *rhs)
+        Pos::new(self.x * rhs, self.y * rhs)
     }
 }
 impl Div<f32> for Pos {
     type Output = Pos;
     fn div(self, rhs: f32) -> Self::Output {
-        Pos::new(self.x /rhs, self.y /rhs)
+        Pos::new(self.x / rhs, self.y / rhs)
     }
 }
