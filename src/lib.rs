@@ -142,13 +142,7 @@ impl Graph {
         width: u32,
         height: u32,
     ) -> UpdateResult {
-        let pixels = self.plot_main(no_repaint, width, height);
-        for i in 0..pixels.len() / 4 {
-            let r = pixels[4 * i] as u32;
-            let g = pixels[4 * i + 1] as u32;
-            let b = pixels[4 * i + 2] as u32;
-            buffer[i] = b | (g << 8) | (r << 16);
-        }
+        self.plot_main(no_repaint, width, height, buffer);
         self.update_res(no_repaint)
     }
     fn update_res(&mut self, no_repaint: bool) -> UpdateResult {
@@ -319,11 +313,20 @@ impl Graph {
         painter.save()
     }
     #[cfg(feature = "skia")]
-    fn plot_main(&mut self, no_repaint: bool, width: u32, height: u32) -> Vec<u8> {
+    fn plot_main(
+        &mut self,
+        no_repaint: bool,
+        width: u32,
+        height: u32,
+        buffer: &mut softbuffer::Buffer<
+            std::rc::Rc<winit::window::Window>,
+            std::rc::Rc<winit::window::Window>,
+        >,
+    ) {
         if !no_repaint {
             //self.keybinds(ui);
             if self.recalculate {
-                return Vec::new();
+                return;
             }
         }
         let mut painter = Painter::new(width, height, self.background_color);
@@ -373,7 +376,7 @@ impl Graph {
         } else {
             self.write_angle(&mut painter);
         }
-        painter.save()
+        painter.save(buffer)
     }
     fn write_coord(&self, painter: &mut Painter) {
         if self.mouse_moved {

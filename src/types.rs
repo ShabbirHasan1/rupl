@@ -153,10 +153,6 @@ impl Pos {
     pub(crate) fn to_pos2(&self) -> skia_safe::Point {
         skia_safe::Point::new(self.x, self.y)
     }
-    #[cfg(feature = "skia")]
-    pub fn to_col(&self) {
-        todo!()
-    }
 }
 #[derive(Copy, Clone)]
 pub enum Complex {
@@ -206,10 +202,10 @@ impl Vec2 {
             y: self.y as f32,
         }
     }
-    #[cfg(feature = "skia")]
-    pub fn to_pos2(&self) {
-        todo!()
-    }
+    /*#[cfg(feature = "skia")]
+    pub(crate) fn to_pos2(&self) -> skia_safe::Point {
+        skia_safe::Point::new(self.x as f32, self.y as f32)
+    }*/
 }
 impl DivAssign<f64> for Vec2 {
     fn div_assign(&mut self, rhs: f64) {

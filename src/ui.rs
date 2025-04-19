@@ -120,18 +120,20 @@ impl Painter {
             self.canvas.canvas().draw_path(&self.line, paint);
         }
     }
-    pub(crate) fn save(&mut self) -> Vec<u8> {
+    pub(crate) fn save(
+        &mut self,
+        buffer: &mut softbuffer::Buffer<
+            std::rc::Rc<winit::window::Window>,
+            std::rc::Rc<winit::window::Window>,
+        >,
+    ) {
         self.draw();
-        let info = self.canvas.image_info();
-        let size = info.width() as usize * info.height() as usize * 4;
-        let mut pixels = vec![0; size];
-        self.canvas.read_pixels(
-            &info,
-            &mut pixels,
-            info.width() as usize * 4,
-            skia_safe::IPoint::new(0, 0),
-        );
-        pixels
+        if let Some(pm) = self.canvas.peek_pixels() {
+            let px = pm.pixels::<u32>().unwrap();
+            for (i, p) in px.into_iter().enumerate() {
+                buffer[i] = *p;
+            }
+        }
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p1: f32, p2: &Color) {}
     pub(crate) fn image(&mut self, p0: Texture, pos: Vec2) {}
