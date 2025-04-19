@@ -106,7 +106,7 @@ pub struct Graph {
     pub(crate) cos_theta: f64,
     pub(crate) sin_theta: f64,
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
@@ -119,13 +119,18 @@ impl Color {
     pub fn splat(c: u8) -> Self {
         Self { r: c, g: c, b: c }
     }
-        #[cfg(feature = "egui")]
+    #[cfg(feature = "egui")]
     pub fn to_col(&self) -> egui::Color32 {
         egui::Color32::from_rgb(self.r, self.g, self.b)
     }
-        #[cfg(feature = "skia")]
-    pub fn to_col(&self) {
-            todo!()
+    #[cfg(feature = "skia")]
+    pub fn to_col(&self) -> skia_safe::Color4f {
+        skia_safe::Color4f::new(
+            self.r as f32 / 255.0,
+            self.g as f32 / 255.0,
+            self.b as f32 / 255.0,
+            1.0,
+        )
     }
 }
 #[derive(Copy, Clone, PartialEq)]
@@ -137,16 +142,20 @@ impl Pos {
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
-        #[cfg(feature = "egui")]
+    #[cfg(feature = "egui")]
     pub fn to_pos2(&self) -> egui::Pos2 {
         egui::Pos2 {
             x: self.x,
             y: self.y,
         }
     }
-        #[cfg(feature = "skia")]
+    #[cfg(feature = "skia")]
+    pub(crate) fn to_pos2(&self) -> skia_safe::Point {
+        skia_safe::Point::new(self.x, self.y)
+    }
+    #[cfg(feature = "skia")]
     pub fn to_col(&self) {
-            todo!()
+        todo!()
     }
 }
 #[derive(Copy, Clone)]
@@ -190,16 +199,16 @@ impl Vec2 {
             y: self.y as f32,
         }
     }
-        #[cfg(feature = "egui")]
+    #[cfg(feature = "egui")]
     pub fn to_pos2(&self) -> egui::Pos2 {
         egui::Pos2 {
             x: self.x as f32,
             y: self.y as f32,
         }
     }
-        #[cfg(feature = "skia")]
+    #[cfg(feature = "skia")]
     pub fn to_pos2(&self) {
-            todo!()
+        todo!()
     }
 }
 impl DivAssign<f64> for Vec2 {
@@ -312,5 +321,5 @@ impl From<Align> for egui::Align2 {
 }
 pub struct Texture {
     #[cfg(feature = "egui")]
-    texture: egui::TextureId
+    pub texture: egui::TextureId,
 }

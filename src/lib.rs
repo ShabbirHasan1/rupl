@@ -132,8 +132,26 @@ impl Graph {
         self.update_res(no_repaint)
     }
     #[cfg(feature = "skia")]
-    pub fn update(&mut self, no_repaint: bool) -> UpdateResult {
-        //self.plot_main(no_repaint);
+    pub fn update(
+        &mut self,
+        no_repaint: bool,
+        buffer: &mut softbuffer::Buffer<
+            std::rc::Rc<winit::window::Window>,
+            std::rc::Rc<winit::window::Window>,
+        >,
+        width: u32,
+        height: u32,
+    ) -> UpdateResult {
+        for (i, c) in self
+            .plot_main(no_repaint, width, height)
+            .chunks(4)
+            .enumerate()
+        {
+            let r = c[0] as u32;
+            let g = c[1] as u32;
+            let b = c[2] as u32;
+            buffer[i] = b | (g << 8) | (r << 16);
+        }
         self.update_res(no_repaint)
     }
     fn update_res(&mut self, no_repaint: bool) -> UpdateResult {
@@ -253,7 +271,7 @@ impl Graph {
                 return;
             }
         }
-        let painter = &Painter::new(ui);
+        let mut painter = Painter::new(ui);
         let rect = ctx.available_rect();
         self.screen = Vec2::new(rect.width() as f64, rect.height() as f64);
         self.delta = if self.is_3d {
@@ -273,17 +291,17 @@ impl Graph {
         }
         if !self.is_3d {
             if self.graph_mode != GraphMode::DomainColoring {
-                self.write_axis(painter);
-                self.plot(painter, ui);
+                self.write_axis(&mut painter);
+                self.plot(&mut painter, ui);
             } else {
-                self.plot(painter, ui);
-                self.write_axis(painter);
+                self.plot(&mut painter, ui);
+                self.write_axis(&mut painter);
             }
         } else {
             (self.sin_phi, self.cos_phi) = self.angle.x.sin_cos();
             (self.sin_theta, self.cos_theta) = self.angle.y.sin_cos();
-            self.plot(painter, ui);
-            self.write_axis_3d(painter);
+            self.plot(&mut painter, ui);
+            self.write_axis_3d(&mut painter);
             self.buffer.par_sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
             for (_, a, c) in self.buffer.drain(..) {
                 match a {
@@ -297,12 +315,70 @@ impl Graph {
             }
         }
         if !self.is_3d {
-            self.write_coord(painter);
+            self.write_coord(&mut painter);
         } else {
-            self.write_angle(painter);
+            self.write_angle(&mut painter);
         }
+        painter.save()
     }
-    fn write_coord(&self, painter: &Painter) {
+    #[cfg(feature = "skia")]
+    fn plot_main(&mut self, no_repaint: bool, width: u32, height: u32) -> Vec<u8> {
+        if !no_repaint {
+            //self.keybinds(ui);
+            if self.recalculate {
+                return Vec::new();
+            }
+        }
+        let mut painter = Painter::new(width, height);
+        self.screen = Vec2::new(width as f64, height as f64);
+        self.delta = if self.is_3d {
+            self.screen.x.min(self.screen.y)
+        } else {
+            self.screen.x
+        } / (self.bound.y - self.bound.x);
+        let t = Vec2::new(
+            self.screen.x / 2.0 - (self.delta * (self.bound.x + self.bound.y) / 2.0),
+            self.screen.y / 2.0,
+        );
+        if t != self.screen_offset {
+            if self.graph_mode == GraphMode::DomainColoring {
+                self.recalculate = true;
+            }
+            self.screen_offset = t;
+        }
+        if !self.is_3d {
+            if self.graph_mode != GraphMode::DomainColoring {
+                self.write_axis(&mut painter);
+                self.plot(&mut painter);
+            } else {
+                self.plot(&mut painter);
+                self.write_axis(&mut painter);
+            }
+        } else {
+            (self.sin_phi, self.cos_phi) = self.angle.x.sin_cos();
+            (self.sin_theta, self.cos_theta) = self.angle.y.sin_cos();
+            self.plot(&mut painter);
+            self.write_axis_3d(&mut painter);
+            self.buffer.par_sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
+            for (_, a, c) in self.buffer.drain(..) {
+                match a {
+                    Draw::Line(a, b, t) => {
+                        painter.line_segment([a, b], t, &c);
+                    }
+                    Draw::Point(a) => {
+                        painter.rect_filled(a, 0.0, &c);
+                    }
+                }
+            }
+        }
+        if !self.is_3d {
+            self.write_coord(&mut painter);
+        } else {
+            self.write_angle(&mut painter);
+        }
+        painter.save()
+    }
+    fn write_coord(&self, painter: &mut Painter) {
         if self.mouse_moved {
             if let Some(pos) = self.mouse_position {
                 let p = self.to_coord(pos);
@@ -361,7 +437,7 @@ impl Graph {
             }
         }
     }
-    fn write_angle(&self, painter: &Painter) {
+    fn write_angle(&self, painter: &mut Painter) {
         if !self.disable_coord {
             painter.text(
                 Pos::new(0.0, self.screen.y as f32),
@@ -398,7 +474,7 @@ impl Graph {
     #[cfg(feature = "egui")]
     fn draw_point(
         &self,
-        painter: &Painter,
+        painter: &mut Painter,
         ui: &egui::Ui,
         x: f64,
         y: f64,
@@ -431,7 +507,7 @@ impl Graph {
     #[cfg(feature = "skia")]
     fn draw_point(
         &self,
-        painter: &Painter,
+        painter: &mut Painter,
         x: f64,
         y: f64,
         color: &Color,
@@ -458,7 +534,7 @@ impl Graph {
             None
         }
     }
-    fn write_axis(&self, painter: &Painter) {
+    fn write_axis(&self, painter: &mut Painter) {
         if self.scale_axis {
             let c = self.to_coord(Pos::new(0.0, 0.0));
             let cf = self.to_coord(self.screen.to_pos());
@@ -773,7 +849,7 @@ impl Graph {
             (None, draws)
         }
     }
-    fn write_axis_3d(&mut self, painter: &Painter) {
+    fn write_axis_3d(&mut self, painter: &mut Painter) {
         let s = (self.bound.y - self.bound.x) / 2.0;
         let vertices = [
             self.vec3_to_pos_depth(Vec3::new(-s, -s, -s)),
@@ -1434,7 +1510,7 @@ impl Graph {
         });
     }
     #[cfg(feature = "egui")]
-    fn plot(&mut self, painter: &Painter, ui: &egui::Ui) {
+    fn plot(&mut self, painter: &mut Painter, ui: &egui::Ui) {
         let n = self
             .data
             .iter()
@@ -1774,7 +1850,7 @@ impl Graph {
                     GraphMode::DomainColoring => {
                         let lenx = (self.screen.x * self.prec * self.mult) as usize + 1;
                         let leny = (self.screen.y * self.prec * self.mult) as usize + 1;
-                        let tex = if let Some(tex) = &self.cache {
+                        let texture = if let Some(tex) = &self.cache {
                             tex
                         } else {
                             let mut rgb = Vec::new();
@@ -1793,7 +1869,12 @@ impl Graph {
                             self.cache = Some(tex);
                             self.cache.as_ref().unwrap()
                         };
-                        painter.image(tex.id(), self.screen);
+                        painter.image(
+                            Texture {
+                                texture: texture.id(),
+                            },
+                            self.screen,
+                        );
                     }
                 },
                 GraphType::Coord3D(data) => match self.graph_mode {
@@ -1848,7 +1929,7 @@ impl Graph {
         self.buffer.extend(pts);
     }
     #[cfg(feature = "skia")]
-    fn plot(&mut self, painter: &Painter) {
+    fn plot(&mut self, painter: &mut Painter) {
         let n = self
             .data
             .iter()
@@ -2334,11 +2415,9 @@ pub fn rgb_to_oklch(color: &mut [f32; 3]) {
     let mut s = 0.0883024591900564 * color[0]
         + 0.2817188391361215 * color[1]
         + 0.6299787016738222 * color[2];
-
     l = l.cbrt();
     m = m.cbrt();
     s = s.cbrt();
-
     color[0] = 0.210454268309314 * l + 0.7936177747023054 * m - 0.0040720430116193 * s;
     color[1] = 1.9779985324311684 * l - 2.42859224204858 * m + 0.450593709617411 * s;
     color[2] = 0.0259040424655478 * l + 0.7827717124575296 * m - 0.8086757549230774 * s;
@@ -2348,11 +2427,9 @@ fn oklch_to_rgb(color: &mut [f32; 3]) {
     let mut l = color[0] + 0.3963377773761749 * color[1] + 0.2158037573099136 * color[2];
     let mut m = color[0] - 0.1055613458156586 * color[1] - 0.0638541728258133 * color[2];
     let mut s = color[0] - 0.0894841775298119 * color[1] - 1.2914855480194092 * color[2];
-
     l = l.powi(3);
     m = m.powi(3);
     s = s.powi(3);
-
     color[0] = 4.07674163607596 * l - 3.3077115392580635 * m + 0.2309699031821046 * s;
     color[1] = -1.2684379732850317 * l + 2.6097573492876887 * m - 0.3413193760026572 * s;
     color[2] = -0.0041960761386754 * l - 0.7034186179359363 * m + 1.7076146940746116 * s;
