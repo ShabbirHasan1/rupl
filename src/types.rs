@@ -57,6 +57,8 @@ pub struct Graph {
     pub data: Vec<GraphType>,
     #[cfg(feature = "egui")]
     pub cache: Option<egui::TextureHandle>,
+    #[cfg(feature = "skia")]
+    pub cache: Option<skia_safe::Image>,
     pub bound: Vec2,
     pub is_complex: bool,
     pub offset3d: Vec3,
@@ -143,14 +145,14 @@ impl Pos {
         Self { x, y }
     }
     #[cfg(feature = "egui")]
-    pub fn to_pos2(&self) -> egui::Pos2 {
+    pub fn to_pos2(self) -> egui::Pos2 {
         egui::Pos2 {
             x: self.x,
             y: self.y,
         }
     }
     #[cfg(feature = "skia")]
-    pub(crate) fn to_pos2(&self) -> skia_safe::Point {
+    pub(crate) fn to_pos2(self) -> skia_safe::Point {
         skia_safe::Point::new(self.x, self.y)
     }
 }
@@ -189,23 +191,23 @@ impl Vec2 {
     pub fn new(x: f64, y: f64) -> Self {
         Self { x, y }
     }
-    pub fn to_pos(&self) -> Pos {
+    pub fn to_pos(self) -> Pos {
         Pos {
             x: self.x as f32,
             y: self.y as f32,
         }
     }
     #[cfg(feature = "egui")]
-    pub fn to_pos2(&self) -> egui::Pos2 {
+    pub fn to_pos2(self) -> egui::Pos2 {
         egui::Pos2 {
             x: self.x as f32,
             y: self.y as f32,
         }
     }
-    /*#[cfg(feature = "skia")]
-    pub(crate) fn to_pos2(&self) -> skia_safe::Point {
+    #[cfg(feature = "skia")]
+    pub(crate) fn to_pos2(self) -> skia_safe::Point {
         skia_safe::Point::new(self.x as f32, self.y as f32)
-    }*/
+    }
 }
 impl DivAssign<f64> for Vec2 {
     fn div_assign(&mut self, rhs: f64) {
@@ -334,4 +336,6 @@ impl From<Align> for skia_safe::utils::text_utils::Align {
 pub struct Texture {
     #[cfg(feature = "egui")]
     pub texture: egui::TextureId,
+    #[cfg(feature = "skia")]
+    pub image: skia_safe::Image,
 }

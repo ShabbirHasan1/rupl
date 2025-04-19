@@ -33,7 +33,6 @@ impl Graph {
         Self {
             is_3d: is_3d(&data),
             data,
-            #[cfg(feature = "egui")]
             cache: None,
             bound: Vec2::new(start, end),
             offset3d: Vec3::splat(0.0),
@@ -300,7 +299,7 @@ impl Graph {
                         painter.line_segment([a, b], t, &c);
                     }
                     Draw::Point(a) => {
-                        painter.rect_filled(a, 0.0, &c);
+                        painter.rect_filled(a, &c);
                     }
                 }
             }
@@ -366,7 +365,7 @@ impl Graph {
                         painter.line_segment([a, b], t, &c);
                     }
                     Draw::Point(a) => {
-                        painter.rect_filled(a, 0.0, &c);
+                        painter.rect_filled(a, &c);
                     }
                 }
             }
@@ -491,7 +490,7 @@ impl Graph {
             && pos.y > -2.0
             && pos.y < self.screen.y as f32 + 2.0
         {
-            painter.rect_filled(pos, 0.0, color);
+            painter.rect_filled(pos, color);
         }
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
@@ -523,7 +522,7 @@ impl Graph {
             && pos.y > -2.0
             && pos.y < self.screen.y as f32 + 2.0
         {
-            painter.rect_filled(pos, 0.0, color);
+            painter.rect_filled(pos, color);
         }
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
@@ -2258,30 +2257,29 @@ impl Graph {
                         }
                     }
                     GraphMode::DomainColoring => {
-                        todo!()
-                        /*
                         let lenx = (self.screen.x * self.prec * self.mult) as usize + 1;
                         let leny = (self.screen.y * self.prec * self.mult) as usize + 1;
-                        let tex = if let Some(tex) = &self.cache {
+                        let image = if let Some(tex) = &self.cache {
                             tex
                         } else {
                             let mut rgb = Vec::new();
                             for z in data {
                                 rgb.extend(self.get_color(z));
                             }
-                            let tex = ui.ctx().load_texture(
-                                "dc",
-                                egui::ColorImage::from_rgb([lenx, leny], &rgb),
-                                if self.anti_alias {
-                                    egui::TextureOptions::LINEAR
-                                } else {
-                                    egui::TextureOptions::NEAREST
-                                },
+                            let info = skia_safe::ImageInfo::new(
+                                (lenx as i32, leny as i32),
+                                skia_safe::ColorType::RGB888x,
+                                skia_safe::AlphaType::Opaque,
+                                None,
                             );
-                            self.cache = Some(tex);
+                            self.cache = skia_safe::images::raster_from_data(
+                                &info,
+                                skia_safe::Data::new_copy(&rgb),
+                                lenx,
+                            );
                             self.cache.as_ref().unwrap()
                         };
-                        painter.image(tex.id(), self.screen);*/
+                        painter.image(image, self.screen);
                     }
                 },
                 GraphType::Coord3D(data) => match self.graph_mode {

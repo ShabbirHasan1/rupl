@@ -1,4 +1,4 @@
-use crate::types::{Align, Color, Pos, Texture, Vec2};
+use crate::types::{Align, Color, Pos, Vec2};
 #[cfg(feature = "egui")]
 pub(crate) struct Painter<'a> {
     painter: &'a egui::Painter,
@@ -39,11 +39,11 @@ impl<'a> Painter<'a> {
             );
         }
     }
-    pub(crate) fn rect_filled(&self, p0: Pos, p1: f32, p2: &Color) {
+    pub(crate) fn rect_filled(&self, p0: Pos, p2: &Color) {
         let rect = egui::Rect::from_center_size(p0.to_pos2(), egui::Vec2::splat(3.0));
-        self.painter.rect_filled(rect, p1, p2.to_col());
+        self.painter.rect_filled(rect, 0.0, p2.to_col());
     }
-    pub(crate) fn image(&self, p0: Texture, pos: Vec2) {
+    pub(crate) fn image(&self, p0: crate::types::Texture, pos: Vec2) {
         let d = egui::Rect::from_points(&[egui::Pos2::new(0.0, 0.0), pos.to_pos2()]);
         let a = egui::Rect::from_min_max(egui::Pos2::new(0.0, 0.0), egui::Pos2::new(1.0, 1.0));
         let c = egui::Color32::WHITE;
@@ -130,13 +130,20 @@ impl Painter {
         self.draw();
         if let Some(pm) = self.canvas.peek_pixels() {
             let px = pm.pixels::<u32>().unwrap();
-            for (i, p) in px.into_iter().enumerate() {
+            for (i, p) in px.iter().enumerate() {
                 buffer[i] = *p;
             }
         }
     }
-    pub(crate) fn rect_filled(&mut self, p0: Pos, p1: f32, p2: &Color) {}
-    pub(crate) fn image(&mut self, p0: Texture, pos: Vec2) {}
+    pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
+        self.canvas.canvas().draw_rect(
+            skia_safe::Rect::new(p0.x - 1.0, p0.y - 1.0, p0.x + 1.0, p0.y + 1.0),
+            &make_paint(1.0, p2, false),
+        );
+    }
+    pub(crate) fn image(&mut self, p0: &skia_safe::Image, pos: Vec2) {
+        self.canvas.canvas().draw_image(p0, pos.to_pos2(), None);
+    }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         self.canvas.canvas().draw_line(
             Pos::new(0.0, p1).to_pos2(),
