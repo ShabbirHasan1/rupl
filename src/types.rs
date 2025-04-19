@@ -319,6 +319,22 @@ impl From<Align> for egui::Align2 {
         }
     }
 }
+#[cfg(feature = "skia")]
+impl From<Align> for skia_safe::utils::text_utils::Align {
+    fn from(val: Align) -> Self {
+        match val {
+            Align::LeftBottom => skia_safe::utils::text_utils::Align::Left,
+            Align::LeftCenter => skia_safe::utils::text_utils::Align::Left,
+            Align::LeftTop => skia_safe::utils::text_utils::Align::Left,
+            Align::CenterBottom => skia_safe::utils::text_utils::Align::Center,
+            Align::CenterCenter => skia_safe::utils::text_utils::Align::Center,
+            Align::CenterTop => skia_safe::utils::text_utils::Align::Center,
+            Align::RightBottom => skia_safe::utils::text_utils::Align::Right,
+            Align::RightCenter => skia_safe::utils::text_utils::Align::Right,
+            Align::RightTop => skia_safe::utils::text_utils::Align::Right,
+        }
+    }
+}
 pub struct Texture {
     #[cfg(feature = "egui")]
     pub texture: egui::TextureId,

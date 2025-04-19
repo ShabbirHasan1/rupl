@@ -142,14 +142,11 @@ impl Graph {
         width: u32,
         height: u32,
     ) -> UpdateResult {
-        for (i, c) in self
-            .plot_main(no_repaint, width, height)
-            .chunks(4)
-            .enumerate()
-        {
-            let r = c[0] as u32;
-            let g = c[1] as u32;
-            let b = c[2] as u32;
+        let pixels = self.plot_main(no_repaint, width, height);
+        for i in 0..pixels.len() / 4 {
+            let r = pixels[4 * i] as u32;
+            let g = pixels[4 * i + 1] as u32;
+            let b = pixels[4 * i + 2] as u32;
             buffer[i] = b | (g << 8) | (r << 16);
         }
         self.update_res(no_repaint)
@@ -329,7 +326,7 @@ impl Graph {
                 return Vec::new();
             }
         }
-        let mut painter = Painter::new(width, height);
+        let mut painter = Painter::new(width, height, self.background_color);
         self.screen = Vec2::new(width as f64, height as f64);
         self.delta = if self.is_3d {
             self.screen.x.min(self.screen.y)
