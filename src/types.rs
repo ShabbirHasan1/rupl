@@ -86,6 +86,7 @@ pub struct Graph {
     pub alt_colors: Vec<Color>,
     pub axis_color: Color,
     pub axis_color_light: Color,
+    #[cfg(feature = "skia")]
     pub background_color: Color,
     pub text_color: Color,
     pub mouse_position: Option<Pos>,
@@ -145,7 +146,18 @@ pub struct Modifiers {
     pub shift: bool,
     pub mac_cmd: bool,
     pub command: bool,
-    pub spr: bool,
+}
+#[cfg(feature = "egui")]
+impl From<Modifiers> for egui::Modifiers {
+    fn from(val: Modifiers) -> Self {
+        egui::Modifiers {
+            alt: val.alt,
+            ctrl: val.ctrl,
+            shift: val.shift,
+            mac_cmd: val.mac_cmd,
+            command: val.command,
+        }
+    }
 }
 #[derive(Copy, Clone, PartialEq)]
 pub struct Color {

@@ -14,9 +14,11 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO scale axis
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
+        #[cfg(feature = "skia")]
         let typeface = skia_safe::FontMgr::default()
             .new_from_data(include_bytes!("../terminus.otb"), None)
             .unwrap();
+        #[cfg(feature = "skia")]
         let font = skia_safe::Font::new(typeface, 16.0);
         Self {
             is_3d: is_3d(&data),
@@ -70,6 +72,7 @@ impl Graph {
             axis_color: Color::splat(0),
             axis_color_light: Color::splat(220),
             text_color: Color::splat(0),
+            #[cfg(feature = "skia")]
             background_color: Color::splat(255),
             mouse_position: None,
             mouse_moved: false,
@@ -108,29 +111,8 @@ impl Graph {
         }
         self.graph_mode = mode;
     }
-    #[cfg(feature = "egui")]
-    pub fn update(&mut self, ctx: &egui::Context, no_repaint: bool) -> UpdateResult {
-        egui::CentralPanel::default()
-            .frame(egui::Frame::default().fill(self.background_color.to_col()))
-            .show(ctx, |ui| self.plot_main(ctx, ui, no_repaint));
-        self.update_res(no_repaint)
-    }
-    #[cfg(feature = "skia")]
-    pub fn update(
-        &mut self,
-        no_repaint: bool,
-        buffer: &mut softbuffer::Buffer<
-            std::rc::Rc<winit::window::Window>,
-            std::rc::Rc<winit::window::Window>,
-        >,
-        width: u32,
-        height: u32,
-    ) -> UpdateResult {
-        self.plot_main(no_repaint, width, height, buffer);
-        self.update_res(no_repaint)
-    }
-    fn update_res(&mut self, no_repaint: bool) -> UpdateResult {
-        if self.recalculate && !no_repaint {
+    pub fn update_res(&mut self) -> UpdateResult {
+        if self.recalculate {
             self.recalculate = false;
             if is_3d(&self.data) {
                 match self.graph_mode {
@@ -239,13 +221,7 @@ impl Graph {
         }
     }
     #[cfg(feature = "egui")]
-    fn plot_main(&mut self, ctx: &egui::Context, ui: &egui::Ui, no_repaint: bool) {
-        if !no_repaint {
-            self.keybinds(ui);
-            if self.recalculate {
-                return;
-            }
-        }
+    pub fn update(&mut self, ctx: &egui::Context, ui: &egui::Ui) {
         let mut painter = Painter::new(ui);
         let rect = ctx.available_rect();
         self.screen = Vec2::new(rect.width() as f64, rect.height() as f64);
@@ -297,9 +273,8 @@ impl Graph {
         painter.save()
     }
     #[cfg(feature = "skia")]
-    fn plot_main(
+    pub fn update(
         &mut self,
-        no_repaint: bool,
         width: u32,
         height: u32,
         buffer: &mut softbuffer::Buffer<
@@ -307,12 +282,7 @@ impl Graph {
             std::rc::Rc<winit::window::Window>,
         >,
     ) {
-        if !no_repaint {
-            //self.keybinds(ui); TODO
-            if self.recalculate {
-                return;
-            }
-        }
+        //self.keybinds(ui); TODO
         let mut painter = Painter::new(width, height, self.background_color, self.font.clone());
         self.screen = Vec2::new(width as f64, height as f64);
         self.delta = if self.is_3d {
@@ -957,7 +927,7 @@ impl Graph {
         }
     }
     #[cfg(feature = "egui")]
-    fn keybinds(&mut self, ui: &egui::Ui) {
+    pub fn keybinds(&mut self, ui: &egui::Ui) {
         ui.input(|i| {
             if let Some(mpos) = i.pointer.latest_pos() {
                 let mpos = Pos {
