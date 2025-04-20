@@ -282,7 +282,6 @@ impl Graph {
             std::rc::Rc<winit::window::Window>,
         >,
     ) {
-        //self.keybinds(ui); TODO
         let mut painter = Painter::new(width, height, self.background_color, self.font.clone());
         self.screen = Vec2::new(width as f64, height as f64);
         self.delta = if self.is_3d {
@@ -335,7 +334,7 @@ impl Graph {
     fn write_coord(&self, painter: &mut Painter) {
         if self.mouse_moved {
             if let Some(pos) = self.mouse_position {
-                let p = self.to_coord(pos);
+                let p = self.to_coord(pos.to_pos());
                 if !self.disable_coord {
                     let s = if self.graph_mode == GraphMode::DomainColoring {
                         if let GraphType::Width3D(data, sx, sy, ex, ey) = &self.data[0] {
@@ -386,7 +385,11 @@ impl Graph {
                         ),
                         &self.text_color,
                     );
-                    painter.line_segment([pos, self.to_screen(ps.x, ps.y)], 1.0, &self.axis_color);
+                    painter.line_segment(
+                        [pos.to_pos(), self.to_screen(ps.x, ps.y)],
+                        1.0,
+                        &self.axis_color,
+                    );
                 }
             }
         }
@@ -928,76 +931,97 @@ impl Graph {
     }
     #[cfg(feature = "egui")]
     pub fn keybinds(&mut self, ui: &egui::Ui) {
-        ui.input(|i| {
-            if let Some(mpos) = i.pointer.latest_pos() {
-                let mpos = Pos {
-                    x: mpos.x,
-                    y: mpos.y,
-                };
-                if let Some(pos) = self.mouse_position {
-                    if mpos != pos {
-                        self.mouse_moved = true;
-                        self.mouse_position = Some(mpos)
-                    }
-                } else {
+        ui.input(|i| self.keybinds_inner(&i.into()));
+    }
+    #[cfg(feature = "skia")]
+    pub fn keybinds(&mut self, i: &InputState) {
+        self.keybinds_inner(i)
+    }
+    fn keybinds_inner(&mut self, i: &InputState) {
+        if let Some(mpos) = i.pointer_pos {
+            let mpos = Vec2 {
+                x: mpos.x,
+                y: mpos.y,
+            };
+            if let Some(pos) = self.mouse_position {
+                if mpos != pos {
+                    self.mouse_moved = true;
                     self.mouse_position = Some(mpos)
                 }
+            } else {
+                self.mouse_position = Some(mpos)
             }
-            let multi = i.multi_touch();
-            let interact = i.pointer.interact_pos().map(|a| Pos { x: a.x, y: a.y });
-            match multi {
-                Some(multi) => {
-                    match multi.zoom_delta.total_cmp(&1.0) {
-                        std::cmp::Ordering::Greater => {
-                            if self.is_3d {
-                                self.box_size /= multi.zoom_delta as f64;
+        }
+        let multi: Option<bool> = None; // i.multi_touch();
+        match multi {
+            Some(_multi) => {
+                /*match multi.zoom_delta.total_cmp(&1.0) {
+                    std::cmp::Ordering::Greater => {
+                        if self.is_3d {
+                            self.box_size /= multi.zoom_delta as f64;
+                        } else {
+                            self.zoom *= multi.zoom_delta as f64;
+                            self.offset.x -= if self.mouse_moved && !self.is_3d {
+                                self.mouse_position.unwrap().x as f64
                             } else {
-                                self.zoom *= multi.zoom_delta as f64;
-                                self.offset.x -= if self.mouse_moved && !self.is_3d {
-                                    self.mouse_position.unwrap().x as f64
-                                } else {
-                                    self.screen_offset.x
-                                } / self.zoom
-                                    * (multi.zoom_delta as f64 - 1.0);
-                                self.offset.y -= if self.mouse_moved && !self.is_3d {
-                                    self.mouse_position.unwrap().y as f64
-                                } else {
-                                    self.screen_offset.y
-                                } / self.zoom
-                                    * (multi.zoom_delta as f64 - 1.0);
-                                self.recalculate = true;
-                            }
-                        }
-                        std::cmp::Ordering::Less => {
-                            if self.is_3d {
-                                self.box_size /= multi.zoom_delta as f64;
+                                self.screen_offset.x
+                            } / self.zoom
+                                * (multi.zoom_delta as f64 - 1.0);
+                            self.offset.y -= if self.mouse_moved && !self.is_3d {
+                                self.mouse_position.unwrap().y as f64
                             } else {
-                                self.offset.x += if self.mouse_moved && !self.is_3d {
-                                    self.mouse_position.unwrap().x as f64
-                                } else {
-                                    self.screen_offset.x
-                                } / self.zoom
-                                    * ((multi.zoom_delta as f64).recip() - 1.0);
-                                self.offset.y += if self.mouse_moved && !self.is_3d {
-                                    self.mouse_position.unwrap().y as f64
-                                } else {
-                                    self.screen_offset.y
-                                } / self.zoom
-                                    * ((multi.zoom_delta as f64).recip() - 1.0);
-                                self.zoom *= multi.zoom_delta as f64;
-                                self.recalculate = true;
-                            }
+                                self.screen_offset.y
+                            } / self.zoom
+                                * (multi.zoom_delta as f64 - 1.0);
+                            self.recalculate = true;
                         }
-                        _ => {}
                     }
+                    std::cmp::Ordering::Less => {
+                        if self.is_3d {
+                            self.box_size /= multi.zoom_delta as f64;
+                        } else {
+                            self.offset.x += if self.mouse_moved && !self.is_3d {
+                                self.mouse_position.unwrap().x as f64
+                            } else {
+                                self.screen_offset.x
+                            } / self.zoom
+                                * ((multi.zoom_delta as f64).recip() - 1.0);
+                            self.offset.y += if self.mouse_moved && !self.is_3d {
+                                self.mouse_position.unwrap().y as f64
+                            } else {
+                                self.screen_offset.y
+                            } / self.zoom
+                                * ((multi.zoom_delta as f64).recip() - 1.0);
+                            self.zoom *= multi.zoom_delta as f64;
+                            self.recalculate = true;
+                        }
+                    }
+                    _ => {}
+                }
+                if self.is_3d {
+                    self.angle.x = (self.angle.x - multi.translation_delta.x as f64 / 512.0)
+                        .rem_euclid(TAU);
+                    self.angle.y = (self.angle.y + multi.translation_delta.y as f64 / 512.0)
+                        .rem_euclid(TAU);
+                } else {
+                    self.offset.x += multi.translation_delta.x as f64 / self.zoom;
+                    self.offset.y += multi.translation_delta.y as f64 / self.zoom;
+                    self.recalculate = true;
+                    if !self.mouse_held {
+                        self.mouse_held = true;
+                        self.prec = (self.prec + 1.0).log10();
+                    }
+                }*/
+            }
+            _ if i.pointer_down && !i.pointer_just_down => {
+                if let (Some(interact), Some(last)) = (i.pointer_pos, self.last_interact) {
+                    let delta = interact - last;
                     if self.is_3d {
-                        self.angle.x = (self.angle.x - multi.translation_delta.x as f64 / 512.0)
-                            .rem_euclid(TAU);
-                        self.angle.y = (self.angle.y + multi.translation_delta.y as f64 / 512.0)
-                            .rem_euclid(TAU);
+                        self.angle.x = (self.angle.x - delta.x / 512.0).rem_euclid(TAU);
+                        self.angle.y = (self.angle.y + delta.y / 512.0).rem_euclid(TAU);
                     } else {
-                        self.offset.x += multi.translation_delta.x as f64 / self.zoom;
-                        self.offset.y += multi.translation_delta.y as f64 / self.zoom;
+                        self.offset.x += delta.x / self.zoom;
+                        self.offset.y += delta.y / self.zoom;
                         self.recalculate = true;
                         if !self.mouse_held {
                             self.mouse_held = true;
@@ -1005,463 +1029,442 @@ impl Graph {
                         }
                     }
                 }
-                _ if i.pointer.primary_down()
-                    && i.pointer.press_start_time().unwrap_or(0.0) < i.time =>
-                {
-                    if let (Some(interact), Some(last)) = (interact, self.last_interact) {
-                        let delta = interact - last;
-                        if self.is_3d {
-                            self.angle.x = (self.angle.x - delta.x as f64 / 512.0).rem_euclid(TAU);
-                            self.angle.y = (self.angle.y + delta.y as f64 / 512.0).rem_euclid(TAU);
-                        } else {
-                            self.offset.x += delta.x as f64 / self.zoom;
-                            self.offset.y += delta.y as f64 / self.zoom;
-                            self.recalculate = true;
-                            if !self.mouse_held {
-                                self.mouse_held = true;
-                                self.prec = (self.prec + 1.0).log10();
-                            }
-                        }
+            }
+            _ if self.mouse_held => {
+                self.mouse_held = false;
+                self.prec = 10.0f64.powf(self.prec) - 1.0;
+                self.recalculate = true;
+            }
+            _ => {}
+        }
+        self.last_interact = i.pointer_pos;
+        let shift = i.modifiers.shift;
+        let (a, b, c) = if shift {
+            (
+                4.0 * self.delta
+                    / if self.zoom > 1.0 {
+                        2.0 * self.zoom
+                    } else {
+                        1.0
+                    },
+                PI / 16.0,
+                4,
+            )
+        } else {
+            (
+                self.delta
+                    / if self.zoom > 1.0 {
+                        2.0 * self.zoom
+                    } else {
+                        1.0
+                    },
+                PI / 64.0,
+                1,
+            )
+        };
+        if i.key_pressed(Key::A) || i.key_pressed(Key::ArrowLeft) {
+            if self.is_3d {
+                if i.key_pressed(Key::ArrowLeft) {
+                    if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
+                        self.recalculate = true;
                     }
+                    self.offset3d.x -= 1.0
+                } else {
+                    self.angle.x = ((self.angle.x / b - 1.0).round() * b).rem_euclid(TAU);
                 }
-                _ if self.mouse_held => {
-                    self.mouse_held = false;
-                    self.prec = 10.0f64.powf(self.prec) - 1.0;
+            } else {
+                self.offset.x += a;
+                self.recalculate = true;
+            }
+        }
+        if i.key_pressed(Key::D) || i.key_pressed(Key::ArrowRight) {
+            if self.is_3d {
+                if i.key_pressed(Key::ArrowRight) {
+                    if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
+                        self.recalculate = true;
+                    }
+                    self.offset3d.x += 1.0
+                } else {
+                    self.angle.x = ((self.angle.x / b + 1.0).round() * b).rem_euclid(TAU);
+                }
+            } else {
+                self.offset.x -= a;
+                self.recalculate = true;
+            }
+        }
+        if i.key_pressed(Key::W) || i.key_pressed(Key::ArrowUp) {
+            if self.is_3d {
+                if i.key_pressed(Key::ArrowUp) {
+                    if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
+                        self.recalculate = true;
+                    }
+                    self.offset3d.y -= 1.0
+                } else {
+                    self.angle.y = ((self.angle.y / b - 1.0).round() * b).rem_euclid(TAU);
+                }
+            } else {
+                if self.graph_mode == GraphMode::DomainColoring {
+                    self.recalculate = true;
+                }
+                self.offset.y += a;
+            }
+        }
+        if i.key_pressed(Key::S) || i.key_pressed(Key::ArrowDown) {
+            if self.is_3d {
+                if i.key_pressed(Key::ArrowDown) {
+                    if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
+                        self.recalculate = true;
+                    }
+                    self.offset3d.y += 1.0
+                } else {
+                    self.angle.y = ((self.angle.y / b + 1.0).round() * b).rem_euclid(TAU);
+                }
+            } else {
+                if self.graph_mode == GraphMode::DomainColoring {
+                    self.recalculate = true;
+                }
+                self.offset.y -= a;
+            }
+        }
+        if i.key_pressed(Key::Z) {
+            self.disable_lines = !self.disable_lines;
+        }
+        if i.key_pressed(Key::X) {
+            self.disable_axis = !self.disable_axis;
+        }
+        if i.key_pressed(Key::C) {
+            self.disable_coord = !self.disable_coord;
+        }
+        if i.key_pressed(Key::V) {
+            self.scale_axis = !self.scale_axis;
+        }
+        if i.key_pressed(Key::R) {
+            self.anti_alias = !self.anti_alias;
+            self.cache = None;
+        }
+        if self.is_3d {
+            if i.key_pressed(Key::F) {
+                self.offset3d.z += 1.0;
+                if matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
+                    self.recalculate = true;
+                }
+            }
+            if i.key_pressed(Key::G) {
+                self.offset3d.z -= 1.0;
+                if matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
+                    self.recalculate = true;
+                }
+            }
+            if i.key_pressed(Key::P) {
+                self.ignore_bounds = !self.ignore_bounds;
+            }
+            if i.key_pressed(Key::O) {
+                self.color_depth = match self.color_depth {
+                    DepthColor::None => DepthColor::Vertical,
+                    DepthColor::Vertical => DepthColor::Depth,
+                    DepthColor::Depth => DepthColor::None,
+                };
+            }
+            let mut changed = false;
+            if i.key_pressed(Key::Semicolon) && self.box_size > 0.1 {
+                self.box_size -= 0.1;
+                changed = true
+            }
+            if i.key_pressed(Key::Quote) {
+                self.box_size += 0.1;
+                changed = true
+            }
+            if changed {
+                if (self.box_size - 1.0).abs() < 0.05 {
+                    self.box_size = 1.0
+                }
+                if (self.box_size - 2.0f64.sqrt()).abs() < 0.1 {
+                    self.box_size = 2.0f64.sqrt()
+                }
+                if (self.box_size - 3.0f64.sqrt()).abs() < 0.1 {
+                    self.box_size = 3.0f64.sqrt()
+                }
+            }
+            if i.key_pressed(Key::Y) {
+                self.show_box = !self.show_box
+            }
+            self.angle.x = (self.angle.x - i.raw_scroll_delta.x / 512.0).rem_euclid(TAU);
+            self.angle.y = (self.angle.y + i.raw_scroll_delta.y / 512.0).rem_euclid(TAU);
+        } else {
+            let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
+            if i.key_pressed(Key::Y) {
+                self.cache = None;
+                self.domain_alternate = !self.domain_alternate
+            }
+            match rt.total_cmp(&1.0) {
+                std::cmp::Ordering::Greater => {
+                    self.zoom *= rt;
+                    self.offset.x -= if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().x
+                    } else {
+                        self.screen_offset.x
+                    } / self.zoom
+                        * (rt - 1.0);
+                    self.offset.y -= if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().y
+                    } else {
+                        self.screen_offset.y
+                    } / self.zoom
+                        * (rt - 1.0);
+                    self.recalculate = true;
+                }
+                std::cmp::Ordering::Less => {
+                    self.offset.x += if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().x
+                    } else {
+                        self.screen_offset.x
+                    } / self.zoom
+                        * (rt.recip() - 1.0);
+                    self.offset.y += if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().y
+                    } else {
+                        self.screen_offset.y
+                    } / self.zoom
+                        * (rt.recip() - 1.0);
+                    self.zoom *= rt;
                     self.recalculate = true;
                 }
                 _ => {}
             }
-            self.last_interact = interact;
-            let shift = i.modifiers.shift;
-            let (a, b, c) = if shift {
-                (
-                    4.0 * self.delta
-                        / if self.zoom > 1.0 {
-                            2.0 * self.zoom
-                        } else {
-                            1.0
-                        },
-                    PI / 16.0,
-                    4,
-                )
-            } else {
-                (
-                    self.delta
-                        / if self.zoom > 1.0 {
-                            2.0 * self.zoom
-                        } else {
-                            1.0
-                        },
-                    PI / 64.0,
-                    1,
-                )
-            };
-            if i.key_pressed(egui::Key::A) || i.key_pressed(egui::Key::ArrowLeft) {
-                if self.is_3d {
-                    if i.key_pressed(egui::Key::ArrowLeft) {
-                        if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
-                            self.recalculate = true;
-                        }
-                        self.offset3d.x -= 1.0
-                    } else {
-                        self.angle.x = ((self.angle.x / b - 1.0).round() * b).rem_euclid(TAU);
-                    }
-                } else {
-                    self.offset.x += a;
-                    self.recalculate = true;
-                }
-            }
-            if i.key_pressed(egui::Key::D) || i.key_pressed(egui::Key::ArrowRight) {
-                if self.is_3d {
-                    if i.key_pressed(egui::Key::ArrowRight) {
-                        if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
-                            self.recalculate = true;
-                        }
-                        self.offset3d.x += 1.0
-                    } else {
-                        self.angle.x = ((self.angle.x / b + 1.0).round() * b).rem_euclid(TAU);
-                    }
-                } else {
-                    self.offset.x -= a;
-                    self.recalculate = true;
-                }
-            }
-            if i.key_pressed(egui::Key::W) || i.key_pressed(egui::Key::ArrowUp) {
-                if self.is_3d {
-                    if i.key_pressed(egui::Key::ArrowUp) {
-                        if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
-                            self.recalculate = true;
-                        }
-                        self.offset3d.y -= 1.0
-                    } else {
-                        self.angle.y = ((self.angle.y / b - 1.0).round() * b).rem_euclid(TAU);
-                    }
-                } else {
-                    if self.graph_mode == GraphMode::DomainColoring {
-                        self.recalculate = true;
-                    }
-                    self.offset.y += a;
-                }
-            }
-            if i.key_pressed(egui::Key::S) || i.key_pressed(egui::Key::ArrowDown) {
-                if self.is_3d {
-                    if i.key_pressed(egui::Key::ArrowDown) {
-                        if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
-                            self.recalculate = true;
-                        }
-                        self.offset3d.y += 1.0
-                    } else {
-                        self.angle.y = ((self.angle.y / b + 1.0).round() * b).rem_euclid(TAU);
-                    }
-                } else {
-                    if self.graph_mode == GraphMode::DomainColoring {
-                        self.recalculate = true;
-                    }
-                    self.offset.y -= a;
-                }
-            }
-            if i.key_pressed(egui::Key::Z) {
-                self.disable_lines = !self.disable_lines;
-            }
-            if i.key_pressed(egui::Key::X) {
-                self.disable_axis = !self.disable_axis;
-            }
-            if i.key_pressed(egui::Key::C) {
-                self.disable_coord = !self.disable_coord;
-            }
-            if i.key_pressed(egui::Key::V) {
-                self.scale_axis = !self.scale_axis;
-            }
-            if i.key_pressed(egui::Key::R) {
-                self.anti_alias = !self.anti_alias;
-                self.cache = None;
-            }
+        }
+        if i.key_pressed(Key::Q) {
             if self.is_3d {
-                if i.key_pressed(egui::Key::F) {
-                    self.offset3d.z += 1.0;
-                    if matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
-                        self.recalculate = true;
-                    }
-                }
-                if i.key_pressed(egui::Key::G) {
-                    self.offset3d.z -= 1.0;
-                    if matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
-                        self.recalculate = true;
-                    }
-                }
-                if i.key_pressed(egui::Key::P) {
-                    self.ignore_bounds = !self.ignore_bounds;
-                }
-                if i.key_pressed(egui::Key::O) {
-                    self.color_depth = match self.color_depth {
-                        DepthColor::None => DepthColor::Vertical,
-                        DepthColor::Vertical => DepthColor::Depth,
-                        DepthColor::Depth => DepthColor::None,
-                    };
-                }
-                let mut changed = false;
-                if i.key_pressed(egui::Key::Semicolon) && self.box_size > 0.1 {
-                    self.box_size -= 0.1;
-                    changed = true
-                }
-                if i.key_pressed(egui::Key::Quote) {
-                    self.box_size += 0.1;
-                    changed = true
-                }
-                if changed {
-                    if (self.box_size - 1.0).abs() < 0.05 {
-                        self.box_size = 1.0
-                    }
-                    if (self.box_size - 2.0f64.sqrt()).abs() < 0.1 {
-                        self.box_size = 2.0f64.sqrt()
-                    }
-                    if (self.box_size - 3.0f64.sqrt()).abs() < 0.1 {
-                        self.box_size = 3.0f64.sqrt()
-                    }
-                }
-                if i.key_pressed(egui::Key::Y) {
-                    self.show_box = !self.show_box
-                }
-                self.angle.x = (self.angle.x - i.raw_scroll_delta.x as f64 / 512.0).rem_euclid(TAU);
-                self.angle.y = (self.angle.y + i.raw_scroll_delta.y as f64 / 512.0).rem_euclid(TAU);
+                self.zoom3d *= 2.0;
+                self.bound *= 2.0;
             } else {
-                let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
-                if i.key_pressed(egui::Key::Y) {
-                    self.cache = None;
-                    self.domain_alternate = !self.domain_alternate
+                self.offset.x += if self.mouse_moved && !self.is_3d {
+                    self.mouse_position.unwrap().x
+                } else {
+                    self.screen_offset.x
+                } / self.zoom;
+                self.offset.y += if self.mouse_moved && !self.is_3d {
+                    self.mouse_position.unwrap().y
+                } else {
+                    self.screen_offset.y
+                } / self.zoom;
+                self.zoom /= 2.0;
+            }
+            self.recalculate = true;
+        }
+        if i.key_pressed(Key::E) {
+            if self.is_3d {
+                self.zoom3d /= 2.0;
+                self.bound /= 2.0;
+            } else {
+                self.zoom *= 2.0;
+                self.offset.x -= if self.mouse_moved && !self.is_3d {
+                    self.mouse_position.unwrap().x
+                } else {
+                    self.screen_offset.x
+                } / self.zoom;
+                self.offset.y -= if self.mouse_moved && !self.is_3d {
+                    self.mouse_position.unwrap().y
+                } else {
+                    self.screen_offset.y
+                } / self.zoom;
+            }
+            self.recalculate = true;
+        }
+        if matches!(
+            self.graph_mode,
+            GraphMode::Slice | GraphMode::SliceFlatten | GraphMode::SliceDepth
+        ) {
+            if i.key_pressed(Key::Period) {
+                self.recalculate = true;
+                self.slice += c
+            }
+            if i.key_pressed(Key::Comma) {
+                self.recalculate = true;
+                self.slice -= c
+            }
+            if i.key_pressed(Key::Slash) {
+                self.recalculate = true;
+                self.view_x = !self.view_x
+            }
+        }
+        if i.key_pressed(Key::L) {
+            if self.graph_mode == GraphMode::DomainColoring {
+                self.cache = None;
+                self.log_scale = !self.log_scale
+            } else {
+                self.lines = match self.lines {
+                    Lines::Lines => Lines::Points,
+                    Lines::Points => Lines::LinesPoints,
+                    Lines::LinesPoints => Lines::Lines,
+                };
+            }
+        }
+        if self.graph_mode == GraphMode::Flatten || self.graph_mode == GraphMode::SliceFlatten {
+            let s = if shift {
+                (self.var.y - self.var.x) / 2.0
+            } else {
+                (self.var.y - self.var.x) / 4.0
+            };
+            if i.key_pressed(Key::H) {
+                self.var.x -= s;
+                self.var.y -= s;
+                self.recalculate = true;
+            }
+            if i.key_pressed(Key::J) {
+                self.var.x += s;
+                self.var.y += s;
+                self.recalculate = true;
+            }
+            if i.key_pressed(Key::M) {
+                if shift {
+                    self.var.x = (self.var.x + self.var.y) / 2.0 - (self.var.y - self.var.x) / 4.0;
+                    self.var.y = (self.var.x + self.var.y) / 2.0 + (self.var.y - self.var.x) / 4.0;
+                } else {
+                    self.var.x = (self.var.x + self.var.y) / 2.0 - (self.var.y - self.var.x);
+                    self.var.y = (self.var.x + self.var.y) / 2.0 + (self.var.y - self.var.x);
                 }
-                match rt.total_cmp(&1.0) {
-                    std::cmp::Ordering::Greater => {
-                        self.zoom *= rt as f64;
-                        self.offset.x -= if self.mouse_moved && !self.is_3d {
-                            self.mouse_position.unwrap().x as f64
-                        } else {
-                            self.screen_offset.x
-                        } / self.zoom
-                            * (rt as f64 - 1.0);
-                        self.offset.y -= if self.mouse_moved && !self.is_3d {
-                            self.mouse_position.unwrap().y as f64
-                        } else {
-                            self.screen_offset.y
-                        } / self.zoom
-                            * (rt as f64 - 1.0);
+                self.recalculate = true;
+            }
+        }
+        if i.key_pressed(Key::OpenBracket) {
+            self.recalculate = true;
+            self.prec /= 2.0;
+            self.slice /= 2;
+        }
+        if i.key_pressed(Key::CloseBracket) {
+            self.recalculate = true;
+            self.prec *= 2.0;
+            self.slice *= 2;
+        }
+        if i.key_pressed(Key::N) {
+            let last = self.ruler_pos;
+            self.ruler_pos = self.mouse_position.map(|a| {
+                let a = self.to_coord(a.to_pos());
+                Vec2::new(a.0, a.1)
+            });
+            if last == self.ruler_pos {
+                self.ruler_pos = None;
+            }
+        }
+        if self.is_complex && i.key_pressed(Key::I) {
+            self.show = match self.show {
+                Show::Complex => Show::Real,
+                Show::Real => Show::Imag,
+                Show::Imag => Show::Complex,
+            }
+        }
+        if i.key_pressed(Key::B) {
+            if self.is_complex {
+                self.graph_mode = match self.graph_mode {
+                    GraphMode::Normal if shift => {
                         self.recalculate = true;
+                        if self.is_3d {
+                            self.is_3d = false;
+                            GraphMode::DomainColoring
+                        } else {
+                            self.is_3d = true;
+                            GraphMode::Depth
+                        }
                     }
-                    std::cmp::Ordering::Less => {
-                        self.offset.x += if self.mouse_moved && !self.is_3d {
-                            self.mouse_position.unwrap().x as f64
-                        } else {
-                            self.screen_offset.x
-                        } / self.zoom
-                            * ((rt as f64).recip() - 1.0);
-                        self.offset.y += if self.mouse_moved && !self.is_3d {
-                            self.mouse_position.unwrap().y as f64
-                        } else {
-                            self.screen_offset.y
-                        } / self.zoom
-                            * ((rt as f64).recip() - 1.0);
-                        self.zoom *= rt as f64;
+                    GraphMode::Slice if shift => {
+                        self.is_3d = true;
                         self.recalculate = true;
+                        GraphMode::Normal
+                    }
+                    GraphMode::SliceDepth if shift => {
+                        self.is_3d = false;
+                        self.recalculate = true;
+                        GraphMode::SliceFlatten
+                    }
+                    GraphMode::SliceFlatten if shift => {
+                        self.recalculate = true;
+                        GraphMode::Slice
+                    }
+                    GraphMode::Flatten if shift => {
+                        self.recalculate = true;
+                        GraphMode::Normal
+                    }
+                    GraphMode::DomainColoring if shift => {
+                        self.is_3d = true;
+                        self.recalculate = true;
+                        GraphMode::SliceDepth
+                    }
+                    GraphMode::Depth if shift => {
+                        self.is_3d = false;
+                        self.recalculate = true;
+                        GraphMode::Flatten
+                    }
+                    GraphMode::Normal => {
+                        self.recalculate = true;
+                        if self.is_3d {
+                            self.is_3d = false;
+                            GraphMode::Slice
+                        } else {
+                            GraphMode::Flatten
+                        }
+                    }
+                    GraphMode::Slice => {
+                        self.recalculate = true;
+                        GraphMode::SliceFlatten
+                    }
+                    GraphMode::SliceFlatten => {
+                        self.is_3d = true;
+                        self.recalculate = true;
+                        GraphMode::SliceDepth
+                    }
+                    GraphMode::SliceDepth => {
+                        self.is_3d = false;
+                        self.recalculate = true;
+                        GraphMode::DomainColoring
+                    }
+                    GraphMode::Flatten => {
+                        self.is_3d = true;
+                        self.recalculate = true;
+                        GraphMode::Depth
+                    }
+                    GraphMode::Depth => {
+                        self.is_3d = false;
+                        self.recalculate = true;
+                        GraphMode::Normal
+                    }
+                    GraphMode::DomainColoring => {
+                        self.recalculate = true;
+                        self.is_3d = true;
+                        GraphMode::Normal
+                    }
+                };
+            } else {
+                match self.graph_mode {
+                    GraphMode::Normal => {
+                        if self.is_3d {
+                            self.recalculate = true;
+                            self.is_3d = false;
+                            self.graph_mode = GraphMode::Slice
+                        }
+                    }
+                    GraphMode::Slice => {
+                        self.recalculate = true;
+                        self.is_3d = true;
+                        self.graph_mode = GraphMode::Normal;
                     }
                     _ => {}
                 }
             }
-            if i.key_pressed(egui::Key::Q) {
-                if self.is_3d {
-                    self.zoom3d *= 2.0;
-                    self.bound *= 2.0;
-                } else {
-                    self.offset.x += if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().x as f64
-                    } else {
-                        self.screen_offset.x
-                    } / self.zoom;
-                    self.offset.y += if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().y as f64
-                    } else {
-                        self.screen_offset.y
-                    } / self.zoom;
-                    self.zoom /= 2.0;
-                }
-                self.recalculate = true;
-            }
-            if i.key_pressed(egui::Key::E) {
-                if self.is_3d {
-                    self.zoom3d /= 2.0;
-                    self.bound /= 2.0;
-                } else {
-                    self.zoom *= 2.0;
-                    self.offset.x -= if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().x as f64
-                    } else {
-                        self.screen_offset.x
-                    } / self.zoom;
-                    self.offset.y -= if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().y as f64
-                    } else {
-                        self.screen_offset.y
-                    } / self.zoom;
-                }
-                self.recalculate = true;
-            }
-            if matches!(
-                self.graph_mode,
-                GraphMode::Slice | GraphMode::SliceFlatten | GraphMode::SliceDepth
-            ) {
-                if i.key_pressed(egui::Key::Period) {
-                    self.recalculate = true;
-                    self.slice += c
-                }
-                if i.key_pressed(egui::Key::Comma) {
-                    self.recalculate = true;
-                    self.slice -= c
-                }
-                if i.key_pressed(egui::Key::Slash) {
-                    self.recalculate = true;
-                    self.view_x = !self.view_x
-                }
-            }
-            if i.key_pressed(egui::Key::L) {
-                if self.graph_mode == GraphMode::DomainColoring {
-                    self.cache = None;
-                    self.log_scale = !self.log_scale
-                } else {
-                    self.lines = match self.lines {
-                        Lines::Lines => Lines::Points,
-                        Lines::Points => Lines::LinesPoints,
-                        Lines::LinesPoints => Lines::Lines,
-                    };
-                }
-            }
-            if self.graph_mode == GraphMode::Flatten || self.graph_mode == GraphMode::SliceFlatten {
-                let s = if shift {
-                    (self.var.y - self.var.x) / 2.0
-                } else {
-                    (self.var.y - self.var.x) / 4.0
-                };
-                if i.key_pressed(egui::Key::H) {
-                    self.var.x -= s;
-                    self.var.y -= s;
-                    self.recalculate = true;
-                }
-                if i.key_pressed(egui::Key::J) {
-                    self.var.x += s;
-                    self.var.y += s;
-                    self.recalculate = true;
-                }
-                if i.key_pressed(egui::Key::M) {
-                    if shift {
-                        self.var.x =
-                            (self.var.x + self.var.y) / 2.0 - (self.var.y - self.var.x) / 4.0;
-                        self.var.y =
-                            (self.var.x + self.var.y) / 2.0 + (self.var.y - self.var.x) / 4.0;
-                    } else {
-                        self.var.x = (self.var.x + self.var.y) / 2.0 - (self.var.y - self.var.x);
-                        self.var.y = (self.var.x + self.var.y) / 2.0 + (self.var.y - self.var.x);
-                    }
-                    self.recalculate = true;
-                }
-            }
-            if i.key_pressed(egui::Key::OpenBracket) {
-                self.recalculate = true;
-                self.prec /= 2.0;
-                self.slice /= 2;
-            }
-            if i.key_pressed(egui::Key::CloseBracket) {
-                self.recalculate = true;
-                self.prec *= 2.0;
-                self.slice *= 2;
-            }
-            if i.key_pressed(egui::Key::N) {
-                let last = self.ruler_pos;
-                self.ruler_pos = self.mouse_position.map(|a| {
-                    let a = self.to_coord(a);
-                    Vec2::new(a.0, a.1)
-                });
-                if last == self.ruler_pos {
-                    self.ruler_pos = None;
-                }
-            }
-            if self.is_complex && i.key_pressed(egui::Key::I) {
-                self.show = match self.show {
-                    Show::Complex => Show::Real,
-                    Show::Real => Show::Imag,
-                    Show::Imag => Show::Complex,
-                }
-            }
-            if i.key_pressed(egui::Key::B) {
-                if self.is_complex {
-                    self.graph_mode = match self.graph_mode {
-                        GraphMode::Normal if shift => {
-                            self.recalculate = true;
-                            if self.is_3d {
-                                self.is_3d = false;
-                                GraphMode::DomainColoring
-                            } else {
-                                self.is_3d = true;
-                                GraphMode::Depth
-                            }
-                        }
-                        GraphMode::Slice if shift => {
-                            self.is_3d = true;
-                            self.recalculate = true;
-                            GraphMode::Normal
-                        }
-                        GraphMode::SliceDepth if shift => {
-                            self.is_3d = false;
-                            self.recalculate = true;
-                            GraphMode::SliceFlatten
-                        }
-                        GraphMode::SliceFlatten if shift => {
-                            self.recalculate = true;
-                            GraphMode::Slice
-                        }
-                        GraphMode::Flatten if shift => {
-                            self.recalculate = true;
-                            GraphMode::Normal
-                        }
-                        GraphMode::DomainColoring if shift => {
-                            self.is_3d = true;
-                            self.recalculate = true;
-                            GraphMode::SliceDepth
-                        }
-                        GraphMode::Depth if shift => {
-                            self.is_3d = false;
-                            self.recalculate = true;
-                            GraphMode::Flatten
-                        }
-                        GraphMode::Normal => {
-                            self.recalculate = true;
-                            if self.is_3d {
-                                self.is_3d = false;
-                                GraphMode::Slice
-                            } else {
-                                GraphMode::Flatten
-                            }
-                        }
-                        GraphMode::Slice => {
-                            self.recalculate = true;
-                            GraphMode::SliceFlatten
-                        }
-                        GraphMode::SliceFlatten => {
-                            self.is_3d = true;
-                            self.recalculate = true;
-                            GraphMode::SliceDepth
-                        }
-                        GraphMode::SliceDepth => {
-                            self.is_3d = false;
-                            self.recalculate = true;
-                            GraphMode::DomainColoring
-                        }
-                        GraphMode::Flatten => {
-                            self.is_3d = true;
-                            self.recalculate = true;
-                            GraphMode::Depth
-                        }
-                        GraphMode::Depth => {
-                            self.is_3d = false;
-                            self.recalculate = true;
-                            GraphMode::Normal
-                        }
-                        GraphMode::DomainColoring => {
-                            self.recalculate = true;
-                            self.is_3d = true;
-                            GraphMode::Normal
-                        }
-                    };
-                } else {
-                    match self.graph_mode {
-                        GraphMode::Normal => {
-                            if self.is_3d {
-                                self.recalculate = true;
-                                self.is_3d = false;
-                                self.graph_mode = GraphMode::Slice
-                            }
-                        }
-                        GraphMode::Slice => {
-                            self.recalculate = true;
-                            self.is_3d = true;
-                            self.graph_mode = GraphMode::Normal;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            if i.key_pressed(egui::Key::T) {
-                self.offset3d = Vec3::splat(0.0);
-                self.offset = Vec2::splat(0.0);
-                self.var = self.bound;
-                self.zoom = 1.0;
-                self.zoom3d = 1.0;
-                self.slice = 0;
-                self.angle = Vec2::splat(PI / 6.0);
-                self.box_size = 3.0f64.sqrt();
-                self.prec = 1.0;
-                self.mouse_position = None;
-                self.mouse_moved = false;
-                self.recalculate = true;
-            }
-        });
+        }
+        if i.key_pressed(Key::T) {
+            self.offset3d = Vec3::splat(0.0);
+            self.offset = Vec2::splat(0.0);
+            self.var = self.bound;
+            self.zoom = 1.0;
+            self.zoom3d = 1.0;
+            self.slice = 0;
+            self.angle = Vec2::splat(PI / 6.0);
+            self.box_size = 3.0f64.sqrt();
+            self.prec = 1.0;
+            self.mouse_position = None;
+            self.mouse_moved = false;
+            self.recalculate = true;
+        }
     }
     #[cfg(feature = "egui")]
     fn plot(&mut self, painter: &mut Painter, ui: &egui::Ui) {

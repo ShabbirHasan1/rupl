@@ -113,7 +113,7 @@ impl Painter {
             self.last = Some(p0[1]);
             if !c || self.width != p1 {
                 self.color = Some(*p2);
-                self.paint = Some(make_paint(p1, p2, true))
+                self.paint = Some(make_paint(p1, p2, true, false))
             }
         }
     }
@@ -140,7 +140,7 @@ impl Painter {
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
         self.canvas.canvas().draw_rect(
             skia_safe::Rect::new(p0.x - 1.0, p0.y - 1.0, p0.x + 1.0, p0.y + 1.0),
-            &make_paint(1.0, p2, false),
+            &make_paint(1.0, p2, false, true),
         );
     }
     pub(crate) fn image(&mut self, p0: &skia_safe::Image, pos: Vec2) {
@@ -150,14 +150,14 @@ impl Painter {
         self.canvas.canvas().draw_line(
             Pos::new(0.0, p1).to_pos2(),
             Pos::new(p0, p1).to_pos2(),
-            &make_paint(p2, p3, false),
+            &make_paint(p2, p3, false, false),
         );
     }
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         self.canvas.canvas().draw_line(
             Pos::new(p0, 0.0).to_pos2(),
             Pos::new(p0, p1).to_pos2(),
-            &make_paint(p2, p3, false),
+            &make_paint(p2, p3, false, false),
         );
     }
     pub(crate) fn text(&mut self, p0: Pos, p1: Align, p2: String, p4: &Color) {
@@ -168,16 +168,20 @@ impl Painter {
             p2,
             pos,
             &self.font,
-            &make_paint(1.0, p4, false),
+            &make_paint(1.0, p4, false, false),
             p1.into(),
         );
     }
 }
 #[cfg(feature = "skia")]
-fn make_paint(p1: f32, p2: &Color, alias: bool) -> skia_safe::Paint {
+fn make_paint(p1: f32, p2: &Color, alias: bool, fill: bool) -> skia_safe::Paint {
     let mut p = skia_safe::Paint::new(p2.to_col(), None);
     p.set_stroke_width(p1);
-    p.set_style(skia_safe::PaintStyle::Stroke);
+    p.set_style(if fill {
+        skia_safe::PaintStyle::StrokeAndFill
+    } else {
+        skia_safe::PaintStyle::Stroke
+    });
     p.set_anti_alias(alias);
     p
 }

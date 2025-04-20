@@ -89,7 +89,7 @@ pub struct Graph {
     #[cfg(feature = "skia")]
     pub background_color: Color,
     pub text_color: Color,
-    pub mouse_position: Option<Pos>,
+    pub mouse_position: Option<Vec2>,
     pub mouse_moved: bool,
     pub scale_axis: bool,
     pub disable_lines: bool,
@@ -98,7 +98,7 @@ pub struct Graph {
     pub view_x: bool,
     pub graph_mode: GraphMode,
     pub is_3d: bool,
-    pub last_interact: Option<Pos>,
+    pub last_interact: Option<Vec2>,
     pub recalculate: bool,
     pub lines: Lines,
     pub ruler_pos: Option<Vec2>,
@@ -114,13 +114,103 @@ pub struct Graph {
 }
 #[derive(Copy, Clone, PartialEq)]
 pub struct Keybinds {
-    left: Option<Keys>,
+    pub left: Option<Keys>,
+    pub right: Option<Keys>,
+    pub up: Option<Keys>,
+    pub down: Option<Keys>,
+    pub left_3d: Option<Keys>,
+    pub right_3d: Option<Keys>,
+    pub up_3d: Option<Keys>,
+    pub down_3d: Option<Keys>,
+    pub zoom_in: Option<Keys>,
+    pub zoom_out: Option<Keys>,
 }
 impl Default for Keybinds {
     fn default() -> Self {
         Self {
-            left: Some(Keys::new(Key::A)),
+            left: Some(Keys::new(Key::ArrowLeft)),
+            right: Some(Keys::new(Key::ArrowRight)),
+            up: Some(Keys::new(Key::ArrowUp)),
+            down: Some(Keys::new(Key::ArrowDown)),
+            zoom_in: Some(Keys::new(Key::Equals)),
+            zoom_out: Some(Keys::new(Key::Minus)),
+            left_3d: Some(Keys::new_with_modifier(
+                Key::ArrowLeft,
+                Modifiers::default().ctrl(),
+            )),
+            right_3d: Some(Keys::new_with_modifier(
+                Key::ArrowRight,
+                Modifiers::default().ctrl(),
+            )),
+            up_3d: Some(Keys::new_with_modifier(
+                Key::ArrowUp,
+                Modifiers::default().ctrl(),
+            )),
+            down_3d: Some(Keys::new_with_modifier(
+                Key::ArrowDown,
+                Modifiers::default().ctrl(),
+            )),
         }
+    }
+}
+pub struct InputState {
+    pub keys_pressed: Vec<Key>,
+    pub modifiers: Modifiers,
+    pub raw_scroll_delta: Vec2,
+    pub pointer_pos: Option<Vec2>,
+    pub pointer_down: bool,
+    pub pointer_just_down: bool,
+}
+impl Default for InputState {
+    fn default() -> Self {
+        Self {
+            keys_pressed: Vec::new(),
+            modifiers: Modifiers::default(),
+            raw_scroll_delta: Vec2::splat(0.0),
+            pointer_pos: None,
+            pointer_down: false,
+            pointer_just_down: false,
+        }
+    }
+}
+impl InputState {
+    pub fn reset(&mut self) {
+        self.raw_scroll_delta = Vec2::splat(0.0);
+        self.keys_pressed = Vec::new();
+        self.pointer_just_down = false;
+    }
+}
+#[cfg(feature = "egui")]
+impl From<&egui::InputState> for InputState {
+    fn from(val: &egui::InputState) -> Self {
+        InputState {
+            keys_pressed: val
+                .events
+                .iter()
+                .filter_map(|event| match event {
+                    egui::Event::Key {
+                        key, pressed: true, ..
+                    } => Some(key.into()),
+                    _ => None,
+                })
+                .collect(),
+            modifiers: val.modifiers.into(),
+            raw_scroll_delta: Vec2 {
+                x: val.raw_scroll_delta.x as f64,
+                y: val.raw_scroll_delta.y as f64,
+            },
+            pointer_pos: val
+                .pointer
+                .latest_pos()
+                .map(|a| Vec2::new(a.x as f64, a.y as f64)),
+            pointer_down: val.pointer.primary_down(),
+            pointer_just_down: val.pointer.press_start_time().unwrap_or(0.0) == val.time,
+        }
+    }
+}
+impl InputState {
+    pub fn key_pressed(&self, key: Key) -> bool {
+        self.keys_pressed.contains(&key)
     }
 }
 #[derive(Copy, Clone, PartialEq)]
@@ -157,6 +247,40 @@ impl From<Modifiers> for egui::Modifiers {
             mac_cmd: val.mac_cmd,
             command: val.command,
         }
+    }
+}
+#[cfg(feature = "egui")]
+impl From<egui::Modifiers> for Modifiers {
+    fn from(val: egui::Modifiers) -> Self {
+        Modifiers {
+            alt: val.alt,
+            ctrl: val.ctrl,
+            shift: val.shift,
+            mac_cmd: val.mac_cmd,
+            command: val.command,
+        }
+    }
+}
+impl Modifiers {
+    pub fn alt(mut self) -> Self {
+        self.alt = true;
+        self
+    }
+    pub fn ctrl(mut self) -> Self {
+        self.ctrl = true;
+        self
+    }
+    pub fn shift(mut self) -> Self {
+        self.shift = true;
+        self
+    }
+    pub fn mac_cmd(mut self) -> Self {
+        self.mac_cmd = true;
+        self
+    }
+    pub fn command(mut self) -> Self {
+        self.command = true;
+        self
     }
 }
 #[derive(Copy, Clone, PartialEq)]
@@ -258,6 +382,12 @@ impl Vec2 {
     #[cfg(feature = "skia")]
     pub(crate) fn to_pos2(self) -> skia_safe::Point {
         skia_safe::Point::new(self.x as f32, self.y as f32)
+    }
+}
+impl Sub for Vec2 {
+    type Output = Vec2;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Vec2::new(self.x - rhs.x, self.y - rhs.y)
     }
 }
 impl DivAssign<f64> for Vec2 {
@@ -614,6 +744,120 @@ impl From<Key> for egui::Key {
         }
     }
 }
+#[cfg(feature = "egui")]
+impl From<&egui::Key> for Key {
+    fn from(val: &egui::Key) -> Self {
+        match val {
+            egui::Key::ArrowDown => Key::ArrowDown,
+            egui::Key::ArrowLeft => Key::ArrowLeft,
+            egui::Key::ArrowRight => Key::ArrowRight,
+            egui::Key::ArrowUp => Key::ArrowUp,
+            egui::Key::Escape => Key::Escape,
+            egui::Key::Tab => Key::Tab,
+            egui::Key::Backspace => Key::Backspace,
+            egui::Key::Enter => Key::Enter,
+            egui::Key::Space => Key::Space,
+            egui::Key::Insert => Key::Insert,
+            egui::Key::Delete => Key::Delete,
+            egui::Key::Home => Key::Home,
+            egui::Key::End => Key::End,
+            egui::Key::PageUp => Key::PageUp,
+            egui::Key::PageDown => Key::PageDown,
+            egui::Key::Copy => Key::Copy,
+            egui::Key::Cut => Key::Cut,
+            egui::Key::Paste => Key::Paste,
+            egui::Key::Colon => Key::Colon,
+            egui::Key::Comma => Key::Comma,
+            egui::Key::Backslash => Key::Backslash,
+            egui::Key::Slash => Key::Slash,
+            egui::Key::Pipe => Key::Pipe,
+            egui::Key::Questionmark => Key::Questionmark,
+            egui::Key::Exclamationmark => Key::Exclamationmark,
+            egui::Key::OpenBracket => Key::OpenBracket,
+            egui::Key::CloseBracket => Key::CloseBracket,
+            egui::Key::OpenCurlyBracket => Key::OpenCurlyBracket,
+            egui::Key::CloseCurlyBracket => Key::CloseCurlyBracket,
+            egui::Key::Backtick => Key::Backtick,
+            egui::Key::Minus => Key::Minus,
+            egui::Key::Period => Key::Period,
+            egui::Key::Plus => Key::Plus,
+            egui::Key::Equals => Key::Equals,
+            egui::Key::Semicolon => Key::Semicolon,
+            egui::Key::Quote => Key::Quote,
+            egui::Key::Num0 => Key::Num0,
+            egui::Key::Num1 => Key::Num1,
+            egui::Key::Num2 => Key::Num2,
+            egui::Key::Num3 => Key::Num3,
+            egui::Key::Num4 => Key::Num4,
+            egui::Key::Num5 => Key::Num5,
+            egui::Key::Num6 => Key::Num6,
+            egui::Key::Num7 => Key::Num7,
+            egui::Key::Num8 => Key::Num8,
+            egui::Key::Num9 => Key::Num9,
+            egui::Key::A => Key::A,
+            egui::Key::B => Key::B,
+            egui::Key::C => Key::C,
+            egui::Key::D => Key::D,
+            egui::Key::E => Key::E,
+            egui::Key::F => Key::F,
+            egui::Key::G => Key::G,
+            egui::Key::H => Key::H,
+            egui::Key::I => Key::I,
+            egui::Key::J => Key::J,
+            egui::Key::K => Key::K,
+            egui::Key::L => Key::L,
+            egui::Key::M => Key::M,
+            egui::Key::N => Key::N,
+            egui::Key::O => Key::O,
+            egui::Key::P => Key::P,
+            egui::Key::Q => Key::Q,
+            egui::Key::R => Key::R,
+            egui::Key::S => Key::S,
+            egui::Key::T => Key::T,
+            egui::Key::U => Key::U,
+            egui::Key::V => Key::V,
+            egui::Key::W => Key::W,
+            egui::Key::X => Key::X,
+            egui::Key::Y => Key::Y,
+            egui::Key::Z => Key::Z,
+            egui::Key::F1 => Key::F1,
+            egui::Key::F2 => Key::F2,
+            egui::Key::F3 => Key::F3,
+            egui::Key::F4 => Key::F4,
+            egui::Key::F5 => Key::F5,
+            egui::Key::F6 => Key::F6,
+            egui::Key::F7 => Key::F7,
+            egui::Key::F8 => Key::F8,
+            egui::Key::F9 => Key::F9,
+            egui::Key::F10 => Key::F10,
+            egui::Key::F11 => Key::F11,
+            egui::Key::F12 => Key::F12,
+            egui::Key::F13 => Key::F13,
+            egui::Key::F14 => Key::F14,
+            egui::Key::F15 => Key::F15,
+            egui::Key::F16 => Key::F16,
+            egui::Key::F17 => Key::F17,
+            egui::Key::F18 => Key::F18,
+            egui::Key::F19 => Key::F19,
+            egui::Key::F20 => Key::F20,
+            egui::Key::F21 => Key::F21,
+            egui::Key::F22 => Key::F22,
+            egui::Key::F23 => Key::F23,
+            egui::Key::F24 => Key::F24,
+            egui::Key::F25 => Key::F25,
+            egui::Key::F26 => Key::F26,
+            egui::Key::F27 => Key::F27,
+            egui::Key::F28 => Key::F28,
+            egui::Key::F29 => Key::F29,
+            egui::Key::F30 => Key::F30,
+            egui::Key::F31 => Key::F31,
+            egui::Key::F32 => Key::F32,
+            egui::Key::F33 => Key::F33,
+            egui::Key::F34 => Key::F34,
+            egui::Key::F35 => Key::F35,
+        }
+    }
+}
 #[cfg(feature = "skia")]
 impl From<Key> for winit::keyboard::Key {
     fn from(val: Key) -> Self {
@@ -643,8 +887,8 @@ impl From<Key> for winit::keyboard::Key {
             Key::Pipe => winit::keyboard::Key::Character("|".into()),
             Key::Questionmark => winit::keyboard::Key::Character("?".into()),
             Key::Exclamationmark => winit::keyboard::Key::Character("!".into()),
-            Key::OpenBracket => winit::keyboard::Key::Character("(".into()),
-            Key::CloseBracket => winit::keyboard::Key::Character(")".into()),
+            Key::OpenBracket => winit::keyboard::Key::Character("[".into()),
+            Key::CloseBracket => winit::keyboard::Key::Character("]".into()),
             Key::OpenCurlyBracket => winit::keyboard::Key::Character("{".into()),
             Key::CloseCurlyBracket => winit::keyboard::Key::Character("}".into()),
             Key::Backtick => winit::keyboard::Key::Character("`".into()),
@@ -725,6 +969,124 @@ impl From<Key> for winit::keyboard::Key {
             Key::F33 => winit::keyboard::Key::Named(winit::keyboard::NamedKey::F33),
             Key::F34 => winit::keyboard::Key::Named(winit::keyboard::NamedKey::F34),
             Key::F35 => winit::keyboard::Key::Named(winit::keyboard::NamedKey::F35),
+        }
+    }
+}
+#[cfg(feature = "skia")]
+impl From<winit::keyboard::Key> for Key {
+    fn from(val: winit::keyboard::Key) -> Self {
+        match val {
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowDown) => Key::ArrowDown,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowLeft) => Key::ArrowLeft,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowRight) => Key::ArrowRight,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowUp) => Key::ArrowUp,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape) => Key::Escape,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::Tab) => Key::Tab,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::Backspace) => Key::Backspace,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::Enter) => Key::Enter,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::Space) => Key::Space,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::Insert) => Key::Insert,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::Delete) => Key::Delete,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::Home) => Key::Home,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::End) => Key::End,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::PageUp) => Key::PageUp,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::PageDown) => Key::PageDown,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::Copy) => Key::Copy,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::Cut) => Key::Cut,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::Paste) => Key::Paste,
+            winit::keyboard::Key::Character(val) => match val.to_string().as_str() {
+                ":" => Key::Colon,
+                "," => Key::Comma,
+                "\\" => Key::Backslash,
+                "/" => Key::Slash,
+                "|" => Key::Pipe,
+                "?" => Key::Questionmark,
+                "!" => Key::Exclamationmark,
+                "[" => Key::OpenBracket,
+                "]" => Key::CloseBracket,
+                "{" => Key::OpenCurlyBracket,
+                "}" => Key::CloseCurlyBracket,
+                "`" => Key::Backtick,
+                "-" => Key::Minus,
+                "." => Key::Period,
+                "+" => Key::Plus,
+                "=" => Key::Equals,
+                ";" => Key::Semicolon,
+                "\"" => Key::Quote,
+                "0" => Key::Num0,
+                "1" => Key::Num1,
+                "2" => Key::Num2,
+                "3" => Key::Num3,
+                "4" => Key::Num4,
+                "5" => Key::Num5,
+                "6" => Key::Num6,
+                "7" => Key::Num7,
+                "8" => Key::Num8,
+                "9" => Key::Num9,
+                "a" => Key::A,
+                "b" => Key::B,
+                "c" => Key::C,
+                "d" => Key::D,
+                "e" => Key::E,
+                "f" => Key::F,
+                "g" => Key::G,
+                "h" => Key::H,
+                "i" => Key::I,
+                "j" => Key::J,
+                "k" => Key::K,
+                "l" => Key::L,
+                "m" => Key::M,
+                "n" => Key::N,
+                "o" => Key::O,
+                "p" => Key::P,
+                "q" => Key::Q,
+                "r" => Key::R,
+                "s" => Key::S,
+                "t" => Key::T,
+                "u" => Key::U,
+                "v" => Key::V,
+                "w" => Key::W,
+                "x" => Key::X,
+                "y" => Key::Y,
+                "z" => Key::Z,
+                _ => Key::F35,
+            },
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F1) => Key::F1,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F2) => Key::F2,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F3) => Key::F3,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F4) => Key::F4,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F5) => Key::F5,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F6) => Key::F6,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F7) => Key::F7,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F8) => Key::F8,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F9) => Key::F9,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F10) => Key::F10,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F11) => Key::F11,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F12) => Key::F12,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F13) => Key::F13,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F14) => Key::F14,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F15) => Key::F15,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F16) => Key::F16,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F17) => Key::F17,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F18) => Key::F18,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F19) => Key::F19,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F20) => Key::F20,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F21) => Key::F21,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F22) => Key::F22,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F23) => Key::F23,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F24) => Key::F24,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F25) => Key::F25,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F26) => Key::F26,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F27) => Key::F27,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F28) => Key::F28,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F29) => Key::F29,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F30) => Key::F30,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F31) => Key::F31,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F32) => Key::F32,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F33) => Key::F33,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F34) => Key::F34,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::F35) => Key::F35,
+            _ => Key::F35,
         }
     }
 }
