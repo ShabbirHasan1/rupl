@@ -81,10 +81,11 @@ pub(crate) struct Painter {
     color: Option<Color>,
     last: Option<Pos>,
     width: f32,
+    font: skia_safe::Font,
 }
 #[cfg(feature = "skia")]
 impl Painter {
-    pub(crate) fn new(width: u32, height: u32, background: Color) -> Self {
+    pub(crate) fn new(width: u32, height: u32, background: Color, font: skia_safe::Font) -> Self {
         let mut canvas =
             skia_safe::surfaces::raster_n32_premul((width as i32, height as i32)).unwrap();
         canvas.canvas().clear(background.to_col());
@@ -95,6 +96,7 @@ impl Painter {
             color: None,
             last: None,
             width: 0.0,
+            font,
         }
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p1: f32, p2: &Color) {
@@ -159,10 +161,13 @@ impl Painter {
         );
     }
     pub(crate) fn text(&mut self, p0: Pos, p1: Align, p2: String, p4: &Color) {
-        self.canvas.canvas().draw_text_align(
+        let mut pos = p0.to_pos2();
+        pos.x += 2.0;
+        pos.y -= 2.0;
+        self.canvas.canvas().draw_str_align(
             p2,
-            p0.to_pos2(),
-            &skia_safe::Font::default(),
+            pos,
+            &self.font,
             &make_paint(1.0, p4, false),
             p1.into(),
         );

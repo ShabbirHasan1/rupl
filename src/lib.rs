@@ -12,28 +12,18 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO 2d logscale
 //TODO labels
 //TODO scale axis
-/*{TODO other backend
-    let time = std::time::Instant::now();
-    let mut canvas = skia_safe::surfaces::raster_n32_premul((1920, 1080)).unwrap();
-    let mut c = skia_safe::Paint::new(skia_safe::Color4f::new(1.0, 0.0, 0.0, 1.0), None);
-    c.set_anti_alias(true);
-    let p1 = skia_safe::Point::new(1920.0 / 2.0, 1080.0);
-    let p2 = skia_safe::Point::new(1920.0 / 2.0, 0.0);
-    let mut path = skia_safe::Path::new();
-    for i in 0..10000 {
-        path.line_to(if i % 2 == 0 { p1 } else { p2 });
-    }
-    canvas.canvas().draw_path(&path, &c);
-    canvas.image_snapshot();
-    canvas.direct_context();
-    println!("{}", time.elapsed().as_micros());
-}*/
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
+        let typeface = skia_safe::FontMgr::default()
+            .new_from_data(include_bytes!("../terminus.otb"), None)
+            .unwrap();
+        let font = skia_safe::Font::new(typeface, 16.0);
         Self {
             is_3d: is_3d(&data),
             data,
             cache: None,
+            #[cfg(feature = "skia")]
+            font,
             bound: Vec2::new(start, end),
             offset3d: Vec3::splat(0.0),
             offset: Vec2::splat(0.0),
@@ -95,21 +85,16 @@ impl Graph {
             sin_phi: 0.0,
             cos_theta: 0.0,
             sin_theta: 0.0,
+            keybinds: Keybinds::default(),
         }
     }
     pub fn set_data(&mut self, data: Vec<GraphType>) {
         self.data = data;
-        #[cfg(feature = "egui")]
-        {
-            self.cache = None;
-        }
+        self.cache = None;
     }
     pub fn clear_data(&mut self) {
         self.data.clear();
-        #[cfg(feature = "egui")]
-        {
-            self.cache = None;
-        }
+        self.cache = None;
     }
     pub fn reset_3d(&mut self) {
         self.is_3d = is_3d(&self.data);
@@ -323,12 +308,12 @@ impl Graph {
         >,
     ) {
         if !no_repaint {
-            //self.keybinds(ui);
+            //self.keybinds(ui); TODO
             if self.recalculate {
                 return;
             }
         }
-        let mut painter = Painter::new(width, height, self.background_color);
+        let mut painter = Painter::new(width, height, self.background_color, self.font.clone());
         self.screen = Vec2::new(width as f64, height as f64);
         self.delta = if self.is_3d {
             self.screen.x.min(self.screen.y)
