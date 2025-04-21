@@ -316,6 +316,9 @@ pub struct Pos {
     pub y: f32,
 }
 impl Pos {
+    pub fn close(&self, rhs: Self) -> bool {
+        (self.x - rhs.x).abs() < 0.5 && (self.y - rhs.y).abs() < 0.5
+    }
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }

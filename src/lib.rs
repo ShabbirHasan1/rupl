@@ -484,6 +484,7 @@ impl Graph {
         }
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
+                //TODO ensure line inside
                 painter.line_segment([last, pos], 1.0, color);
             }
             Some(pos)

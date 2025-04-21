@@ -20,8 +20,10 @@ impl<'a> Painter<'a> {
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p1: f32, p2: &Color) {
         if Some(*p2) == self.color && Some(p0[0]) == self.last && self.width == p1 {
-            self.line.push(p0[1].to_pos2());
-            self.last = Some(p0[1]);
+            if !self.last.unwrap().close(p0[1]) {
+                self.line.push(p0[1].to_pos2());
+                self.last = Some(p0[1]);
+            }
         } else {
             self.save();
             self.width = p1;
@@ -76,12 +78,13 @@ impl<'a> Painter<'a> {
 #[cfg(feature = "skia")]
 pub(crate) struct Painter {
     canvas: skia_safe::Surface,
-    line: skia_safe::Path,
-    paint: Option<skia_safe::Paint>,
+    line: skia_safe::Path, //TODO make vec
     color: Option<Color>,
     last: Option<Pos>,
     width: f32,
     font: skia_safe::Font,
+    points: Vec<skia_safe::Point>,
+    point_color: Option<Color>,
 }
 #[cfg(feature = "skia")]
 impl Painter {
@@ -92,7 +95,8 @@ impl Painter {
         Self {
             canvas,
             line: skia_safe::Path::new(),
-            paint: None,
+            points: Vec::new(),
+            point_color: None,
             color: None,
             last: None,
             width: 0.0,
@@ -100,10 +104,14 @@ impl Painter {
         }
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p1: f32, p2: &Color) {
-        let c = Some(*p2) == self.color;
-        if c && Some(p0[0]) == self.last && self.width == p1 {
-            self.line.line_to(p0[1].to_pos2());
-            self.last = Some(p0[1]);
+        if Some(*p2) == self.color
+            && self.last.map(|l| l.close(p0[0])).unwrap_or(false)
+            && self.width == p1
+        {
+            if !self.last.unwrap().close(p0[1]) {
+                self.line.line_to(p0[1].to_pos2());
+                self.last = Some(p0[1]);
+            }
         } else {
             self.draw();
             self.width = p1;
@@ -111,15 +119,23 @@ impl Painter {
             self.line.move_to(p0[0].to_pos2());
             self.line.line_to(p0[1].to_pos2());
             self.last = Some(p0[1]);
-            if !c || self.width != p1 {
-                self.color = Some(*p2);
-                self.paint = Some(make_paint(p1, p2, true, false))
-            }
+            self.color = Some(*p2);
         }
     }
     fn draw(&mut self) {
-        if let Some(paint) = &self.paint {
-            self.canvas.canvas().draw_path(&self.line, paint);
+        if let Some(paint) = &self.color {
+            self.canvas
+                .canvas()
+                .draw_path(&self.line, &make_paint(self.width, paint, true, false));
+        }
+    }
+    fn draw_pts(&mut self) {
+        if !self.points.is_empty() {
+            self.canvas.canvas().draw_points(
+                skia_safe::canvas::PointMode::Points,
+                &self.points,
+                &make_paint(3.0, &self.point_color.unwrap(), false, true),
+            );
         }
     }
     pub(crate) fn save(
@@ -130,6 +146,7 @@ impl Painter {
         >,
     ) {
         self.draw();
+        self.draw_pts();
         if let Some(pm) = self.canvas.peek_pixels() {
             let px = pm.pixels::<u32>().unwrap();
             for (i, p) in px.iter().enumerate() {
@@ -138,10 +155,19 @@ impl Painter {
         }
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
-        self.canvas.canvas().draw_rect(
-            skia_safe::Rect::new(p0.x - 1.0, p0.y - 1.0, p0.x + 1.0, p0.y + 1.0),
-            &make_paint(1.0, p2, false, true),
-        );
+        if Some(p2) != self.point_color.as_ref() {
+            self.draw_pts();
+            self.points.clear();
+            self.point_color = Some(*p2)
+        }
+        if self
+            .points
+            .last()
+            .map(|p| !p0.close(Pos::new(p.x, p.y)))
+            .unwrap_or(true)
+        {
+            self.points.push(p0.to_pos2())
+        }
     }
     pub(crate) fn image(&mut self, p0: &skia_safe::Image, pos: Vec2) {
         self.canvas.canvas().draw_image(p0, pos.to_pos2(), None);
@@ -177,11 +203,10 @@ impl Painter {
 fn make_paint(p1: f32, p2: &Color, alias: bool, fill: bool) -> skia_safe::Paint {
     let mut p = skia_safe::Paint::new(p2.to_col(), None);
     p.set_stroke_width(p1);
-    p.set_style(if fill {
-        skia_safe::PaintStyle::StrokeAndFill
-    } else {
-        skia_safe::PaintStyle::Stroke
-    });
+    p.set_style(skia_safe::PaintStyle::Stroke);
+    if fill {
+        p.set_stroke_cap(skia_safe::PaintCap::Square);
+    }
     p.set_anti_alias(alias);
     p
 }
