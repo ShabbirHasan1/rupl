@@ -1,3 +1,4 @@
+use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 #[derive(PartialEq)]
 pub enum GraphMode {
@@ -384,6 +385,9 @@ pub struct Vec2 {
     pub y: f64,
 }
 impl Vec2 {
+    pub fn norm(&self) -> f64 {
+        self.y.hypot(self.x)
+    }
     pub fn splat(v: f64) -> Self {
         Self { x: v, y: v }
     }
@@ -414,10 +418,33 @@ impl Sub for Vec2 {
         Vec2::new(self.x - rhs.x, self.y - rhs.y)
     }
 }
+impl Sub for &Vec2 {
+    type Output = Vec2;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Vec2::new(self.x - rhs.x, self.y - rhs.y)
+    }
+}
+impl Add for &Vec2 {
+    type Output = Vec2;
+    fn add(self, rhs: Self) -> Self::Output {
+        Vec2::new(self.x + rhs.x, self.y + rhs.y)
+    }
+}
+impl Add for Vec2 {
+    type Output = Vec2;
+    fn add(self, rhs: Self) -> Self::Output {
+        Vec2::new(self.x + rhs.x, self.y + rhs.y)
+    }
+}
 impl DivAssign<f64> for Vec2 {
     fn div_assign(&mut self, rhs: f64) {
         self.x /= rhs;
         self.y /= rhs;
+    }
+}
+impl Sum for Vec2 {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Vec2::splat(0.0), |a, b| a + b)
     }
 }
 impl MulAssign<f64> for Vec2 {
@@ -492,6 +519,12 @@ impl Div<f32> for Pos {
     type Output = Pos;
     fn div(self, rhs: f32) -> Self::Output {
         Pos::new(self.x / rhs, self.y / rhs)
+    }
+}
+impl Div<f64> for Vec2 {
+    type Output = Vec2;
+    fn div(self, rhs: f64) -> Self::Output {
+        Vec2::new(self.x / rhs, self.y / rhs)
     }
 }
 #[derive(Copy, Clone)]
