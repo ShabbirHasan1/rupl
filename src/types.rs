@@ -53,12 +53,19 @@ pub enum DepthColor {
     Depth,
     None,
 }
+#[cfg(feature = "egui")]
+pub struct Image(pub egui::TextureHandle);
+#[cfg(feature = "skia")]
+pub struct Image(pub skia_safe::Image);
+#[cfg(feature = "skia")]
+impl AsRef<skia_safe::Image> for Image {
+    fn as_ref(&self) -> &skia_safe::Image {
+        &self.0
+    }
+}
 pub struct Graph {
     pub data: Vec<GraphType>,
-    #[cfg(feature = "egui")]
-    pub cache: Option<egui::TextureHandle>,
-    #[cfg(feature = "skia")]
-    pub cache: Option<skia_safe::Image>,
+    pub cache: Option<Image>,
     #[cfg(feature = "skia")]
     pub font: skia_safe::Font,
     pub bound: Vec2,
@@ -317,7 +324,7 @@ pub struct Pos {
 }
 impl Pos {
     pub fn close(&self, rhs: Self) -> bool {
-        (self.x - rhs.x).abs() < 0.5 && (self.y - rhs.y).abs() < 0.5
+        self.x.floor() == rhs.x.floor() && self.y.floor() == rhs.y.floor()
     }
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
@@ -516,12 +523,6 @@ impl From<Align> for skia_safe::utils::text_utils::Align {
             Align::RightTop => skia_safe::utils::text_utils::Align::Right,
         }
     }
-}
-pub struct Texture {
-    #[cfg(feature = "egui")]
-    pub texture: egui::TextureId,
-    #[cfg(feature = "skia")]
-    pub image: skia_safe::Image,
 }
 #[derive(Copy, Clone, PartialEq)]
 pub enum Key {

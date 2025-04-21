@@ -1,4 +1,4 @@
-use crate::types::{Align, Color, Pos, Vec2};
+use crate::types::{Align, Color, Image, Pos, Vec2};
 #[cfg(feature = "egui")]
 pub(crate) struct Painter<'a> {
     painter: &'a egui::Painter,
@@ -45,11 +45,11 @@ impl<'a> Painter<'a> {
         let rect = egui::Rect::from_center_size(p0.to_pos2(), egui::Vec2::splat(3.0));
         self.painter.rect_filled(rect, 0.0, p2.to_col());
     }
-    pub(crate) fn image(&self, p0: crate::types::Texture, pos: Vec2) {
+    pub(crate) fn image(&self, p0: &Image, pos: Vec2) {
         let d = egui::Rect::from_points(&[egui::Pos2::new(0.0, 0.0), pos.to_pos2()]);
         let a = egui::Rect::from_min_max(egui::Pos2::new(0.0, 0.0), egui::Pos2::new(1.0, 1.0));
         let c = egui::Color32::WHITE;
-        self.painter.image(p0.texture, d, a, c);
+        self.painter.image(p0.0.id(), d, a, c);
     }
     pub(crate) fn hline(&self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         self.painter.hline(
@@ -169,7 +169,7 @@ impl Painter {
             self.points.push(p0.to_pos2())
         }
     }
-    pub(crate) fn image(&mut self, p0: &skia_safe::Image, pos: Vec2) {
+    pub(crate) fn image(&mut self, p0: &Image, pos: Vec2) {
         self.canvas.canvas().draw_image(p0, pos.to_pos2(), None);
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
