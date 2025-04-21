@@ -225,7 +225,12 @@ impl Graph {
         let mut painter = Painter::new(ui);
         let rect = ctx.available_rect();
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter, ui);
-        self.update_inner(&mut painter, rect.width() as f64, rect.height() as f64, plot);
+        self.update_inner(
+            &mut painter,
+            rect.width() as f64,
+            rect.height() as f64,
+            plot,
+        );
         painter.save();
     }
     #[cfg(feature = "skia")]
@@ -916,66 +921,65 @@ impl Graph {
                 self.mouse_position = Some(mpos)
             }
         }
-        let multi: Option<bool> = None; // i.multi_touch();
-        match multi {
-            Some(_multi) => {
-                /*match multi.zoom_delta.total_cmp(&1.0) {
+        match &i.multi {
+            Some(multi) => {
+                match multi.zoom_delta.total_cmp(&1.0) {
                     std::cmp::Ordering::Greater => {
                         if self.is_3d {
-                            self.box_size /= multi.zoom_delta as f64;
+                            self.box_size /= multi.zoom_delta;
                         } else {
-                            self.zoom *= multi.zoom_delta as f64;
+                            self.zoom *= multi.zoom_delta;
                             self.offset.x -= if self.mouse_moved && !self.is_3d {
-                                self.mouse_position.unwrap().x as f64
+                                self.mouse_position.unwrap().x
                             } else {
                                 self.screen_offset.x
                             } / self.zoom
-                                * (multi.zoom_delta as f64 - 1.0);
+                                * (multi.zoom_delta - 1.0);
                             self.offset.y -= if self.mouse_moved && !self.is_3d {
-                                self.mouse_position.unwrap().y as f64
+                                self.mouse_position.unwrap().y
                             } else {
                                 self.screen_offset.y
                             } / self.zoom
-                                * (multi.zoom_delta as f64 - 1.0);
+                                * (multi.zoom_delta - 1.0);
                             self.recalculate = true;
                         }
                     }
                     std::cmp::Ordering::Less => {
                         if self.is_3d {
-                            self.box_size /= multi.zoom_delta as f64;
+                            self.box_size /= multi.zoom_delta;
                         } else {
                             self.offset.x += if self.mouse_moved && !self.is_3d {
-                                self.mouse_position.unwrap().x as f64
+                                self.mouse_position.unwrap().x
                             } else {
                                 self.screen_offset.x
                             } / self.zoom
-                                * ((multi.zoom_delta as f64).recip() - 1.0);
+                                * (multi.zoom_delta.recip() - 1.0);
                             self.offset.y += if self.mouse_moved && !self.is_3d {
-                                self.mouse_position.unwrap().y as f64
+                                self.mouse_position.unwrap().y
                             } else {
                                 self.screen_offset.y
                             } / self.zoom
-                                * ((multi.zoom_delta as f64).recip() - 1.0);
-                            self.zoom *= multi.zoom_delta as f64;
+                                * (multi.zoom_delta.recip() - 1.0);
+                            self.zoom *= multi.zoom_delta;
                             self.recalculate = true;
                         }
                     }
                     _ => {}
                 }
                 if self.is_3d {
-                    self.angle.x = (self.angle.x - multi.translation_delta.x as f64 / 512.0)
-                        .rem_euclid(TAU);
-                    self.angle.y = (self.angle.y + multi.translation_delta.y as f64 / 512.0)
-                        .rem_euclid(TAU);
+                    self.angle.x =
+                        (self.angle.x - multi.translation_delta.x / 512.0).rem_euclid(TAU);
+                    self.angle.y =
+                        (self.angle.y + multi.translation_delta.y / 512.0).rem_euclid(TAU);
                 } else {
-                    self.offset.x += multi.translation_delta.x as f64 / self.zoom;
-                    self.offset.y += multi.translation_delta.y as f64 / self.zoom;
+                    self.offset.x += multi.translation_delta.x / self.zoom;
+                    self.offset.y += multi.translation_delta.y / self.zoom;
                     self.recalculate = true;
                     if !self.mouse_held {
                         self.mouse_held = true;
                         self.prec = (self.prec + 1.0).log10();
                     }
-                }*/
+                }
             }
             _ if i.pointer_down && !i.pointer_just_down => {
                 if let (Some(interact), Some(last)) = (i.pointer_pos, self.last_interact) {

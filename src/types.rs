@@ -160,6 +160,10 @@ impl Default for Keybinds {
         }
     }
 }
+pub struct Multi {
+    pub zoom_delta: f64,
+    pub translation_delta: Vec2,
+}
 pub struct InputState {
     pub keys_pressed: Vec<Key>,
     pub modifiers: Modifiers,
@@ -167,6 +171,7 @@ pub struct InputState {
     pub pointer_pos: Option<Vec2>,
     pub pointer_down: bool,
     pub pointer_just_down: bool,
+    pub multi: Option<Multi>,
 }
 impl Default for InputState {
     fn default() -> Self {
@@ -177,6 +182,7 @@ impl Default for InputState {
             pointer_pos: None,
             pointer_down: false,
             pointer_just_down: false,
+            multi: None,
         }
     }
 }
@@ -185,6 +191,7 @@ impl InputState {
         self.raw_scroll_delta = Vec2::splat(0.0);
         self.keys_pressed = Vec::new();
         self.pointer_just_down = false;
+        self.multi = None;
     }
 }
 #[cfg(feature = "egui")]
@@ -212,6 +219,13 @@ impl From<&egui::InputState> for InputState {
                 .map(|a| Vec2::new(a.x as f64, a.y as f64)),
             pointer_down: val.pointer.primary_down(),
             pointer_just_down: val.pointer.press_start_time().unwrap_or(0.0) == val.time,
+            multi: val.multi_touch().map(|i| Multi {
+                translation_delta: Vec2::new(
+                    i.translation_delta.x as f64,
+                    i.translation_delta.y as f64,
+                ),
+                zoom_delta: i.zoom_delta as f64,
+            }),
         }
     }
 }
