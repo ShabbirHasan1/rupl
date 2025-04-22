@@ -96,6 +96,7 @@ impl Painter {
                 Line::Slow(SlowLine {
                     line: Default::default(),
                     color: Color::new(0, 0, 0),
+                    last: None,
                 })
             },
             points: if fast {
@@ -137,18 +138,15 @@ impl Painter {
     fn draw_pts(&mut self) {
         self.points.draw(self.canvas.canvas());
     }
-    pub(crate) fn save(
-        &mut self,
-        buffer: &mut softbuffer::Buffer<
-            std::rc::Rc<winit::window::Window>,
-            std::rc::Rc<winit::window::Window>,
-        >,
-    ) {
+    pub(crate) fn save<T>(&mut self, buffer: &mut T)
+    where
+        T: std::ops::DerefMut<Target = [u32]>,
+    {
         self.draw();
         self.draw_pts();
         if let Some(pm) = self.canvas.peek_pixels() {
             let px = pm.pixels::<u32>().unwrap();
-            buffer.copy_from_slice(px)
+            buffer.copy_from_slice(px);
         }
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
@@ -239,6 +237,8 @@ struct SlowLine {
     #[cfg(feature = "egui")]
     line: Vec<egui::Pos2>,
     color: Color,
+    #[cfg(feature = "skia")]
+    last: Option<Pos>,
 }
 enum Line {
     Fast(FastLine),
@@ -267,8 +267,7 @@ impl Line {
                     path.line_to(p0[0].to_pos2());
                 }
             }
-            Line::Slow(SlowLine { line, color }) => {
-                let last = line.last_pt().map(|l| Pos::new(l.x, l.y));
+            Line::Slow(SlowLine { line, last, color }) => {
                 if p2 == color && last.map(|l| p0[0].close(l)).unwrap_or(false) {
                     if !last.unwrap().close(p0[1]) {
                         line.line_to(p0[1].to_pos2());
@@ -284,6 +283,7 @@ impl Line {
                     line.line_to(p0[1].to_pos2());
                     *color = *p2;
                 }
+                *last = Some(p0[1])
             }
         }
     }
@@ -294,7 +294,7 @@ impl Line {
                     canvas.draw_path(path, &make_paint(1.0, color, true, false));
                 }
             }
-            Line::Slow(SlowLine { line, color }) => {
+            Line::Slow(SlowLine { line, color, .. }) => {
                 if line.last_pt().is_some() {
                     canvas.draw_path(line, &make_paint(1.0, color, true, false));
                 }
@@ -356,7 +356,7 @@ struct FastPoint {
 }
 #[cfg(feature = "skia")]
 struct SlowPoint {
-    points: Vec<skia_safe::Point>,
+    points: Vec<skia_safe::Point>, //TODO with_capacity, disable fast lines in 2d
     color: Color,
 }
 #[cfg(feature = "skia")]

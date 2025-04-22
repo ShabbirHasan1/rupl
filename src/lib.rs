@@ -235,15 +235,10 @@ impl Graph {
         painter.save();
     }
     #[cfg(feature = "skia")]
-    pub fn update(
-        &mut self,
-        width: u32,
-        height: u32,
-        buffer: &mut softbuffer::Buffer<
-            std::rc::Rc<winit::window::Window>,
-            std::rc::Rc<winit::window::Window>,
-        >,
-    ) {
+    pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T)
+    where
+        T: std::ops::DerefMut<Target = [u32]>,
+    {
         let mut painter = Painter::new(
             width,
             height,

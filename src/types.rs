@@ -909,7 +909,7 @@ impl From<&egui::Key> for Key {
         }
     }
 }
-#[cfg(feature = "skia")]
+#[cfg(feature = "winit")]
 impl From<Key> for winit::keyboard::Key {
     fn from(val: Key) -> Self {
         match val {
@@ -1023,7 +1023,7 @@ impl From<Key> for winit::keyboard::Key {
         }
     }
 }
-#[cfg(feature = "skia")]
+#[cfg(feature = "winit")]
 impl From<winit::keyboard::Key> for Key {
     fn from(val: winit::keyboard::Key) -> Self {
         match val {
