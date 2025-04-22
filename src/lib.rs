@@ -245,7 +245,13 @@ impl Graph {
             std::rc::Rc<winit::window::Window>,
         >,
     ) {
-        let mut painter = Painter::new(width, height, self.background_color, self.font.clone());
+        let mut painter = Painter::new(
+            width,
+            height,
+            self.background_color,
+            self.font.clone(),
+            self.fast_3d,
+        );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, width as f64, height as f64, plot);
         painter.save(buffer);
