@@ -69,6 +69,7 @@ pub struct Graph {
     pub cache: Option<Image>,
     #[cfg(feature = "skia")]
     pub font: skia_safe::Font,
+    pub fast_3d: bool,
     pub bound: Vec2,
     pub is_complex: bool,
     pub offset3d: Vec3,
@@ -305,7 +306,7 @@ impl Modifiers {
         self
     }
 }
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Color {
     pub r: u8,
     pub g: u8,

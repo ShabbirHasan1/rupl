@@ -78,13 +78,9 @@ impl<'a> Painter<'a> {
 #[cfg(feature = "skia")]
 pub(crate) struct Painter {
     canvas: skia_safe::Surface,
-    line: skia_safe::Path, //TODO make vec
-    color: Option<Color>,
-    last: Option<Pos>,
-    width: f32,
+    line: std::collections::HashMap<Color, skia_safe::Path>,
     font: skia_safe::Font,
-    points: Vec<skia_safe::Point>,
-    point_color: Option<Color>,
+    points: std::collections::HashMap<Color, Vec<skia_safe::Point>>,
 }
 #[cfg(feature = "skia")]
 impl Painter {
@@ -94,47 +90,54 @@ impl Painter {
         canvas.canvas().clear(background.to_col());
         Self {
             canvas,
-            line: skia_safe::Path::new(),
-            points: Vec::new(),
-            point_color: None,
-            color: None,
-            last: None,
-            width: 0.0,
+            line: Default::default(),
+            points: Default::default(),
             font,
         }
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p1: f32, p2: &Color) {
-        if Some(*p2) == self.color
-            && self.last.map(|l| l.close(p0[0])).unwrap_or(false)
-            && self.width == p1
-        {
-            if !self.last.unwrap().close(p0[1]) {
-                self.line.line_to(p0[1].to_pos2());
-                self.last = Some(p0[1]);
-            }
+        if p1 != 1.0 {
+            self.canvas.canvas().draw_line(
+                p0[0].to_pos2(),
+                p0[1].to_pos2(),
+                &make_paint(p1, p2, true, false),
+            );
         } else {
-            self.draw();
-            self.width = p1;
-            self.line = skia_safe::Path::new();
-            self.line.move_to(p0[0].to_pos2());
-            self.line.line_to(p0[1].to_pos2());
-            self.last = Some(p0[1]);
-            self.color = Some(*p2);
+            let path = self.line.entry(*p2).or_insert({
+                let mut path = skia_safe::Path::new();
+                path.move_to(p0[0].to_pos2());
+                path
+            });
+            let last = path.last_pt().unwrap();
+            let last = Pos::new(last.x, last.y);
+            let a = !p0[0].close(last);
+            let b = !p0[1].close(last);
+            if b {
+                if a {
+                    path.move_to(p0[0].to_pos2());
+                }
+                path.line_to(p0[1].to_pos2());
+            } else if a {
+                if b {
+                    path.move_to(p0[1].to_pos2());
+                }
+                path.line_to(p0[0].to_pos2());
+            }
         }
     }
     fn draw(&mut self) {
-        if let Some(paint) = &self.color {
+        for (color, path) in &self.line {
             self.canvas
                 .canvas()
-                .draw_path(&self.line, &make_paint(self.width, paint, true, false));
+                .draw_path(path, &make_paint(1.0, color, true, false));
         }
     }
     fn draw_pts(&mut self) {
-        if !self.points.is_empty() {
+        for (color, points) in &self.points {
             self.canvas.canvas().draw_points(
                 skia_safe::canvas::PointMode::Points,
-                &self.points,
-                &make_paint(3.0, &self.point_color.unwrap(), false, true),
+                points,
+                &make_paint(3.0, color, false, true),
             );
         }
     }
@@ -153,19 +156,8 @@ impl Painter {
         }
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
-        if Some(p2) != self.point_color.as_ref() {
-            self.draw_pts();
-            self.points.clear();
-            self.point_color = Some(*p2)
-        }
-        if self
-            .points
-            .last()
-            .map(|p| !p0.close(Pos::new(p.x, p.y)))
-            .unwrap_or(true)
-        {
-            self.points.push(p0.to_pos2())
-        }
+        let points = self.points.entry(*p2).or_default();
+        points.push(p0.to_pos2());
     }
     pub(crate) fn image(&mut self, p0: &Image, pos: Vec2) {
         self.canvas.canvas().draw_image(p0, pos.to_pos2(), None);

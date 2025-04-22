@@ -12,6 +12,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO 2d logscale
 //TODO labels
 //TODO scale axis
+//TODO tiny skia backend
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
         #[cfg(feature = "skia")]
@@ -22,6 +23,7 @@ impl Graph {
         let font = skia_safe::Font::new(typeface, 16.0);
         Self {
             is_3d: is_3d(&data),
+            fast_3d: false,
             data,
             cache: None,
             #[cfg(feature = "skia")]
