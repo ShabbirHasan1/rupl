@@ -18,7 +18,7 @@ pub enum GraphType {
 }
 #[derive(Copy, Clone)]
 pub enum Draw {
-    Line(Pos, Pos, f32),
+    Line(Pos, Pos),
     Point(Pos),
 }
 pub enum Prec {
@@ -113,7 +113,6 @@ pub struct Graph {
     pub ruler_pos: Option<Vec2>,
     pub prec: f64,
     pub mouse_held: bool,
-    pub buffer: Vec<(f32, Draw, Color)>,
     pub mult: f64,
     pub(crate) cos_phi: f64,
     pub(crate) sin_phi: f64,
