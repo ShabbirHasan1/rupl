@@ -149,9 +149,7 @@ impl Painter {
         self.draw_pts();
         if let Some(pm) = self.canvas.peek_pixels() {
             let px = pm.pixels::<u32>().unwrap();
-            for (i, p) in px.iter().enumerate() {
-                buffer[i] = *p;
-            }
+            buffer.copy_from_slice(px)
         }
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
