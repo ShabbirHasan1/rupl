@@ -219,8 +219,7 @@ impl Painter {
             );
         }
     }
-    pub(crate) fn text(&mut self, p0: Pos, p1: Align, p2: String, p4: &Color, _: f32) {
-        //TODO should fix
+    pub(crate) fn text(&mut self, p0: Pos, p1: Align, p2: String, p4: &Color) {
         let mut pos = p0.to_pos2();
         pos.x += 2.0;
         pos.y -= 2.0;

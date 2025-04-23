@@ -361,18 +361,18 @@ impl Graph {
                     } else {
                         format!("{:e}\n{:e}", p.0, p.1)
                     };
-                    painter.text(
+                    self.text(
                         Pos::new(0.0, self.screen.y as f32),
                         Align::LeftBottom,
                         s,
                         &self.text_color,
-                        self.font_size,
+                        painter,
                     );
                 }
                 if let Some(ps) = self.ruler_pos {
                     let dx = p.0 - ps.x;
                     let dy = p.1 - ps.y;
-                    painter.text(
+                    self.text(
                         self.screen.to_pos(),
                         Align::RightBottom,
                         format!(
@@ -383,7 +383,7 @@ impl Graph {
                             dy.atan2(dx) * 360.0 / TAU
                         ),
                         &self.text_color,
-                        self.font_size,
+                        painter,
                     );
                     painter.line_segment(
                         [pos.to_pos(), self.to_screen(ps.x, ps.y)],
@@ -394,9 +394,17 @@ impl Graph {
             }
         }
     }
+    #[cfg(feature = "skia")]
+    fn text(&self, pos: Pos, align: Align, text: String, col: &Color, painter: &mut Painter) {
+        painter.text(pos, align, text, col);
+    }
+    #[cfg(feature = "egui")]
+    fn text(&self, pos: Pos, align: Align, text: String, col: &Color) {
+        painter.text(pos, align, text, col, self.font_size);
+    }
     fn write_angle(&self, painter: &mut Painter) {
         if !self.disable_coord {
-            painter.text(
+            self.text(
                 Pos::new(0.0, self.screen.y as f32),
                 Align::LeftBottom,
                 format!(
@@ -407,7 +415,7 @@ impl Graph {
                         .rem_euclid(360.0),
                 ),
                 &self.text_color,
-                self.font_size,
+                painter,
             );
         }
     }
@@ -542,12 +550,12 @@ impl Graph {
                 };
                 for j in s.saturating_sub(1)..=f {
                     let x = self.to_screen(stx + r * j as f64, 0.0).x;
-                    painter.text(
+                    self.text(
                         Pos::new(x, y),
                         Align::LeftTop,
                         format!("{:e}", stx + r * j as f64),
                         &self.text_color,
-                        self.font_size,
+                        painter,
                     );
                 }
                 let x = if stx + r * (s as f64) < 0.0 && stx + r * (f as f64) > 0.0 {
@@ -557,12 +565,12 @@ impl Graph {
                 };
                 for j in sf..=sy.saturating_add(1) {
                     let y = self.to_screen(0.0, sty - r * j as f64).y;
-                    painter.text(
+                    self.text(
                         Pos::new(x, y),
                         Align::LeftTop,
                         format!("{:e}", sty - r * j as f64),
                         &self.text_color,
-                        self.font_size,
+                        painter,
                     );
                 }
             }
@@ -663,12 +671,12 @@ impl Graph {
                 };
                 for j in s.saturating_sub(1)..=f {
                     let x = self.to_screen(j as f64, 0.0).x;
-                    painter.text(
+                    self.text(
                         Pos::new(x, y),
                         Align::LeftTop,
                         j.to_string(),
                         &self.text_color,
-                        self.font_size,
+                        painter,
                     );
                 }
                 let x = if (s..=f).contains(&0) {
@@ -678,12 +686,12 @@ impl Graph {
                 };
                 for j in sf..=sy.saturating_add(1) {
                     let y = self.to_screen(0.0, j as f64).y;
-                    painter.text(
+                    self.text(
                         Pos::new(x, y),
                         Align::LeftTop,
                         j.to_string(),
                         &self.text_color,
-                        self.font_size,
+                        painter,
                     );
                 }
             }
@@ -922,7 +930,7 @@ impl Graph {
                         unreachable!()
                     };
                     let n = ((st + (e - st) / 2) as f64 - o).to_string();
-                    painter.text(
+                    self.text(
                         p / 2.0,
                         align,
                         if s == "z" {
@@ -931,15 +939,15 @@ impl Graph {
                             s.to_string()
                         },
                         &self.text_color,
-                        self.font_size,
+                        painter,
                     );
                     for i in st..=e {
-                        painter.text(
+                        self.text(
                             start + (end - start) * ((i - st) as f32 / (e - st) as f32),
                             align,
                             (i as f64 - o).to_string(),
                             &self.text_color,
-                            self.font_size,
+                            painter,
                         );
                     }
                 }
