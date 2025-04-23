@@ -14,7 +14,6 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO scale axis
 //TODO tiny skia backend
 //TODO vulkan renderer
-//TODO font options
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
         #[cfg(feature = "skia")]
@@ -30,6 +29,8 @@ impl Graph {
             cache: None,
             #[cfg(feature = "skia")]
             font,
+            #[cfg(feature = "skia")]
+            font_size: 16.0,
             #[cfg(feature = "skia-png")]
             image_format: ui::ImageFormat::Png,
             bound: Vec2::new(start, end),
@@ -95,6 +96,13 @@ impl Graph {
             sin_theta: 0.0,
             keybinds: Keybinds::default(),
         }
+    }
+    #[cfg(feature = "skia")]
+    pub fn set_font(&mut self, bytes: &[u8]) {
+        let typeface = skia_safe::FontMgr::default()
+            .new_from_data(bytes, None)
+            .unwrap();
+        self.font = skia_safe::Font::new(typeface, self.font_size);
     }
     pub fn set_data(&mut self, data: Vec<GraphType>) {
         self.data = data;
@@ -358,6 +366,7 @@ impl Graph {
                         Align::LeftBottom,
                         s,
                         &self.text_color,
+                        self.font_size,
                     );
                 }
                 if let Some(ps) = self.ruler_pos {
@@ -374,6 +383,7 @@ impl Graph {
                             dy.atan2(dx) * 360.0 / TAU
                         ),
                         &self.text_color,
+                        self.font_size,
                     );
                     painter.line_segment(
                         [pos.to_pos(), self.to_screen(ps.x, ps.y)],
@@ -397,6 +407,7 @@ impl Graph {
                         .rem_euclid(360.0),
                 ),
                 &self.text_color,
+                self.font_size,
             );
         }
     }
@@ -536,6 +547,7 @@ impl Graph {
                         Align::LeftTop,
                         format!("{:e}", stx + r * j as f64),
                         &self.text_color,
+                        self.font_size,
                     );
                 }
                 let x = if stx + r * (s as f64) < 0.0 && stx + r * (f as f64) > 0.0 {
@@ -550,6 +562,7 @@ impl Graph {
                         Align::LeftTop,
                         format!("{:e}", sty - r * j as f64),
                         &self.text_color,
+                        self.font_size,
                     );
                 }
             }
@@ -655,6 +668,7 @@ impl Graph {
                         Align::LeftTop,
                         j.to_string(),
                         &self.text_color,
+                        self.font_size,
                     );
                 }
                 let x = if (s..=f).contains(&0) {
@@ -669,6 +683,7 @@ impl Graph {
                         Align::LeftTop,
                         j.to_string(),
                         &self.text_color,
+                        self.font_size,
                     );
                 }
             }
@@ -916,6 +931,7 @@ impl Graph {
                             s.to_string()
                         },
                         &self.text_color,
+                        self.font_size,
                     );
                     for i in st..=e {
                         painter.text(
@@ -923,6 +939,7 @@ impl Graph {
                             align,
                             (i as f64 - o).to_string(),
                             &self.text_color,
+                            self.font_size,
                         );
                     }
                 }

@@ -56,12 +56,12 @@ impl<'a> Painter<'a> {
             egui::Stroke::new(p2, p3.to_col()),
         );
     }
-    pub(crate) fn text(&self, p0: Pos, p1: Align, p2: String, p4: &Color) {
+    pub(crate) fn text(&self, p0: Pos, p1: Align, p2: String, p4: &Color, font_size: f32) {
         self.painter.text(
             p0.to_pos2(),
             p1.into(),
             p2,
-            egui::FontId::monospace(16.0),
+            egui::FontId::monospace(font_size),
             p4.to_col(),
         );
     }
@@ -214,7 +214,8 @@ impl Painter {
             );
         }
     }
-    pub(crate) fn text(&mut self, p0: Pos, p1: Align, p2: String, p4: &Color) {
+    pub(crate) fn text(&mut self, p0: Pos, p1: Align, p2: String, p4: &Color, _: f32) {
+        //TODO should fix
         let mut pos = p0.to_pos2();
         pos.x += 2.0;
         pos.y -= 2.0;
