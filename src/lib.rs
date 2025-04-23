@@ -1541,9 +1541,15 @@ impl Graph {
                 skia_safe::AlphaType::Opaque,
                 None,
             );
-            *cache =
-                skia_safe::images::raster_from_data(&info, skia_safe::Data::new_copy(data), lenx)
-                    .map(Image);
+            *cache = Some(
+                skia_safe::images::raster_from_data(
+                    &info,
+                    skia_safe::Data::new_copy(data),
+                    4 * lenx,
+                )
+                .map(Image)
+                .unwrap(),
+            );
         };
         self.plot_inner(painter, draw_point, tex)
     }
@@ -1902,6 +1908,8 @@ impl Graph {
                             let mut rgb = Vec::new();
                             for z in data {
                                 rgb.extend(self.get_color(z));
+                                #[cfg(feature = "skia")]
+                                rgb.push(0)
                             }
                             tex(&mut self.cache, self.anti_alias, lenx, leny, &rgb);
                             self.cache.as_ref().unwrap()

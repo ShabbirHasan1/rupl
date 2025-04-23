@@ -411,10 +411,6 @@ impl Vec2 {
             y: self.y as f32,
         }
     }
-    #[cfg(feature = "skia")]
-    pub(crate) fn to_pos2(self) -> skia_safe::Point {
-        skia_safe::Point::new(self.x as f32, self.y as f32)
-    }
 }
 impl Sub for Vec2 {
     type Output = Vec2;

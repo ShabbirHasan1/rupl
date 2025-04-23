@@ -174,7 +174,12 @@ impl Painter {
         );
     }
     pub(crate) fn image(&mut self, p0: &Image, pos: Vec2) {
-        self.canvas.canvas().draw_image(p0, pos.to_pos2(), None);
+        self.canvas.canvas().draw_image_rect(
+            p0,
+            None,
+            skia_safe::Rect::new(0.0, 0.0, pos.x as f32, pos.y as f32),
+            &skia_safe::Paint::default(),
+        );
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         if p2 != 1.0 {
