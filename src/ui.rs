@@ -6,17 +6,19 @@ pub(crate) struct Painter<'a> {
 }
 #[cfg(feature = "egui")]
 impl<'a> Painter<'a> {
-    pub(crate) fn new(ui: &'a egui::Ui, fast: bool) -> Self {
+    pub(crate) fn new(ui: &'a egui::Ui, fast: bool, size: usize) -> Self {
         Self {
             painter: ui.painter(),
             line: if fast {
                 Line::Fast(FastLine {
                     line: Default::default(),
+                    size,
                 })
             } else {
                 Line::Slow(SlowLine {
-                    line: Default::default(),
+                    line: Vec::with_capacity(size),
                     color: Color::new(0, 0, 0),
+                    size,
                 })
             },
         }
@@ -82,6 +84,7 @@ impl Painter {
         background: Color,
         font: skia_safe::Font,
         fast: bool,
+        size: usize,
     ) -> Self {
         let mut canvas =
             skia_safe::surfaces::raster_n32_premul((width as i32, height as i32)).unwrap();
@@ -102,10 +105,11 @@ impl Painter {
             points: if fast {
                 Point::Fast(FastPoint {
                     points: Default::default(),
+                    size,
                 })
             } else {
                 Point::Slow(SlowPoint {
-                    points: Default::default(),
+                    points: Vec::with_capacity(size),
                     color: Color::new(0, 0, 0),
                 })
             },
@@ -296,12 +300,16 @@ struct FastLine {
     line: std::collections::HashMap<Color, skia_safe::Path>,
     #[cfg(feature = "egui")]
     line: std::collections::HashMap<Color, Vec<egui::Pos2>>,
+    #[cfg(feature = "egui")]
+    size: usize,
 }
 struct SlowLine {
     #[cfg(feature = "skia")]
     line: skia_safe::Path,
     #[cfg(feature = "egui")]
     line: Vec<egui::Pos2>,
+    #[cfg(feature = "egui")]
+    size: usize,
     color: Color,
     #[cfg(feature = "skia")]
     last: Option<Pos>,
@@ -372,8 +380,12 @@ impl Line {
 impl Line {
     fn line(&mut self, p0: [Pos; 2], p2: &Color, painter: &egui::Painter) {
         match self {
-            Line::Fast(FastLine { line }) => {
-                let line = line.entry(*p2).or_insert(vec![p0[0].to_pos2()]);
+            Line::Fast(FastLine { line, size }) => {
+                let line = line.entry(*p2).or_insert_with(|| {
+                    let mut vec = Vec::with_capacity(*size);
+                    vec.push(p0[0].to_pos2());
+                    vec
+                });
                 let last = line.last().unwrap();
                 let last = Pos::new(last.x, last.y);
                 if last.close(p0[0]) {
@@ -381,12 +393,16 @@ impl Line {
                         line.push(p0[1].to_pos2());
                     }
                 } else {
-                    painter.line(std::mem::take(line), egui::Stroke::new(1.0, p2.to_col()));
+                    painter.line(
+                        std::mem::replace(line, Vec::with_capacity(*size)),
+                        egui::Stroke::new(1.0, p2.to_col()),
+                    );
+                    line.clear();
                     line.push(p0[0].to_pos2());
                     line.push(p0[1].to_pos2());
                 }
             }
-            Line::Slow(SlowLine { line, color }) => {
+            Line::Slow(SlowLine { line, color, size }) => {
                 let last = line.last().map(|l| Pos::new(l.x, l.y));
                 if p2 == color && last.map(|l| l.close(p0[0])).unwrap_or(false) {
                     if !last.unwrap().close(p0[1]) {
@@ -394,7 +410,10 @@ impl Line {
                     }
                 } else {
                     if !line.is_empty() {
-                        painter.line(std::mem::take(line), egui::Stroke::new(1.0, color.to_col()));
+                        painter.line(
+                            std::mem::replace(line, Vec::with_capacity(*size)),
+                            egui::Stroke::new(1.0, color.to_col()),
+                        );
                     }
                     line.push(p0[0].to_pos2());
                     line.push(p0[1].to_pos2());
@@ -405,12 +424,12 @@ impl Line {
     }
     fn draw(&mut self, painter: &egui::Painter) {
         match self {
-            Line::Fast(FastLine { line }) => {
+            Line::Fast(FastLine { line, .. }) => {
                 for (color, line) in line {
                     painter.line(std::mem::take(line), egui::Stroke::new(1.0, color.to_col()));
                 }
             }
-            Line::Slow(SlowLine { line, color }) => {
+            Line::Slow(SlowLine { line, color, .. }) => {
                 painter.line(std::mem::take(line), egui::Stroke::new(1.0, color.to_col()));
             }
         }
@@ -419,10 +438,11 @@ impl Line {
 #[cfg(feature = "skia")]
 struct FastPoint {
     points: std::collections::HashMap<Color, Vec<skia_safe::Point>>,
+    size: usize,
 }
 #[cfg(feature = "skia")]
 struct SlowPoint {
-    points: Vec<skia_safe::Point>, //TODO with_capacity, disable fast lines in 2d
+    points: Vec<skia_safe::Point>,
     color: Color,
 }
 #[cfg(feature = "skia")]
@@ -434,8 +454,11 @@ enum Point {
 impl Point {
     fn point(&mut self, p0: Pos, p2: &Color, canvas: Option<&skia_safe::Canvas>) {
         match self {
-            Point::Fast(FastPoint { points }) => {
-                points.entry(*p2).or_default().push(p0.to_pos2());
+            Point::Fast(FastPoint { points, size }) => {
+                points
+                    .entry(*p2)
+                    .or_insert(Vec::with_capacity(*size))
+                    .push(p0.to_pos2());
             }
             Point::Slow(SlowPoint { points, color }) => {
                 if p2 != color || points.is_empty() {
@@ -461,7 +484,7 @@ impl Point {
     }
     fn draw(&self, canvas: &skia_safe::Canvas) {
         match self {
-            Point::Fast(FastPoint { points }) => {
+            Point::Fast(FastPoint { points, .. }) => {
                 for (color, points) in points {
                     canvas.draw_points(
                         skia_safe::canvas::PointMode::Points,

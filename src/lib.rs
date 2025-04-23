@@ -14,6 +14,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO scale axis
 //TODO tiny skia backend
 //TODO vulkan renderer
+//TODO disable fast 3d in 2d
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
         #[cfg(feature = "skia")]
@@ -29,7 +30,6 @@ impl Graph {
             cache: None,
             #[cfg(feature = "skia")]
             font,
-            #[cfg(feature = "skia")]
             font_size: 16.0,
             #[cfg(feature = "skia-png")]
             image_format: ui::ImageFormat::Png,
@@ -233,9 +233,21 @@ impl Graph {
             UpdateResult::None
         }
     }
+    fn max(&self) -> usize {
+        self.data
+            .iter()
+            .map(|a| match a {
+                GraphType::Coord(d) => d.len(),
+                GraphType::Coord3D(d) => d.len(),
+                GraphType::Width(d, _, _) => d.len(),
+                GraphType::Width3D(d, _, _, _, _) => d.len(),
+            })
+            .max()
+            .unwrap_or(0)
+    }
     #[cfg(feature = "egui")]
     pub fn update(&mut self, ctx: &egui::Context, ui: &egui::Ui) {
-        let mut painter = Painter::new(ui, self.fast_3d);
+        let mut painter = Painter::new(ui, self.fast_3d, self.max());
         let rect = ctx.available_rect();
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter, ui);
         self.update_inner(
@@ -258,6 +270,7 @@ impl Graph {
             self.background_color,
             self.font.clone(),
             self.fast_3d,
+            self.max(),
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, width as f64, height as f64, plot);
@@ -399,7 +412,7 @@ impl Graph {
         painter.text(pos, align, text, col);
     }
     #[cfg(feature = "egui")]
-    fn text(&self, pos: Pos, align: Align, text: String, col: &Color) {
+    fn text(&self, pos: Pos, align: Align, text: String, col: &Color, painter: &mut Painter) {
         painter.text(pos, align, text, col, self.font_size);
     }
     fn write_angle(&self, painter: &mut Painter) {
