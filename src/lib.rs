@@ -13,6 +13,8 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO labels
 //TODO scale axis
 //TODO tiny skia backend
+//TODO vulkan renderer
+//TODO font options
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
         #[cfg(feature = "skia")]
@@ -28,6 +30,8 @@ impl Graph {
             cache: None,
             #[cfg(feature = "skia")]
             font,
+            #[cfg(feature = "skia-png")]
+            image_format: ui::ImageFormat::Png,
             bound: Vec2::new(start, end),
             offset3d: Vec3::splat(0.0),
             offset: Vec2::splat(0.0),
@@ -235,6 +239,7 @@ impl Graph {
         painter.save();
     }
     #[cfg(feature = "skia")]
+    #[cfg(not(feature = "skia-png"))]
     pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
@@ -249,6 +254,19 @@ impl Graph {
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, width as f64, height as f64, plot);
         painter.save(buffer);
+    }
+    #[cfg(feature = "skia-png")]
+    pub fn update(&mut self, width: u32, height: u32) -> ui::Data {
+        let mut painter = Painter::new(
+            width,
+            height,
+            self.background_color,
+            self.font.clone(),
+            self.fast_3d,
+        );
+        let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
+        self.update_inner(&mut painter, width as f64, height as f64, plot);
+        painter.save(&self.image_format)
     }
     fn update_inner<F>(&mut self, painter: &mut Painter, width: f64, height: f64, plot: F)
     where

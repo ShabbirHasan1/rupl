@@ -69,6 +69,8 @@ pub struct Graph {
     pub cache: Option<Image>,
     #[cfg(feature = "skia")]
     pub font: skia_safe::Font,
+    #[cfg(feature = "skia-png")]
+    pub image_format: crate::ui::ImageFormat,
     pub fast_3d: bool,
     pub bound: Vec2,
     pub is_complex: bool,

@@ -138,6 +138,7 @@ impl Painter {
     fn draw_pts(&mut self) {
         self.points.draw(self.canvas.canvas());
     }
+    #[cfg(not(feature = "skia-png"))]
     pub(crate) fn save<T>(&mut self, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
@@ -147,6 +148,18 @@ impl Painter {
         if let Some(pm) = self.canvas.peek_pixels() {
             let px = pm.pixels::<u32>().unwrap();
             buffer.copy_from_slice(px);
+        }
+    }
+    #[cfg(feature = "skia-png")]
+    pub(crate) fn save(&mut self, format: &ImageFormat) -> Data {
+        self.draw();
+        self.draw_pts();
+        Data {
+            data: self
+                .canvas
+                .image_snapshot()
+                .encode(None, format.into(), None)
+                .unwrap(),
         }
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
@@ -212,6 +225,54 @@ impl Painter {
             &make_paint(1.0, p4, false, false),
             p1.into(),
         );
+    }
+}
+#[cfg(feature = "skia-png")]
+pub struct Data {
+    data: skia_safe::Data,
+}
+#[cfg(feature = "skia-png")]
+impl Data {
+    pub fn as_bytes(&self) -> &[u8] {
+        self.data.as_bytes()
+    }
+}
+#[cfg(feature = "skia-png")]
+pub enum ImageFormat {
+    Bmp,
+    Gif,
+    Ico,
+    Jpeg,
+    Png,
+    Wbmp,
+    Webp,
+    Pkm,
+    Ktx,
+    Astc,
+    Dng,
+    Heif,
+    Avif,
+    Jpegxl,
+}
+#[cfg(feature = "skia-png")]
+impl From<&ImageFormat> for skia_safe::EncodedImageFormat {
+    fn from(value: &ImageFormat) -> Self {
+        match value {
+            ImageFormat::Bmp => skia_safe::EncodedImageFormat::BMP,
+            ImageFormat::Gif => skia_safe::EncodedImageFormat::GIF,
+            ImageFormat::Ico => skia_safe::EncodedImageFormat::ICO,
+            ImageFormat::Jpeg => skia_safe::EncodedImageFormat::JPEG,
+            ImageFormat::Png => skia_safe::EncodedImageFormat::PNG,
+            ImageFormat::Wbmp => skia_safe::EncodedImageFormat::WBMP,
+            ImageFormat::Webp => skia_safe::EncodedImageFormat::WEBP,
+            ImageFormat::Pkm => skia_safe::EncodedImageFormat::PKM,
+            ImageFormat::Ktx => skia_safe::EncodedImageFormat::KTX,
+            ImageFormat::Astc => skia_safe::EncodedImageFormat::ASTC,
+            ImageFormat::Dng => skia_safe::EncodedImageFormat::DNG,
+            ImageFormat::Heif => skia_safe::EncodedImageFormat::HEIF,
+            ImageFormat::Avif => skia_safe::EncodedImageFormat::AVIF,
+            ImageFormat::Jpegxl => skia_safe::EncodedImageFormat::JPEGXL,
+        }
     }
 }
 #[cfg(feature = "skia")]

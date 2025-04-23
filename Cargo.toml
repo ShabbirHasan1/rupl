@@ -10,6 +10,7 @@ authors = ["bgkillas <mswalhelm@gmail.com>"]
 default = ["skia"]
 egui = ["dep:egui"]
 skia = ["dep:skia-safe"]
+skia-png = []
 winit = ["dep:winit"]
 
 [dependencies]
