@@ -16,6 +16,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO vulkan renderer
 //TODO only refresh when needed
 //TODO only recalculate when needed
+//TODO fast3d multithread
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
         #[cfg(feature = "skia")]
@@ -130,14 +131,17 @@ impl Graph {
     fn fast_3d(&self) -> bool {
         self.is_3d && (self.fast_3d || (self.fast_3d_move && self.mouse_held))
     }
+    fn prec(&self) -> f64 {
+        if self.mouse_held && !self.is_3d && self.reduced_move {
+            (self.prec + 1.0).log10()
+        } else {
+            self.prec
+        }
+    }
     pub fn update_res(&mut self) -> UpdateResult {
         if self.recalculate {
-            let prec = if self.mouse_held && !self.is_3d && self.reduced_move {
-                (self.prec + 1.0).log10()
-            } else {
-                self.prec
-            };
             self.recalculate = false;
+            let prec = self.prec();
             if is_3d(&self.data) {
                 match self.graph_mode {
                     GraphMode::Normal => UpdateResult::Width3D(
@@ -1532,18 +1536,18 @@ impl Graph {
              color: &Color,
              last: Option<Pos>|
              -> Option<Pos> { main.draw_point(painter, ui, x, y, color, last) };
-        let tex =
-            |cache: &mut Option<Image>, anti_alias: bool, lenx: usize, leny: usize, data: &[u8]| {
-                *cache = Some(Image(ui.ctx().load_texture(
-                    "dc",
-                    egui::ColorImage::from_rgb([lenx, leny], data),
-                    if anti_alias {
-                        egui::TextureOptions::LINEAR
-                    } else {
-                        egui::TextureOptions::NEAREST
-                    },
-                )));
-            };
+        let anti_alias = self.anti_alias;
+        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: &[u8]| {
+            *cache = Some(Image(ui.ctx().load_texture(
+                "dc",
+                egui::ColorImage::from_rgb([lenx, leny], data),
+                if anti_alias {
+                    egui::TextureOptions::LINEAR
+                } else {
+                    egui::TextureOptions::NEAREST
+                },
+            )));
+        };
         self.plot_inner(painter, draw_point, tex)
     }
     #[cfg(feature = "skia")]
@@ -1555,26 +1559,19 @@ impl Graph {
                           color: &Color,
                           last: Option<Pos>|
          -> Option<Pos> { main.draw_point(painter, x, y, color, last) };
-        let tex = |cache: &mut Option<Image>,
-                   _anti_alias: bool,
-                   lenx: usize,
-                   leny: usize,
-                   data: &[u8]| {
+        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: &[u8]| {
             let info = skia_safe::ImageInfo::new(
                 (lenx as i32, leny as i32),
                 skia_safe::ColorType::RGB888x,
                 skia_safe::AlphaType::Opaque,
                 None,
             );
-            *cache = Some(
-                skia_safe::images::raster_from_data(
-                    &info,
-                    skia_safe::Data::new_copy(data),
-                    4 * lenx,
-                )
-                .map(Image)
-                .unwrap(),
-            );
+            *cache = skia_safe::images::raster_from_data(
+                &info,
+                skia_safe::Data::new_copy(data),
+                4 * lenx,
+            )
+            .map(Image);
         };
         self.plot_inner(painter, draw_point, tex)
     }
@@ -1586,7 +1583,7 @@ impl Graph {
     ) -> Option<Vec<(f32, Draw, Color)>>
     where
         F: Fn(&Graph, &mut Painter, f64, f64, &Color, Option<Pos>) -> Option<Pos>,
-        G: Fn(&mut Option<Image>, bool, usize, usize, &[u8]),
+        G: Fn(&mut Option<Image>, usize, usize, &[u8]),
     {
         let mut buffer: Option<Vec<(f32, Draw, Color)>> = (!self.fast_3d()).then(|| {
             let n = self
@@ -1925,21 +1922,20 @@ impl Graph {
                         }
                     }
                     GraphMode::DomainColoring => {
-                        let lenx = (self.screen.x * self.prec * self.mult) as usize + 1;
-                        let leny = (self.screen.y * self.prec * self.mult) as usize + 1;
-                        let texture = if let Some(tex) = &self.cache {
-                            tex
-                        } else {
+                        let lenx = (self.screen.x * self.prec() * self.mult) as usize + 1;
+                        let leny = (self.screen.y * self.prec() * self.mult) as usize + 1;
+                        if self.cache.is_none() {
                             let mut rgb = Vec::new();
                             for z in data {
                                 rgb.extend(self.get_color(z));
                                 #[cfg(feature = "skia")]
                                 rgb.push(0)
                             }
-                            tex(&mut self.cache, self.anti_alias, lenx, leny, &rgb);
-                            self.cache.as_ref().unwrap()
-                        };
-                        painter.image(texture, self.screen);
+                            tex(&mut self.cache, lenx, leny, &rgb);
+                        }
+                        if let Some(texture) = &self.cache {
+                            painter.image(texture, self.screen);
+                        }
                     }
                 },
                 GraphType::Coord3D(data) => match self.graph_mode {
