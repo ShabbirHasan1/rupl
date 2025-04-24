@@ -128,6 +128,11 @@ impl Graph {
     }
     pub fn update_res(&mut self) -> UpdateResult {
         if self.recalculate {
+            let prec = if self.mouse_held && !self.is_3d {
+                (self.prec + 1.0).log10()
+            } else {
+                self.prec
+            };
             self.recalculate = false;
             if is_3d(&self.data) {
                 match self.graph_mode {
@@ -147,8 +152,8 @@ impl Graph {
                             cf.0,
                             cf.1,
                             Prec::Dimension(
-                                (self.screen.x * self.prec) as usize,
-                                (self.screen.y * self.prec) as usize,
+                                (self.screen.x * prec) as usize,
+                                (self.screen.y * prec) as usize,
                             ),
                         )
                     }
@@ -161,7 +166,7 @@ impl Graph {
                                 self.bound.x,
                                 cf.0,
                                 self.bound.y,
-                                Prec::Slice(self.prec, self.view_x, self.slice),
+                                Prec::Slice(prec, self.view_x, self.slice),
                             )
                         } else {
                             UpdateResult::Width3D(
@@ -169,7 +174,7 @@ impl Graph {
                                 c.0,
                                 self.bound.y,
                                 cf.0,
-                                Prec::Slice(self.prec, self.view_x, self.slice),
+                                Prec::Slice(prec, self.view_x, self.slice),
                             )
                         }
                     }
@@ -222,11 +227,11 @@ impl Graph {
                 )
             } else if !self.is_3d {
                 if self.graph_mode == GraphMode::Flatten {
-                    UpdateResult::Width(self.var.x, self.var.y, Prec::Mult(self.prec))
+                    UpdateResult::Width(self.var.x, self.var.y, Prec::Mult(prec))
                 } else {
                     let c = self.to_coord(Pos::new(0.0, 0.0));
                     let cf = self.to_coord(self.screen.to_pos());
-                    UpdateResult::Width(c.0, cf.0, Prec::Mult(self.prec))
+                    UpdateResult::Width(c.0, cf.0, Prec::Mult(prec))
                 }
             } else {
                 UpdateResult::None
@@ -1059,32 +1064,27 @@ impl Graph {
                     self.offset.x += multi.translation_delta.x / self.zoom;
                     self.offset.y += multi.translation_delta.y / self.zoom;
                     self.recalculate = true;
-                    if !self.mouse_held {
-                        self.mouse_held = true;
-                        self.prec = (self.prec + 1.0).log10();
-                    }
+                    self.mouse_held = true;
                 }
             }
-            _ if i.pointer_down && !i.pointer_just_down => {
-                if let (Some(interact), Some(last)) = (i.pointer_pos, self.last_interact) {
-                    let delta = interact - last;
-                    if self.is_3d {
-                        self.angle.x = (self.angle.x - delta.x / 512.0).rem_euclid(TAU);
-                        self.angle.y = (self.angle.y + delta.y / 512.0).rem_euclid(TAU);
-                    } else {
-                        self.offset.x += delta.x / self.zoom;
-                        self.offset.y += delta.y / self.zoom;
-                        self.recalculate = true;
-                        if !self.mouse_held {
+            _ if i.pointer_down => {
+                if !i.pointer_just_down {
+                    if let (Some(interact), Some(last)) = (i.pointer_pos, self.last_interact) {
+                        let delta = interact - last;
+                        if self.is_3d {
+                            self.angle.x = (self.angle.x - delta.x / 512.0).rem_euclid(TAU);
+                            self.angle.y = (self.angle.y + delta.y / 512.0).rem_euclid(TAU);
+                        } else {
+                            self.offset.x += delta.x / self.zoom;
+                            self.offset.y += delta.y / self.zoom;
+                            self.recalculate = true;
                             self.mouse_held = true;
-                            self.prec = (self.prec + 1.0).log10();
                         }
                     }
                 }
             }
             _ if self.mouse_held => {
                 self.mouse_held = false;
-                self.prec = 10.0f64.powf(self.prec) - 1.0;
                 self.recalculate = true;
             }
             _ => {}
