@@ -7,7 +7,7 @@ description = "a complex graphing library"
 authors = ["bgkillas <mswalhelm@gmail.com>"]
 
 [features]
-default = ["skia"]
+default = ["skia", "winit"]
 egui = ["dep:egui"]
 skia = ["dep:skia-safe"]
 skia-png = []

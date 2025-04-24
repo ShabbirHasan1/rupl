@@ -255,7 +255,7 @@ impl Painter {
                 Align::CenterBottom | Align::RightBottom | Align::LeftBottom => {
                     pos.y -= height;
                 }
-                _ => {
+                Align::CenterCenter | Align::RightCenter | Align::LeftCenter => {
                     pos.y += height / 2.0;
                 }
             }
