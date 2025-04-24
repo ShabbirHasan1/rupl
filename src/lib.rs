@@ -14,7 +14,6 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO scale axis
 //TODO tiny skia backend
 //TODO vulkan renderer
-//TODO disable fast 3d in 2d
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
         #[cfg(feature = "skia")]
@@ -123,6 +122,9 @@ impl Graph {
             }
         }
         self.graph_mode = mode;
+    }
+    fn fast_3d(&self) -> bool {
+        self.fast_3d && self.is_3d
     }
     pub fn update_res(&mut self) -> UpdateResult {
         if self.recalculate {
@@ -247,7 +249,7 @@ impl Graph {
     }
     #[cfg(feature = "egui")]
     pub fn update(&mut self, ctx: &egui::Context, ui: &egui::Ui) {
-        let mut painter = Painter::new(ui, self.fast_3d, self.max());
+        let mut painter = Painter::new(ui, self.fast_3d(), self.max());
         let rect = ctx.available_rect();
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter, ui);
         self.update_inner(
@@ -269,7 +271,7 @@ impl Graph {
             height,
             self.background_color,
             self.font.clone(),
-            self.fast_3d,
+            self.fast_3d(),
             self.max(),
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
@@ -283,7 +285,7 @@ impl Graph {
             height,
             self.background_color,
             self.font.clone(),
-            self.fast_3d,
+            self.fast_3d(),
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, width as f64, height as f64, plot);
@@ -719,7 +721,7 @@ impl Graph {
         let y = (z2 * s + self.screen.y / 2.0) as f32;
         (
             Pos::new(x, y),
-            (!self.fast_3d).then(|| {
+            (!self.fast_3d()).then(|| {
                 ((p.z * self.sin_theta - y1 * self.cos_theta)
                     / ((self.bound.y - self.bound.x) * 3.0f64.sqrt())
                     + 0.5) as f32
@@ -757,7 +759,7 @@ impl Graph {
         if !matches!(self.lines, Lines::Lines) && inside {
             point(
                 buffer,
-                self.fast_3d.then_some(painter),
+                self.fast_3d().then_some(painter),
                 pos.1,
                 pos.0,
                 self.shift_hue(pos.1, z, color),
@@ -766,10 +768,10 @@ impl Graph {
         if !matches!(self.lines, Lines::Points) {
             let mut body = |last: ((Pos, Option<f32>), Vec3, bool)| {
                 if inside && last.2 {
-                    let d = (!self.fast_3d).then(|| (pos.1.unwrap() + last.0.1.unwrap()) / 2.0);
+                    let d = (!self.fast_3d()).then(|| (pos.1.unwrap() + last.0.1.unwrap()) / 2.0);
                     line(
                         buffer,
-                        self.fast_3d.then_some(painter),
+                        self.fast_3d().then_some(painter),
                         d,
                         last.0.0,
                         pos.0,
@@ -796,10 +798,10 @@ impl Graph {
                         vi = v + (vi - v) * ((self.bound.y - z) / (zi - z));
                     }
                     let last = self.vec3_to_pos_depth(vi);
-                    let d = (!self.fast_3d).then(|| (pos.1.unwrap() + last.1.unwrap()) / 2.0);
+                    let d = (!self.fast_3d()).then(|| (pos.1.unwrap() + last.1.unwrap()) / 2.0);
                     line(
                         buffer,
-                        self.fast_3d.then_some(painter),
+                        self.fast_3d().then_some(painter),
                         d,
                         last.0,
                         pos.0,
@@ -829,10 +831,10 @@ impl Graph {
                         vi = v + (vi - v) * ((self.bound.y - z) / (zi - z));
                     }
                     let last = self.vec3_to_pos_depth(vi);
-                    let d = (!self.fast_3d).then(|| (pos.1.unwrap() + last.1.unwrap()) / 2.0);
+                    let d = (!self.fast_3d()).then(|| (pos.1.unwrap() + last.1.unwrap()) / 2.0);
                     line(
                         buffer,
-                        self.fast_3d.then_some(painter),
+                        self.fast_3d().then_some(painter),
                         d,
                         last.0,
                         pos.0,
@@ -907,8 +909,8 @@ impl Graph {
             if (s == "z" && [i, j].contains(&&zl)) || (s != "z" && [i, j].contains(&&xl)) {
                 line(
                     buffer,
-                    self.fast_3d.then_some(painter),
-                    (!self.fast_3d).then(|| {
+                    self.fast_3d().then_some(painter),
+                    (!self.fast_3d()).then(|| {
                         if vertices[*i].1.unwrap() < 0.5 || vertices[*j].1.unwrap() < 0.5 {
                             0.0
                         } else {
@@ -967,8 +969,8 @@ impl Graph {
             } else if self.show_box {
                 line(
                     buffer,
-                    self.fast_3d.then_some(painter),
-                    (!self.fast_3d).then(|| {
+                    self.fast_3d().then_some(painter),
+                    (!self.fast_3d()).then(|| {
                         if vertices[*i].1.unwrap() < 0.5 || vertices[*j].1.unwrap() < 0.5 {
                             0.0
                         } else {
@@ -1584,7 +1586,7 @@ impl Graph {
         F: Fn(&Graph, &mut Painter, f64, f64, &Color, Option<Pos>) -> Option<Pos>,
         G: Fn(&mut Option<Image>, bool, usize, usize, &[u8]),
     {
-        let mut buffer: Option<Vec<(f32, Draw, Color)>> = (!self.fast_3d).then(|| {
+        let mut buffer: Option<Vec<(f32, Draw, Color)>> = (!self.fast_3d()).then(|| {
             let n = self
                 .data
                 .iter()
