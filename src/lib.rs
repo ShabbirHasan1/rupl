@@ -21,7 +21,7 @@ impl Graph {
             .new_from_data(include_bytes!("../terminus.otb"), None)
             .unwrap();
         #[cfg(feature = "skia")]
-        let font = skia_safe::Font::new(typeface, 16.0);
+        let font = skia_safe::Font::new(typeface, 18.0);
         Self {
             is_3d: is_3d(&data),
             fast_3d: false,
@@ -29,7 +29,7 @@ impl Graph {
             cache: None,
             #[cfg(feature = "skia")]
             font,
-            font_size: 16.0,
+            font_size: 18.0,
             #[cfg(feature = "skia-png")]
             image_format: ui::ImageFormat::Png,
             bound: Vec2::new(start, end),
