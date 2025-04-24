@@ -14,6 +14,8 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO scale axis
 //TODO tiny skia backend
 //TODO vulkan renderer
+//TODO only refresh when needed
+//TODO only recalculate when needed
 impl Graph {
     pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
         #[cfg(feature = "skia")]
@@ -32,6 +34,8 @@ impl Graph {
             font_size: 18.0,
             #[cfg(feature = "skia-png")]
             image_format: ui::ImageFormat::Png,
+            fast_3d_move: false,
+            reduced_move: true,
             bound: Vec2::new(start, end),
             offset3d: Vec3::splat(0.0),
             offset: Vec2::splat(0.0),
@@ -124,11 +128,11 @@ impl Graph {
         self.graph_mode = mode;
     }
     fn fast_3d(&self) -> bool {
-        self.fast_3d && self.is_3d
+        self.is_3d && (self.fast_3d || (self.fast_3d_move && self.mouse_held))
     }
     pub fn update_res(&mut self) -> UpdateResult {
         if self.recalculate {
-            let prec = if self.mouse_held && !self.is_3d {
+            let prec = if self.mouse_held && !self.is_3d && self.reduced_move {
                 (self.prec + 1.0).log10()
             } else {
                 self.prec
@@ -307,8 +311,8 @@ impl Graph {
             self.screen.x
         } / (self.bound.y - self.bound.x);
         let t = Vec2::new(
-            self.screen.x / 2.0 - (self.delta * (self.bound.x + self.bound.y) / 2.0),
-            self.screen.y / 2.0,
+            self.screen.x * 0.5 - (self.delta * (self.bound.x + self.bound.y) * 0.5),
+            self.screen.y * 0.5,
         );
         if t != self.screen_offset {
             if self.graph_mode == GraphMode::DomainColoring {
@@ -524,7 +528,7 @@ impl Graph {
         if self.scale_axis {
             let c = self.to_coord(Pos::new(0.0, 0.0));
             let cf = self.to_coord(self.screen.to_pos());
-            let r = self.zoom.recip() / 2.0;
+            let r = self.zoom.recip() * 0.5;
             let stx = (c.0 / r).round() * r;
             let sty = (c.1 / r).round() * r;
             let enx = (cf.0 / r).round() * r;
@@ -722,8 +726,8 @@ impl Graph {
         let y1 = -p.x * self.sin_phi + p.y * self.cos_phi;
         let z2 = -p.z * self.cos_theta - y1 * self.sin_theta;
         let s = self.delta / self.box_size;
-        let x = (x1 * s + self.screen.x / 2.0) as f32;
-        let y = (z2 * s + self.screen.y / 2.0) as f32;
+        let x = (x1 * s + self.screen.x * 0.5) as f32;
+        let y = (z2 * s + self.screen.y * 0.5) as f32;
         (
             Pos::new(x, y),
             (!self.fast_3d()).then(|| {
@@ -773,7 +777,7 @@ impl Graph {
         if !matches!(self.lines, Lines::Points) {
             let mut body = |last: ((Pos, Option<f32>), Vec3, bool)| {
                 if inside && last.2 {
-                    let d = (!self.fast_3d()).then(|| (pos.1.unwrap() + last.0.1.unwrap()) / 2.0);
+                    let d = (!self.fast_3d()).then(|| (pos.1.unwrap() + last.0.1.unwrap()) * 0.5);
                     line(
                         buffer,
                         self.fast_3d().then_some(painter),
@@ -803,7 +807,7 @@ impl Graph {
                         vi = v + (vi - v) * ((self.bound.y - z) / (zi - z));
                     }
                     let last = self.vec3_to_pos_depth(vi);
-                    let d = (!self.fast_3d()).then(|| (pos.1.unwrap() + last.1.unwrap()) / 2.0);
+                    let d = (!self.fast_3d()).then(|| (pos.1.unwrap() + last.1.unwrap()) * 0.5);
                     line(
                         buffer,
                         self.fast_3d().then_some(painter),
@@ -836,7 +840,7 @@ impl Graph {
                         vi = v + (vi - v) * ((self.bound.y - z) / (zi - z));
                     }
                     let last = self.vec3_to_pos_depth(vi);
-                    let d = (!self.fast_3d()).then(|| (pos.1.unwrap() + last.1.unwrap()) / 2.0);
+                    let d = (!self.fast_3d()).then(|| (pos.1.unwrap() + last.1.unwrap()) * 0.5);
                     line(
                         buffer,
                         self.fast_3d().then_some(painter),
@@ -863,7 +867,7 @@ impl Graph {
         painter: &mut Painter,
         buffer: &mut Option<Vec<(f32, Draw, Color)>>,
     ) {
-        let s = (self.bound.y - self.bound.x) / 2.0;
+        let s = (self.bound.y - self.bound.x) * 0.5;
         let vertices = [
             self.vec3_to_pos_depth(Vec3::new(-s, -s, -s)),
             self.vec3_to_pos_depth(Vec3::new(-s, -s, s)),
@@ -949,7 +953,7 @@ impl Graph {
                     };
                     let n = ((st + (e - st) / 2) as f64 - o).to_string();
                     self.text(
-                        p / 2.0,
+                        p * 0.5,
                         align,
                         if s == "z" {
                             format!("z{}", " ".repeat(n.len()))
@@ -1353,7 +1357,7 @@ impl Graph {
         }
         if self.graph_mode == GraphMode::Flatten || self.graph_mode == GraphMode::SliceFlatten {
             let s = if shift {
-                (self.var.y - self.var.x) / 2.0
+                (self.var.y - self.var.x) * 0.5
             } else {
                 (self.var.y - self.var.x) / 4.0
             };
@@ -1369,11 +1373,11 @@ impl Graph {
             }
             if i.key_pressed(Key::M) {
                 if shift {
-                    self.var.x = (self.var.x + self.var.y) / 2.0 - (self.var.y - self.var.x) / 4.0;
-                    self.var.y = (self.var.x + self.var.y) / 2.0 + (self.var.y - self.var.x) / 4.0;
+                    self.var.x = (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x) / 4.0;
+                    self.var.y = (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x) / 4.0;
                 } else {
-                    self.var.x = (self.var.x + self.var.y) / 2.0 - (self.var.y - self.var.x);
-                    self.var.y = (self.var.x + self.var.y) / 2.0 + (self.var.y - self.var.x);
+                    self.var.x = (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x);
+                    self.var.y = (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x);
                 }
                 self.recalculate = true;
             }
@@ -1619,7 +1623,7 @@ impl Graph {
                     GraphMode::Normal => {
                         for (i, y) in data.iter().enumerate() {
                             let x = (i as f64 / (data.len() - 1) as f64 - 0.5) * (end - start)
-                                + (start + end) / 2.0;
+                                + (start + end) * 0.5;
                             let (y, z) = y.to_options();
                             a = if !self.show.real() {
                                 None
@@ -1673,7 +1677,7 @@ impl Graph {
                             let (y, z) = y.to_options();
                             c = if let (Some(x), Some(y)) = (y, z) {
                                 let z = (i as f64 / (data.len() - 1) as f64 - 0.5) * (end - start)
-                                    + (start + end) / 2.0;
+                                    + (start + end) * 0.5;
                                 self.draw_point_3d(
                                     x,
                                     y,
@@ -1776,9 +1780,9 @@ impl Graph {
                         for (i, z) in data.iter().enumerate() {
                             let (i, j) = (i % len, i / len);
                             let x = (i as f64 / (len - 1) as f64 - 0.5) * (end_x - start_x)
-                                + (start_x + end_x) / 2.0;
+                                + (start_x + end_x) * 0.5;
                             let y = (j as f64 / (len - 1) as f64 - 0.5) * (end_y - start_y)
-                                + (start_y + end_y) / 2.0;
+                                + (start_y + end_y) * 0.5;
                             let (z, w) = z.to_options();
                             let p = if !self.show.real() {
                                 None
@@ -1835,7 +1839,7 @@ impl Graph {
                                     start_x + end_x
                                 } else {
                                     start_y + end_y
-                                } / 2.0;
+                                } * 0.5;
                             let (y, z) = y.to_options();
                             a = if !self.show.real() {
                                 None
@@ -1897,10 +1901,10 @@ impl Graph {
                             c = if let (Some(x), Some(y)) = (y, z) {
                                 let z = if self.view_x {
                                     (i as f64 / (len - 1) as f64 - 0.5) * (end_x - start_x)
-                                        + (start_x + end_x) / 2.0
+                                        + (start_x + end_x) * 0.5
                                 } else {
                                     (i as f64 / (len - 1) as f64 - 0.5) * (end_y - start_y)
-                                        + (start_y + end_y) / 2.0
+                                        + (start_y + end_y) * 0.5
                                 };
                                 self.draw_point_3d(
                                     x,
@@ -2018,7 +2022,7 @@ impl Graph {
         } else {
             let t1 = (if self.log_scale { x.abs().log10() } else { x } * PI).sin();
             let t2 = (if self.log_scale { y.abs().log10() } else { y } * PI).sin();
-            let sat = (1.0 + if self.log_scale { abs.log10() } else { abs }.fract()) / 2.0;
+            let sat = (1.0 + if self.log_scale { abs.log10() } else { abs }.fract()) * 0.5;
             let val = (t1 * t2).abs().powf(0.125);
             (sat, val)
         };

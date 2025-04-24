@@ -73,6 +73,8 @@ pub struct Graph {
     #[cfg(feature = "skia-png")]
     pub image_format: crate::ui::ImageFormat,
     pub fast_3d: bool,
+    pub fast_3d_move: bool,
+    pub reduced_move: bool,
     pub bound: Vec2,
     pub is_complex: bool,
     pub offset3d: Vec3,
