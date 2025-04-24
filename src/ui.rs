@@ -225,15 +225,20 @@ impl Painter {
     }
     pub(crate) fn text(&mut self, p0: Pos, p1: Align, p2: String, p4: &Color) {
         let mut pos = p0.to_pos2();
-        pos.x += 2.0;
-        pos.y -= 2.0;
-        self.canvas.canvas().draw_str_align(
-            p2,
-            pos,
-            &self.font,
-            &make_paint(1.0, p4, false, false),
-            p1.into(),
-        );
+        let paint = make_paint(1.0, p4, false, false);
+        let rect = self.font.measure_str(&p2, Some(&paint)).1;
+        let (width, height) = (rect.width(), rect.height());
+        match p1 {
+            Align::CenterBottom | Align::CenterCenter | Align::CenterTop => pos.x -= width / 2.0,
+            Align::LeftBottom | Align::LeftCenter | Align::LeftTop => {}
+            Align::RightBottom | Align::RightCenter | Align::RightTop => pos.x -= width,
+        }
+        match p1 {
+            Align::CenterCenter | Align::LeftCenter | Align::RightCenter => pos.y += height / 2.0,
+            Align::CenterBottom | Align::LeftBottom | Align::RightBottom => {}
+            Align::CenterTop | Align::LeftTop | Align::RightTop => pos.y += height,
+        }
+        self.canvas.canvas().draw_str(p2, pos, &self.font, &paint);
     }
 }
 #[cfg(feature = "skia-png")]
