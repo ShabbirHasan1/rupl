@@ -239,21 +239,28 @@ impl InputState {
     pub fn key_pressed(&self, key: Key) -> bool {
         self.keys_pressed.contains(&key)
     }
+    pub fn keys_pressed(&self, keys: Keys) -> bool {
+        keys.modifiers.map(|m| self.modifiers == m).unwrap_or(true)
+            && self.keys_pressed.contains(&keys.key)
+    }
 }
 #[derive(Copy, Clone, PartialEq)]
 pub struct Keys {
-    modifiers: Modifiers,
+    modifiers: Option<Modifiers>,
     key: Key,
 }
 impl Keys {
     pub fn new(key: Key) -> Self {
         Self {
             key,
-            modifiers: Modifiers::default(),
+            modifiers: None,
         }
     }
     pub fn new_with_modifier(key: Key, modifiers: Modifiers) -> Self {
-        Self { key, modifiers }
+        Self {
+            key,
+            modifiers: Some(modifiers),
+        }
     }
 }
 #[derive(Copy, Clone, PartialEq, Default)]
