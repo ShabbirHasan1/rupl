@@ -226,19 +226,57 @@ impl Painter {
     pub(crate) fn text(&mut self, p0: Pos, p1: Align, p2: String, p4: &Color) {
         let mut pos = p0.to_pos2();
         let paint = make_paint(1.0, p4, false, false);
-        let rect = self.font.measure_str(&p2, Some(&paint)).1;
-        let (width, height) = (rect.width(), rect.height());
+        let strs = p2.split('\n').collect::<Vec<&str>>();
+        let mut body = |s: &str| {
+            let rect = self.font.measure_str(s, Some(&paint)).1;
+            let (width, height) = (rect.width(), rect.height());
+            if !s.is_empty() {
+                let mut pos = pos;
+                match p1 {
+                    Align::CenterBottom | Align::CenterCenter | Align::CenterTop => {
+                        pos.x -= width / 2.0
+                    }
+                    Align::LeftBottom | Align::LeftCenter | Align::LeftTop => {}
+                    Align::RightBottom | Align::RightCenter | Align::RightTop => pos.x -= width,
+                }
+                match p1 {
+                    Align::CenterCenter | Align::LeftCenter | Align::RightCenter => {
+                        pos.y += height / 2.0
+                    }
+                    Align::CenterBottom | Align::LeftBottom | Align::RightBottom => {}
+                    Align::CenterTop | Align::LeftTop | Align::RightTop => pos.y += height,
+                }
+                self.canvas.canvas().draw_str(s, pos, &self.font, &paint);
+            }
+            match p1 {
+                Align::CenterTop | Align::RightTop | Align::LeftTop => {
+                    pos.y += height;
+                }
+                Align::CenterBottom | Align::RightBottom | Align::LeftBottom => {
+                    pos.y -= height;
+                }
+                _ => {
+                    pos.y += height / 2.0;
+                }
+            }
+        };
         match p1 {
-            Align::CenterBottom | Align::CenterCenter | Align::CenterTop => pos.x -= width / 2.0,
-            Align::LeftBottom | Align::LeftCenter | Align::LeftTop => {}
-            Align::RightBottom | Align::RightCenter | Align::RightTop => pos.x -= width,
+            Align::CenterTop | Align::RightTop | Align::LeftTop => {
+                for s in strs {
+                    body(s)
+                }
+            }
+            Align::CenterBottom | Align::RightBottom | Align::LeftBottom => {
+                for s in strs.iter().rev() {
+                    body(s)
+                }
+            }
+            Align::CenterCenter | Align::RightCenter | Align::LeftCenter => {
+                for s in strs {
+                    body(s)
+                }
+            }
         }
-        match p1 {
-            Align::CenterCenter | Align::LeftCenter | Align::RightCenter => pos.y += height / 2.0,
-            Align::CenterBottom | Align::LeftBottom | Align::RightBottom => {}
-            Align::CenterTop | Align::LeftTop | Align::RightTop => pos.y += height,
-        }
-        self.canvas.canvas().draw_str(p2, pos, &self.font, &paint);
     }
 }
 #[cfg(feature = "skia-png")]

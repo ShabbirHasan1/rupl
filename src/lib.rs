@@ -901,8 +901,8 @@ impl Graph {
         }
         for (k, (i, j)) in edges.iter().enumerate() {
             let s = match k {
-                8..=11 => "\nx",
-                1 | 3 | 5 | 7 => "\ny",
+                8..=11 => " \nx",
+                1 | 3 | 5 | 7 => " \ny",
                 0 | 2 | 4 | 6 => "z",
                 _ => unreachable!(),
             };
@@ -924,10 +924,8 @@ impl Graph {
                 if !self.disable_axis {
                     let p = vertices[*i].0 + vertices[*j].0;
                     let align = match s {
-                        "\nx" if p.x > self.screen.x as f32 => Align::LeftTop,
-                        "\ny" if p.x < self.screen.x as f32 => Align::RightTop,
-                        "\nx" => Align::RightTop,
-                        "\ny" => Align::LeftTop,
+                        " \nx" => Align::CenterTop,
+                        " \ny" => Align::CenterTop,
                         "z" => Align::RightCenter,
                         _ => unreachable!(),
                     };
@@ -937,9 +935,9 @@ impl Graph {
                     let e = self.bound.y.floor() as isize;
                     let o = if s == "z" {
                         self.offset3d.z
-                    } else if s == "\nx" {
+                    } else if s == " \nx" {
                         -self.offset3d.x
-                    } else if s == "\ny" {
+                    } else if s == " \ny" {
                         self.offset3d.y
                     } else {
                         unreachable!()
