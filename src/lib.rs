@@ -291,6 +291,7 @@ impl Graph {
             self.font.clone(),
             self.fast_3d(),
             self.max(),
+            self.anti_alias,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, width as f64, height as f64, plot);
@@ -347,7 +348,7 @@ impl Graph {
                 for (_, a, c) in buffer {
                     match a {
                         Draw::Line(a, b) => {
-                            painter.line_segment([a, b], 1.0, &c);
+                            painter.line_segment([a, b], &c);
                         }
                         Draw::Point(a) => {
                             painter.rect_filled(a, &c);
@@ -418,11 +419,8 @@ impl Graph {
                         &self.text_color,
                         painter,
                     );
-                    painter.line_segment(
-                        [pos.to_pos(), self.to_screen(ps.x, ps.y)],
-                        1.0,
-                        &self.axis_color,
-                    );
+                    painter
+                        .line_segment([pos.to_pos(), self.to_screen(ps.x, ps.y)], &self.axis_color);
                 }
             }
         }
@@ -495,7 +493,7 @@ impl Graph {
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
                 if ui.is_rect_visible(egui::Rect::from_points(&[last.to_pos2(), pos.to_pos2()])) {
-                    painter.line_segment([last, pos], 1.0, color);
+                    painter.line_segment([last, pos], color);
                 }
             }
             Some(pos)
@@ -526,7 +524,7 @@ impl Graph {
         }
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
-                painter.line_segment([last, pos], 1.0, color);
+                painter.line_segment([last, pos], color);
             }
             Some(pos)
         } else {
@@ -535,6 +533,7 @@ impl Graph {
     }
     fn write_axis(&self, painter: &mut Painter) {
         if self.scale_axis {
+            //TODO have thick lines
             let delta = 2.0f64.powf((-self.zoom.log2()).round()) * 2.0;
             let minor = self.screen.x / (self.delta * delta);
             let s = self.screen.x / (self.bound.y - self.bound.x);
@@ -575,6 +574,7 @@ impl Graph {
                         painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color_light);
                     }
                 }
+                //TODO dont write on thick lines
                 let oy = self.screen_offset.y + self.offset.y;
                 let n = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
                 let m =
@@ -2103,7 +2103,7 @@ fn line(
     if let Some(buffer) = buffer {
         buffer.push((depth.unwrap(), Draw::Line(start, end), color))
     } else if let Some(painter) = painter {
-        painter.line_segment([start, end], 1.0, &color)
+        painter.line_segment([start, end], &color)
     }
 }
 fn point(

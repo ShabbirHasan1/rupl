@@ -23,13 +23,8 @@ impl<'a> Painter<'a> {
             },
         }
     }
-    pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p1: f32, p2: &Color) {
-        if p1 != 1.0 {
-            self.painter
-                .line_segment(p0.map(|l| l.to_pos2()), egui::Stroke::new(p1, p2.to_col()));
-        } else {
-            self.line.line(p0, p2, self.painter)
-        }
+    pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p2: &Color) {
+        self.line.line(p0, p2, self.painter)
     }
     pub(crate) fn save(&mut self) {
         self.line.draw(self.painter)
@@ -75,6 +70,7 @@ pub(crate) struct Painter {
     font: skia_safe::Font,
     points: Point,
     fast: bool,
+    anti_alias: bool,
 }
 #[cfg(feature = "skia")]
 impl Painter {
@@ -85,6 +81,7 @@ impl Painter {
         font: skia_safe::Font,
         fast: bool,
         size: usize,
+        anti_alias: bool,
     ) -> Self {
         let mut canvas =
             skia_safe::surfaces::raster_n32_premul((width as i32, height as i32)).unwrap();
@@ -115,29 +112,22 @@ impl Painter {
             },
             font,
             fast,
+            anti_alias,
         }
     }
-    pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p1: f32, p2: &Color) {
-        if p1 != 1.0 {
-            self.canvas.canvas().draw_line(
-                p0[0].to_pos2(),
-                p0[1].to_pos2(),
-                &make_paint(p1, p2, true, false),
-            );
-        } else {
-            self.line.line(
-                p0,
-                p2,
-                if self.fast {
-                    None
-                } else {
-                    Some(self.canvas.canvas())
-                },
-            );
-        }
+    pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p2: &Color) {
+        self.line.line(
+            p0,
+            p2,
+            if self.fast {
+                None
+            } else {
+                Some(self.canvas.canvas())
+            },
+        );
     }
     fn draw(&mut self) {
-        self.line.draw(self.canvas.canvas());
+        self.line.draw(self.canvas.canvas(), self.anti_alias);
     }
     fn draw_pts(&mut self) {
         self.points.draw(self.canvas.canvas());
@@ -178,11 +168,13 @@ impl Painter {
         );
     }
     pub(crate) fn image(&mut self, p0: &Image, pos: Vec2) {
+        let mut paint = skia_safe::Paint::default();
+        paint.set_anti_alias(self.anti_alias);
         self.canvas.canvas().draw_image_rect(
             p0,
             None,
             skia_safe::Rect::new(0.0, 0.0, pos.x as f32, pos.y as f32),
-            &skia_safe::Paint::default(),
+            &paint,
         );
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
@@ -404,16 +396,16 @@ impl Line {
             }
         }
     }
-    fn draw(&self, canvas: &skia_safe::Canvas) {
+    fn draw(&self, canvas: &skia_safe::Canvas, anti_alias: bool) {
         match self {
             Line::Fast(FastLine { line }) => {
                 for (color, path) in line {
-                    canvas.draw_path(path, &make_paint(1.0, color, true, false));
+                    canvas.draw_path(path, &make_paint(1.0, color, anti_alias, false));
                 }
             }
             Line::Slow(SlowLine { line, color, .. }) => {
                 if line.last_pt().is_some() {
-                    canvas.draw_path(line, &make_paint(1.0, color, true, false));
+                    canvas.draw_path(line, &make_paint(1.0, color, anti_alias, false));
                 }
             }
         }
