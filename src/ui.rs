@@ -57,7 +57,7 @@ impl<'a> Painter<'a> {
             );
         }
     }
-    pub(crate) fn text(&self, p0: Pos, p1: Align, p2: String, p4: &Color, font_size: f32) {
+    pub(crate) fn text(&self, p0: Pos, p1: Align, p2: &str, p4: &Color, font_size: f32) {
         self.painter.text(
             p0.to_pos2(),
             p1.into(),
@@ -223,7 +223,7 @@ impl Painter {
             }
         }
     }
-    pub(crate) fn text(&mut self, p0: Pos, p1: Align, p2: String, p4: &Color) {
+    pub(crate) fn text(&mut self, p0: Pos, p1: Align, p2: &str, p4: &Color) {
         let mut pos = p0.to_pos2();
         let paint = make_paint(1.0, p4, false, false);
         let strs = p2.split('\n').collect::<Vec<&str>>();

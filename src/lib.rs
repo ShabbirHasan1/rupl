@@ -10,14 +10,19 @@ fn is_3d(data: &[GraphType]) -> bool {
 }
 //TODO all keys should be optional an settings
 //TODO 2d logscale
-//TODO labels
 //TODO tiny skia backend
 //TODO vulkan renderer
 //TODO only refresh when needed
 //TODO only recalculate when needed
 //TODO fast3d multithread
 impl Graph {
-    pub fn new(data: Vec<GraphType>, is_complex: bool, start: f64, end: f64) -> Self {
+    pub fn new(
+        data: Vec<GraphType>,
+        names: Vec<Name>,
+        is_complex: bool,
+        start: f64,
+        end: f64,
+    ) -> Self {
         #[cfg(feature = "skia")]
         let typeface = skia_safe::FontMgr::default()
             .new_from_data(include_bytes!("../terminus.otb"), None)
@@ -27,6 +32,7 @@ impl Graph {
         let font = skia_safe::Font::new(typeface, font_size);
         Self {
             is_3d: is_3d(&data),
+            names,
             fast_3d: false,
             data,
             cache: None,
@@ -360,6 +366,70 @@ impl Graph {
         } else {
             self.write_angle(painter);
         }
+        self.write_label(painter)
+    }
+    fn write_label(&self, painter: &mut Painter) {
+        let mut pos = Pos::new(self.screen.x as f32 - 48.0, 0.0);
+        for (i, Name { name, show }) in self.names.iter().enumerate() {
+            if !name.is_empty() {
+                let y = (pos.y + 3.0 * self.font_size / 4.0).round();
+                #[cfg(feature = "skia")]
+                let y = y - 0.5;
+                match show {
+                    Show::Real => {
+                        painter.text(pos, Align::RightTop, name, &self.text_color);
+                        painter.line_segment(
+                            [
+                                Pos::new(pos.x + 4.0, y),
+                                Pos::new(self.screen.x as f32 - 4.0, y),
+                            ],
+                            &self.main_colors[i],
+                        );
+                    }
+                    Show::Imag => {
+                        painter.text(pos, Align::RightTop, name, &self.text_color);
+                        painter.line_segment(
+                            [
+                                Pos::new(pos.x + 4.0, y),
+                                Pos::new(self.screen.x as f32 - 4.0, y),
+                            ],
+                            &self.alt_colors[i],
+                        );
+                    }
+                    Show::Complex => {
+                        painter.text(
+                            pos,
+                            Align::RightTop,
+                            &format!("re:{}", name),
+                            &self.text_color,
+                        );
+                        painter.line_segment(
+                            [
+                                Pos::new(pos.x + 4.0, y),
+                                Pos::new(self.screen.x as f32 - 4.0, y),
+                            ],
+                            &self.main_colors[i],
+                        );
+                        pos.y += self.font_size;
+                        let y = y + self.font_size;
+                        painter.text(
+                            pos,
+                            Align::RightTop,
+                            &format!("im:{}", name),
+                            &self.text_color,
+                        );
+                        painter.line_segment(
+                            [
+                                Pos::new(pos.x + 4.0, y),
+                                Pos::new(self.screen.x as f32 - 4.0, y),
+                            ],
+                            &self.alt_colors[i],
+                        );
+                    }
+                }
+            }
+            pos.y += self.font_size;
+        }
     }
     fn write_coord(&self, painter: &mut Painter) {
         if self.mouse_moved {
@@ -396,7 +466,7 @@ impl Graph {
                     self.text(
                         Pos::new(0.0, self.screen.y as f32),
                         Align::LeftBottom,
-                        s,
+                        &s,
                         &self.text_color,
                         painter,
                     );
@@ -407,7 +477,7 @@ impl Graph {
                     self.text(
                         self.screen.to_pos(),
                         Align::RightBottom,
-                        format!(
+                        &format!(
                             "{:e}\n{:e}\n{:e}\n{}",
                             dx,
                             dy,
@@ -424,11 +494,11 @@ impl Graph {
         }
     }
     #[cfg(feature = "skia")]
-    fn text(&self, pos: Pos, align: Align, text: String, col: &Color, painter: &mut Painter) {
+    fn text(&self, pos: Pos, align: Align, text: &str, col: &Color, painter: &mut Painter) {
         painter.text(pos, align, text, col);
     }
     #[cfg(feature = "egui")]
-    fn text(&self, pos: Pos, align: Align, text: String, col: &Color, painter: &mut Painter) {
+    fn text(&self, pos: Pos, align: Align, text: &str, col: &Color, painter: &mut Painter) {
         painter.text(pos, align, text, col, self.font_size);
     }
     fn write_angle(&self, painter: &mut Painter) {
@@ -436,7 +506,7 @@ impl Graph {
             self.text(
                 Pos::new(0.0, self.screen.y as f32),
                 Align::LeftBottom,
-                format!(
+                &format!(
                     "{}\n{}",
                     (self.angle.x / TAU * 360.0).round(),
                     ((0.25 - self.angle.y / TAU) * 360.0)
@@ -545,12 +615,16 @@ impl Graph {
             for j in nx..=mx {
                 if j % 4 != 0 {
                     let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
+                    #[cfg(feature = "skia")]
+                    let x = x + 0.5;
                     painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color_light);
                 }
             }
             for j in my..=ny {
                 if j % 4 != 0 {
                     let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
+                    #[cfg(feature = "skia")]
+                    let y = y - 0.5;
                     painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color_light);
                 }
             }
@@ -563,6 +637,8 @@ impl Graph {
         if !self.disable_lines {
             for j in nx..=mx {
                 let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
+                #[cfg(feature = "skia")]
+                let x = x + 0.5;
                 painter.vline(
                     x,
                     self.screen.y as f32,
@@ -572,6 +648,8 @@ impl Graph {
             }
             for j in my..=ny {
                 let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
+                #[cfg(feature = "skia")]
+                let y = y - 0.5;
                 painter.hline(
                     self.screen.x as f32,
                     y,
@@ -602,7 +680,7 @@ impl Graph {
             for j in nx.saturating_sub(1)..=mx {
                 let j = j as f64 / (2.0 * minor);
                 let x = self.to_screen(j, 0.0).x;
-                let mut p = Pos::new(x, y);
+                let mut p = Pos::new(x + 2.0, y);
                 if !align {
                     p.y = p.y.min(self.screen.y as f32 - self.font_size)
                 }
@@ -613,7 +691,7 @@ impl Graph {
                     } else {
                         Align::LeftTop
                     },
-                    j.to_string(),
+                    &j.to_string(),
                     &self.text_color,
                     painter,
                 );
@@ -630,7 +708,7 @@ impl Graph {
             for j in my..=ny.saturating_add(1) {
                 let j = j as f64 / (2.0 * minor);
                 let y = self.to_screen(0.0, j).y;
-                let mut p = Pos::new(x, y);
+                let mut p = Pos::new(x + 2.0, y);
                 let j = j.to_string();
                 if !align {
                     p.x =
@@ -643,7 +721,7 @@ impl Graph {
                     } else {
                         Align::LeftTop
                     },
-                    j.to_string(),
+                    &j.to_string(),
                     &self.text_color,
                     painter,
                 );
@@ -905,7 +983,7 @@ impl Graph {
                     self.text(
                         p * 0.5,
                         align,
-                        if s == "z" {
+                        &if s == "z" {
                             format!("z{}", " ".repeat(n.len()))
                         } else {
                             s.to_string()
@@ -917,7 +995,7 @@ impl Graph {
                         self.text(
                             start + (end - start) * ((i - st) as f32 / (e - st) as f32),
                             align,
-                            (i as f64 - o).to_string(),
+                            &(i as f64 - o).to_string(),
                             &self.text_color,
                             painter,
                         );

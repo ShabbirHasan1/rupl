@@ -16,6 +16,10 @@ pub enum GraphType {
     Width3D(Vec<Complex>, f64, f64, f64, f64),
     Coord3D(Vec<(f64, f64, Complex)>),
 }
+pub struct Name {
+    pub name: String,
+    pub show: Show,
+}
 #[derive(Copy, Clone)]
 pub enum Draw {
     Line(Pos, Pos),
@@ -66,6 +70,7 @@ impl AsRef<skia_safe::Image> for Image {
 }
 pub struct Graph {
     pub data: Vec<GraphType>,
+    pub names: Vec<Name>,
     pub cache: Option<Image>,
     #[cfg(feature = "skia")]
     pub font: skia_safe::Font,
