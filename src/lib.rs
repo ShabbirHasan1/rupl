@@ -11,7 +11,6 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO all keys should be optional an settings
 //TODO 2d logscale
 //TODO labels
-//TODO scale axis
 //TODO tiny skia backend
 //TODO vulkan renderer
 //TODO only refresh when needed
@@ -88,7 +87,6 @@ impl Graph {
             background_color: Color::splat(255),
             mouse_position: None,
             mouse_moved: false,
-            scale_axis: false,
             disable_lines: false,
             disable_axis: false,
             disable_coord: false,
@@ -532,151 +530,123 @@ impl Graph {
         }
     }
     fn write_axis(&self, painter: &mut Painter) {
-        if self.scale_axis {
-            //TODO have thick lines
-            let delta = 2.0f64.powf((-self.zoom.log2()).round()) * 2.0;
-            let minor = self.screen.x / (self.delta * delta);
-            let s = self.screen.x / (self.bound.y - self.bound.x);
-            let ox = self.screen_offset.x + self.offset.x;
-            let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
+        let delta = 2.0f64.powf((-self.zoom.log2()).round());
+        let minor = self.screen.x / (self.delta * delta);
+        let s = self.screen.x / (self.bound.y - self.bound.x);
+        let ox = self.screen_offset.x + self.offset.x;
+        let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
+        let oy = self.screen_offset.y + self.offset.y;
+        let ny = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
+        if !self.disable_lines {
             let mx =
                 ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
-            for j in nx..=mx {
-                let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
-                painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color_light);
-            }
-            let oy = self.screen_offset.y + self.offset.y;
-            let ny = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
             let my =
                 (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
+            for j in nx..=mx {
+                if j % 4 != 0 {
+                    let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
+                    painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color_light);
+                }
+            }
+            for j in my..=ny {
+                if j % 4 != 0 {
+                    let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
+                    painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color_light);
+                }
+            }
+        }
+        let minor = minor / 4.0;
+        let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
+        let mx = ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
+        let ny = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
+        let my = (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
+        if !self.disable_lines {
+            for j in nx..=mx {
+                let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
+                painter.vline(
+                    x,
+                    self.screen.y as f32,
+                    if j == 0 { 2.0 } else { 1.0 },
+                    &self.axis_color,
+                );
+            }
             for j in my..=ny {
                 let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
-                painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color_light);
+                painter.hline(
+                    self.screen.x as f32,
+                    y,
+                    if j == 0 { 2.0 } else { 1.0 },
+                    &self.axis_color,
+                );
             }
-        } else {
-            let c = self.to_coord(Pos::new(0.0, 0.0));
-            let cf = self.to_coord(self.screen.to_pos());
-            let s = c.0.ceil() as isize;
-            let f = cf.0.floor() as isize;
-            let sy = c.1.floor() as isize;
-            let sf = cf.1.ceil() as isize;
-            if !self.disable_lines && self.graph_mode != GraphMode::DomainColoring {
-                let delta = 2.0f64.powf((-self.zoom.log2()).round());
-                let minor = self.screen.x / (self.delta * delta);
-                let s = self.screen.x / (self.bound.y - self.bound.x);
-                let ox = self.screen_offset.x + self.offset.x;
-                let n = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
-                let m =
-                    ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
-                for j in n..=m {
-                    if j != 0 {
-                        let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
-                        painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color_light);
-                    }
-                }
-                //TODO dont write on thick lines
-                let oy = self.screen_offset.y + self.offset.y;
-                let n = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
-                let m =
-                    (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
-                for j in m..=n {
-                    if j != 0 {
-                        let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
-                        painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color_light);
-                    }
-                }
+        } else if !self.disable_axis {
+            if (nx..=mx).contains(&0) {
+                let x = self.to_screen(0.0, 0.0).x;
+                painter.vline(x, self.screen.y as f32, 2.0, &self.axis_color);
             }
-            for i in if self.zoom > 2.0f64.powi(-6) {
-                s..=f
+            if (my..=ny).contains(&0) {
+                let y = self.to_screen(0.0, 0.0).y;
+                painter.hline(self.screen.x as f32, y, 2.0, &self.axis_color);
+            }
+        }
+        if !self.disable_axis {
+            let mut align = false;
+            let y = if (my..=ny).contains(&0) {
+                self.to_screen(0.0, 0.0).y
+            } else if my.is_positive() {
+                0.0
             } else {
-                0..=0
-            } {
-                let is_center = i == 0;
-                if !self.disable_lines || (is_center && !self.disable_axis) {
-                    let x = self.to_screen(i as f64, 0.0).x;
-                    painter.vline(
-                        x,
-                        self.screen.y as f32,
-                        if is_center { 2.0 } else { 1.0 },
-                        &self.axis_color,
-                    );
+                align = true;
+                self.screen.y as f32
+            };
+            for j in nx.saturating_sub(1)..=mx {
+                let j = j as f64 / (2.0 * minor);
+                let x = self.to_screen(j, 0.0).x;
+                let mut p = Pos::new(x, y);
+                if !align {
+                    p.y = p.y.min(self.screen.y as f32 - self.font_size)
                 }
+                self.text(
+                    p,
+                    if align {
+                        Align::LeftBottom
+                    } else {
+                        Align::LeftTop
+                    },
+                    j.to_string(),
+                    &self.text_color,
+                    painter,
+                );
             }
-            for i in if self.zoom > 2.0f64.powi(-6) {
-                sf..=sy
+            let mut align = false;
+            let x = if (nx..=mx).contains(&0) {
+                self.to_screen(0.0, 0.0).x
+            } else if mx.is_positive() {
+                0.0
             } else {
-                0..=0
-            } {
-                let is_center = i == 0;
-                if (!self.disable_lines && (is_center || self.zoom > 2.0f64.powi(-6)))
-                    || (is_center && !self.disable_axis)
-                {
-                    let y = self.to_screen(0.0, i as f64).y;
-                    painter.hline(
-                        self.screen.x as f32,
-                        y,
-                        if is_center { 2.0 } else { 1.0 },
-                        &self.axis_color,
-                    );
+                align = true;
+                self.screen.x as f32
+            };
+            for j in my..=ny.saturating_add(1) {
+                let j = j as f64 / (2.0 * minor);
+                let y = self.to_screen(0.0, j).y;
+                let mut p = Pos::new(x, y);
+                let j = j.to_string();
+                if !align {
+                    p.x =
+                        p.x.min(self.screen.x as f32 - self.font_width * j.len() as f32)
                 }
-            }
-            if !self.disable_axis && self.zoom > 2.0f64.powi(-6) {
-                let mut align = false;
-                let y = if (sf..=sy).contains(&0) {
-                    self.to_screen(0.0, 0.0).y
-                } else if sf.is_negative() {
-                    0.0
-                } else {
-                    align = true;
-                    self.screen.y as f32
-                };
-                for j in s.saturating_sub(1)..=f {
-                    let x = self.to_screen(j as f64, 0.0).x;
-                    let mut p = Pos::new(x, y);
-                    if !align {
-                        p.y = p.y.min(self.screen.y as f32 - self.font_size)
-                    }
-                    self.text(
-                        p,
-                        if align {
-                            Align::LeftBottom
-                        } else {
-                            Align::LeftTop
-                        },
-                        j.to_string(),
-                        &self.text_color,
-                        painter,
-                    );
-                }
-                let mut align = false;
-                let x = if (s..=f).contains(&0) {
-                    self.to_screen(0.0, 0.0).x
-                } else if s.is_positive() {
-                    0.0
-                } else {
-                    align = true;
-                    self.screen.x as f32
-                };
-                for j in sf..=sy.saturating_add(1) {
-                    let y = self.to_screen(0.0, j as f64).y;
-                    let mut p = Pos::new(x, y);
-                    let j = j.to_string();
-                    if !align {
-                        p.x =
-                            p.x.min(self.screen.x as f32 - self.font_width * j.len() as f32)
-                    }
-                    self.text(
-                        p,
-                        if align {
-                            Align::RightTop
-                        } else {
-                            Align::LeftTop
-                        },
-                        j,
-                        &self.text_color,
-                        painter,
-                    );
-                }
+                self.text(
+                    p,
+                    if align {
+                        Align::RightTop
+                    } else {
+                        Align::LeftTop
+                    },
+                    j.to_string(),
+                    &self.text_color,
+                    painter,
+                );
             }
         }
     }
@@ -1170,9 +1140,6 @@ impl Graph {
         }
         if i.key_pressed(Key::C) {
             self.disable_coord = !self.disable_coord;
-        }
-        if i.key_pressed(Key::V) {
-            self.scale_axis = !self.scale_axis;
         }
         if i.key_pressed(Key::R) {
             self.anti_alias = !self.anti_alias;

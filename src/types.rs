@@ -106,7 +106,6 @@ pub struct Graph {
     pub text_color: Color,
     pub mouse_position: Option<Vec2>,
     pub mouse_moved: bool,
-    pub scale_axis: bool,
     pub disable_lines: bool,
     pub disable_axis: bool,
     pub disable_coord: bool,

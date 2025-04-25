@@ -40,18 +40,22 @@ impl<'a> Painter<'a> {
         self.painter.image(p0.0.id(), d, a, c);
     }
     pub(crate) fn hline(&self, p0: f32, p1: f32, p2: f32, p3: &Color) {
-        self.painter.hline(
-            egui::Rangef::new(0.0, p0),
-            p1,
-            egui::Stroke::new(p2, p3.to_col()),
-        );
+        if p1.is_finite() {
+            self.painter.hline(
+                egui::Rangef::new(0.0, p0),
+                p1,
+                egui::Stroke::new(p2, p3.to_col()),
+            );
+        }
     }
     pub(crate) fn vline(&self, p0: f32, p1: f32, p2: f32, p3: &Color) {
-        self.painter.vline(
-            p0,
-            egui::Rangef::new(0.0, p1),
-            egui::Stroke::new(p2, p3.to_col()),
-        );
+        if p0.is_finite() {
+            self.painter.vline(
+                p0,
+                egui::Rangef::new(0.0, p1),
+                egui::Stroke::new(p2, p3.to_col()),
+            );
+        }
     }
     pub(crate) fn text(&self, p0: Pos, p1: Align, p2: String, p4: &Color, font_size: f32) {
         self.painter.text(
@@ -178,41 +182,45 @@ impl Painter {
         );
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
-        if p2 != 1.0 {
-            self.canvas.canvas().draw_line(
-                Pos::new(0.0, p1).to_pos2(),
-                Pos::new(p0, p1).to_pos2(),
-                &make_paint(p2, p3, false, false),
-            );
-        } else {
-            self.line.line(
-                [Pos::new(0.0, p1), Pos::new(p0, p1)],
-                p3,
-                if self.fast {
-                    None
-                } else {
-                    Some(self.canvas.canvas())
-                },
-            );
+        if p1.is_finite() {
+            if p2 != 1.0 {
+                self.canvas.canvas().draw_line(
+                    Pos::new(0.0, p1).to_pos2(),
+                    Pos::new(p0, p1).to_pos2(),
+                    &make_paint(p2, p3, false, false),
+                );
+            } else {
+                self.line.line(
+                    [Pos::new(0.0, p1), Pos::new(p0, p1)],
+                    p3,
+                    if self.fast {
+                        None
+                    } else {
+                        Some(self.canvas.canvas())
+                    },
+                );
+            }
         }
     }
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
-        if p2 != 1.0 {
-            self.canvas.canvas().draw_line(
-                Pos::new(p0, 0.0).to_pos2(),
-                Pos::new(p0, p1).to_pos2(),
-                &make_paint(p2, p3, false, false),
-            );
-        } else {
-            self.line.line(
-                [Pos::new(p0, 0.0), Pos::new(p0, p1)],
-                p3,
-                if self.fast {
-                    None
-                } else {
-                    Some(self.canvas.canvas())
-                },
-            );
+        if p0.is_finite() {
+            if p2 != 1.0 {
+                self.canvas.canvas().draw_line(
+                    Pos::new(p0, 0.0).to_pos2(),
+                    Pos::new(p0, p1).to_pos2(),
+                    &make_paint(p2, p3, false, false),
+                );
+            } else {
+                self.line.line(
+                    [Pos::new(p0, 0.0), Pos::new(p0, p1)],
+                    p3,
+                    if self.fast {
+                        None
+                    } else {
+                        Some(self.canvas.canvas())
+                    },
+                );
+            }
         }
     }
     pub(crate) fn text(&mut self, p0: Pos, p1: Align, p2: String, p4: &Color) {
