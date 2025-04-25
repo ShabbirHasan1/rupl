@@ -8,8 +8,8 @@ fn is_3d(data: &[GraphType]) -> bool {
     data.iter()
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
 }
-//TODO all keys should be optional an settings
 //TODO 2d logscale
+//TODO toggle disable graphs
 //TODO tiny skia backend
 //TODO vulkan renderer
 //TODO only refresh when needed
@@ -601,7 +601,8 @@ impl Graph {
     }
     fn write_axis(&self, painter: &mut Painter) {
         let delta = 2.0f64.powf((-self.zoom.log2()).round());
-        let minor = self.screen.x / (self.delta * delta);
+        let minor =
+            16.0 * self.screen.x / (self.delta * delta * (self.bound.y - self.bound.x).powi(2));
         let s = self.screen.x / (self.bound.y - self.bound.x);
         let ox = self.screen_offset.x + self.offset.x;
         let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
@@ -1028,6 +1029,7 @@ impl Graph {
         self.keybinds_inner(i)
     }
     fn keybinds_inner(&mut self, i: &InputState) {
+        //TODO all keys should be optional an settings
         if let Some(mpos) = i.pointer_pos {
             let mpos = Vec2 {
                 x: mpos.x,
