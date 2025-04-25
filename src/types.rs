@@ -70,6 +70,7 @@ pub struct Graph {
     #[cfg(feature = "skia")]
     pub font: skia_safe::Font,
     pub font_size: f32,
+    pub font_width: f32,
     #[cfg(feature = "skia-png")]
     pub image_format: crate::ui::ImageFormat,
     pub fast_3d: bool,

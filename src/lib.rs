@@ -23,8 +23,9 @@ impl Graph {
         let typeface = skia_safe::FontMgr::default()
             .new_from_data(include_bytes!("../terminus.otb"), None)
             .unwrap();
+        let font_size = 18.0;
         #[cfg(feature = "skia")]
-        let font = skia_safe::Font::new(typeface, 18.0);
+        let font = skia_safe::Font::new(typeface, font_size);
         Self {
             is_3d: is_3d(&data),
             fast_3d: false,
@@ -32,7 +33,8 @@ impl Graph {
             cache: None,
             #[cfg(feature = "skia")]
             font,
-            font_size: 18.0,
+            font_size,
+            font_width: 0.0,
             #[cfg(feature = "skia-png")]
             image_format: ui::ImageFormat::Png,
             fast_3d_move: false,
@@ -107,6 +109,7 @@ impl Graph {
             .new_from_data(bytes, None)
             .unwrap();
         self.font = skia_safe::Font::new(typeface, self.font_size);
+        self.font_width = 0.0;
     }
     pub fn set_data(&mut self, data: Vec<GraphType>) {
         self.data = data;
@@ -262,6 +265,7 @@ impl Graph {
     }
     #[cfg(feature = "egui")]
     pub fn update(&mut self, ctx: &egui::Context, ui: &egui::Ui) {
+        self.font_width(ctx);
         let mut painter = Painter::new(ui, self.fast_3d(), self.max());
         let rect = ctx.available_rect();
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter, ui);
@@ -279,6 +283,7 @@ impl Graph {
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
+        self.font_width();
         let mut painter = Painter::new(
             width,
             height,
@@ -530,77 +535,24 @@ impl Graph {
     }
     fn write_axis(&self, painter: &mut Painter) {
         if self.scale_axis {
-            let c = self.to_coord(Pos::new(0.0, 0.0));
-            let cf = self.to_coord(self.screen.to_pos());
-            let r = self.zoom.recip() * 0.5;
-            let stx = (c.0 / r).round() * r;
-            let sty = (c.1 / r).round() * r;
-            let enx = (cf.0 / r).round() * r;
-            let eny = (cf.1 / r).round() * r;
-            if !stx.is_finite() || !sty.is_finite() || !enx.is_finite() || !eny.is_finite() {
-                return;
+            let delta = 2.0f64.powf((-self.zoom.log2()).round()) * 2.0;
+            let minor = self.screen.x / (self.delta * delta);
+            let s = self.screen.x / (self.bound.y - self.bound.x);
+            let ox = self.screen_offset.x + self.offset.x;
+            let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
+            let mx =
+                ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
+            for j in nx..=mx {
+                let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
+                painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color_light);
             }
-            let s: isize = 0;
-            let f = ((enx - stx) / r).abs() as isize;
-            let sy = ((eny - sty) / r).abs() as isize;
-            let sf: isize = 0;
-            if !self.disable_lines && self.graph_mode != GraphMode::DomainColoring {
-                for i in s.saturating_sub(1)..=f.saturating_add(1) {
-                    for j in -2..2 {
-                        if j != 0 {
-                            let x = self.to_screen(stx + r * (i as f64 + j as f64 / 4.0), 0.0).x;
-                            painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color_light);
-                        }
-                    }
-                }
-                for i in sf.saturating_sub(1)..=sy.saturating_add(1) {
-                    for j in -2..2 {
-                        if j != 0 {
-                            let y = self.to_screen(0.0, sty - r * (i as f64 + j as f64 / 4.0)).y;
-                            painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color_light);
-                        }
-                    }
-                }
-            }
-            for i in s..=f {
-                let x = self.to_screen(stx + r * i as f64, 0.0).x;
-                painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color);
-            }
-            for i in sf..=sy {
-                let y = self.to_screen(0.0, sty - r * i as f64).y;
-                painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color);
-            }
-            if !self.disable_axis {
-                let y = if sty - r * (sy as f64) < 0.0 && sty - r * (sf as f64) > 0.0 {
-                    self.to_screen(0.0, 0.0).y
-                } else {
-                    0.0
-                };
-                for j in s.saturating_sub(1)..=f {
-                    let x = self.to_screen(stx + r * j as f64, 0.0).x;
-                    self.text(
-                        Pos::new(x, y),
-                        Align::LeftTop,
-                        format!("{:e}", stx + r * j as f64),
-                        &self.text_color,
-                        painter,
-                    );
-                }
-                let x = if stx + r * (s as f64) < 0.0 && stx + r * (f as f64) > 0.0 {
-                    self.to_screen(0.0, 0.0).x
-                } else {
-                    0.0
-                };
-                for j in sf..=sy.saturating_add(1) {
-                    let y = self.to_screen(0.0, sty - r * j as f64).y;
-                    self.text(
-                        Pos::new(x, y),
-                        Align::LeftTop,
-                        format!("{:e}", sty - r * j as f64),
-                        &self.text_color,
-                        painter,
-                    );
-                }
+            let oy = self.screen_offset.y + self.offset.y;
+            let ny = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
+            let my =
+                (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
+            for j in my..=ny {
+                let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
+                painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color_light);
             }
         } else {
             let c = self.to_coord(Pos::new(0.0, 0.0));
@@ -610,50 +562,27 @@ impl Graph {
             let sy = c.1.floor() as isize;
             let sf = cf.1.ceil() as isize;
             if !self.disable_lines && self.graph_mode != GraphMode::DomainColoring {
-                let n = (self.zoom.round() * 4.0) as isize;
-                let minor = if self.zoom < 1.0 {
-                    self.zoom.log2().floor() as isize + 3
-                } else if n < 0 || (n as usize).is_power_of_two() {
-                    n
-                } else {
-                    (n as usize).next_power_of_two() as isize
-                };
-                if minor > 0 {
-                    for i in s.saturating_sub(1)..=f.saturating_add(1) {
-                        let s = self.screen.x / (self.bound.y - self.bound.x);
-                        let ox = self.screen_offset.x + self.offset.x;
-                        let n = (((-1.0 / self.zoom - ox) / s - i as f64) * 2.0 * minor as f64)
-                            .ceil() as isize;
-                        let m = ((((self.screen.x + 1.0) / self.zoom - ox) / s - i as f64)
-                            * 2.0
-                            * minor as f64)
-                            .floor() as isize;
-                        for j in n..=m {
-                            if j != 0 {
-                                let x = self
-                                    .to_screen(i as f64 + j as f64 / (2.0 * minor as f64), 0.0)
-                                    .x;
-                                painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color_light);
-                            }
-                        }
+                let delta = 2.0f64.powf((-self.zoom.log2()).round());
+                let minor = self.screen.x / (self.delta * delta);
+                let s = self.screen.x / (self.bound.y - self.bound.x);
+                let ox = self.screen_offset.x + self.offset.x;
+                let n = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
+                let m =
+                    ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
+                for j in n..=m {
+                    if j != 0 {
+                        let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
+                        painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color_light);
                     }
-                    for i in sf.saturating_sub(1)..=sy.saturating_add(1) {
-                        let s = self.screen.x / (self.bound.y - self.bound.x);
-                        let oy = self.screen_offset.y + self.offset.y;
-                        let n = (((oy + 1.0 / self.zoom) / s - i as f64) * 2.0 * minor as f64)
-                            .ceil() as isize;
-                        let m = (((oy - (self.screen.y + 1.0) / self.zoom) / s - i as f64)
-                            * 2.0
-                            * minor as f64)
-                            .floor() as isize;
-                        for j in m..=n {
-                            if j != 0 {
-                                let y = self
-                                    .to_screen(0.0, i as f64 + j as f64 / (2.0 * minor as f64))
-                                    .y;
-                                painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color_light);
-                            }
-                        }
+                }
+                let oy = self.screen_offset.y + self.offset.y;
+                let n = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
+                let m =
+                    (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
+                for j in m..=n {
+                    if j != 0 {
+                        let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
+                        painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color_light);
                     }
                 }
             }
@@ -692,37 +621,84 @@ impl Graph {
                 }
             }
             if !self.disable_axis && self.zoom > 2.0f64.powi(-6) {
+                let mut align = false;
                 let y = if (sf..=sy).contains(&0) {
                     self.to_screen(0.0, 0.0).y
-                } else {
+                } else if sf.is_negative() {
                     0.0
+                } else {
+                    align = true;
+                    self.screen.y as f32
                 };
                 for j in s.saturating_sub(1)..=f {
                     let x = self.to_screen(j as f64, 0.0).x;
+                    let mut p = Pos::new(x, y);
+                    if !align {
+                        p.y = p.y.min(self.screen.y as f32 - self.font_size)
+                    }
                     self.text(
-                        Pos::new(x, y),
-                        Align::LeftTop,
+                        p,
+                        if align {
+                            Align::LeftBottom
+                        } else {
+                            Align::LeftTop
+                        },
                         j.to_string(),
                         &self.text_color,
                         painter,
                     );
                 }
+                let mut align = false;
                 let x = if (s..=f).contains(&0) {
                     self.to_screen(0.0, 0.0).x
-                } else {
+                } else if s.is_positive() {
                     0.0
+                } else {
+                    align = true;
+                    self.screen.x as f32
                 };
                 for j in sf..=sy.saturating_add(1) {
                     let y = self.to_screen(0.0, j as f64).y;
+                    let mut p = Pos::new(x, y);
+                    let j = j.to_string();
+                    if !align {
+                        p.x =
+                            p.x.min(self.screen.x as f32 - self.font_width * j.len() as f32)
+                    }
                     self.text(
-                        Pos::new(x, y),
-                        Align::LeftTop,
-                        j.to_string(),
+                        p,
+                        if align {
+                            Align::RightTop
+                        } else {
+                            Align::LeftTop
+                        },
+                        j,
                         &self.text_color,
                         painter,
                     );
                 }
             }
+        }
+    }
+    #[cfg(feature = "skia")]
+    fn font_width(&mut self) {
+        if self.font_width == 0.0 {
+            self.font_width = self.font.measure_str(" ", None).0;
+        }
+    }
+    #[cfg(feature = "egui")]
+    fn font_width(&mut self, ctx: &egui::Context) {
+        if self.font_width == 0.0 {
+            let width = ctx.fonts(|f| {
+                f.layout_no_wrap(
+                    " ".to_string(),
+                    egui::FontId::monospace(self.font_size),
+                    Color::splat(0).to_col(),
+                )
+                .size()
+                .x
+            });
+            self.font_width = width;
         }
     }
     fn vec3_to_pos_depth(&self, p: Vec3) -> (Pos, Option<f32>) {
