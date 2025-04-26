@@ -402,7 +402,7 @@ impl Graph {
                 let y = y - 0.5;
                 match show {
                     Show::Real => {
-                        painter.text(pos, Align::RightTop, name, &self.text_color);
+                        self.text(pos, Align::RightTop, name, &self.text_color, painter);
                         painter.line_segment(
                             [
                                 Pos::new(pos.x + 4.0, y),
@@ -412,11 +412,12 @@ impl Graph {
                         );
                     }
                     Show::Imag => {
-                        painter.text(
+                        self.text(
                             pos,
                             Align::RightTop,
                             &format!("im:{}", name),
                             &self.text_color,
+                            painter,
                         );
                         painter.line_segment(
                             [
@@ -427,11 +428,12 @@ impl Graph {
                         );
                     }
                     Show::Complex => {
-                        painter.text(
+                        self.text(
                             pos,
                             Align::RightTop,
                             &format!("re:{}", name),
                             &self.text_color,
+                            painter,
                         );
                         painter.line_segment(
                             [
@@ -442,11 +444,12 @@ impl Graph {
                         );
                         pos.y += self.font_size;
                         let y = y + self.font_size;
-                        painter.text(
+                        self.text(
                             pos,
                             Align::RightTop,
                             &format!("im:{}", name),
                             &self.text_color,
+                            painter,
                         );
                         painter.line_segment(
                             [
