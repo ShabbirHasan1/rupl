@@ -140,8 +140,36 @@ pub struct Keybinds {
     pub right_3d: Option<Keys>,
     pub up_3d: Option<Keys>,
     pub down_3d: Option<Keys>,
+    pub in_3d: Option<Keys>,
+    pub out_3d: Option<Keys>,
     pub zoom_in: Option<Keys>,
     pub zoom_out: Option<Keys>,
+    pub lines: Option<Keys>,
+    pub axis: Option<Keys>,
+    pub coord: Option<Keys>,
+    pub anti_alias: Option<Keys>,
+    pub ignore_bounds: Option<Keys>,
+    pub color_depth: Option<Keys>,
+    pub zoom_in_3d: Option<Keys>,
+    pub zoom_out_3d: Option<Keys>,
+    pub show_box: Option<Keys>,
+    pub domain_alternate: Option<Keys>,
+    pub slice_up: Option<Keys>,
+    pub slice_down: Option<Keys>,
+    pub slice_view: Option<Keys>,
+    pub log_scale: Option<Keys>,
+    pub line_style: Option<Keys>,
+    pub var_up: Option<Keys>,
+    pub var_down: Option<Keys>,
+    pub var_in: Option<Keys>,
+    pub var_out: Option<Keys>,
+    pub prec_up: Option<Keys>,
+    pub prec_down: Option<Keys>,
+    pub ruler: Option<Keys>,
+    pub view: Option<Keys>,
+    pub mode_up: Option<Keys>,
+    pub mode_down: Option<Keys>,
+    pub reset: Option<Keys>,
 }
 impl Default for Keybinds {
     fn default() -> Self {
@@ -152,6 +180,8 @@ impl Default for Keybinds {
             down: Some(Keys::new(Key::ArrowDown)),
             zoom_in: Some(Keys::new(Key::Equals)),
             zoom_out: Some(Keys::new(Key::Minus)),
+            lines: Some(Keys::new(Key::Z)),
+            axis: Some(Keys::new(Key::X)),
             left_3d: Some(Keys::new_with_modifier(
                 Key::ArrowLeft,
                 Modifiers::default().ctrl(),
@@ -168,6 +198,53 @@ impl Default for Keybinds {
                 Key::ArrowDown,
                 Modifiers::default().ctrl(),
             )),
+            in_3d: Some(Keys::new_with_modifier(
+                Key::ArrowDown,
+                Modifiers::default().ctrl().alt(),
+            )),
+            out_3d: Some(Keys::new_with_modifier(
+                Key::ArrowUp,
+                Modifiers::default().ctrl().alt(),
+            )),
+            coord: Some(Keys::new(Key::C)),
+            anti_alias: Some(Keys::new(Key::R)),
+            ignore_bounds: Some(Keys::new(Key::P)),
+            color_depth: Some(Keys::new(Key::O)),
+            zoom_in_3d: Some(Keys::new(Key::Semicolon)),
+            zoom_out_3d: Some(Keys::new(Key::Quote)),
+            show_box: Some(Keys::new(Key::U)),
+            domain_alternate: Some(Keys::new(Key::Y)),
+            slice_up: Some(Keys::new(Key::Period)),
+            slice_down: Some(Keys::new(Key::Comma)),
+            slice_view: Some(Keys::new(Key::Slash)),
+            log_scale: Some(Keys::new_with_modifier(Key::L, Modifiers::default().ctrl())),
+            line_style: Some(Keys::new(Key::L)),
+            var_up: Some(Keys::new_with_modifier(
+                Key::ArrowRight,
+                Modifiers::default().shift(),
+            )),
+            var_down: Some(Keys::new_with_modifier(
+                Key::ArrowLeft,
+                Modifiers::default().shift(),
+            )),
+            var_in: Some(Keys::new_with_modifier(
+                Key::ArrowUp,
+                Modifiers::default().shift(),
+            )),
+            var_out: Some(Keys::new_with_modifier(
+                Key::ArrowDown,
+                Modifiers::default().shift(),
+            )),
+            prec_up: Some(Keys::new(Key::OpenBracket)),
+            prec_down: Some(Keys::new(Key::CloseBracket)),
+            ruler: Some(Keys::new(Key::N)),
+            view: Some(Keys::new(Key::I)),
+            mode_up: Some(Keys::new(Key::B)),
+            mode_down: Some(Keys::new_with_modifier(
+                Key::B,
+                Modifiers::default().shift(),
+            )),
+            reset: Some(Keys::new(Key::T)),
         }
     }
 }
@@ -244,9 +321,15 @@ impl InputState {
     pub fn key_pressed(&self, key: Key) -> bool {
         self.keys_pressed.contains(&key)
     }
-    pub fn keys_pressed(&self, keys: Keys) -> bool {
-        keys.modifiers.map(|m| self.modifiers == m).unwrap_or(true)
-            && self.keys_pressed.contains(&keys.key)
+    pub fn keys_pressed(&self, keys: Option<Keys>) -> bool {
+        if let Some(keys) = keys {
+            keys.modifiers
+                .map(|m| self.modifiers == m)
+                .unwrap_or(self.modifiers.is_false())
+                && self.keys_pressed.contains(&keys.key)
+        } else {
+            false
+        }
     }
 }
 #[derive(Copy, Clone, PartialEq)]
@@ -301,6 +384,9 @@ impl From<egui::Modifiers> for Modifiers {
     }
 }
 impl Modifiers {
+    pub fn is_false(&self) -> bool {
+        !self.mac_cmd && !self.alt && !self.command && !self.ctrl && !self.shift
+    }
     pub fn alt(mut self) -> Self {
         self.alt = true;
         self
@@ -961,7 +1047,7 @@ impl From<Key> for winit::keyboard::Key {
             Key::Plus => winit::keyboard::Key::Character("+".into()),
             Key::Equals => winit::keyboard::Key::Character("=".into()),
             Key::Semicolon => winit::keyboard::Key::Character(";".into()),
-            Key::Quote => winit::keyboard::Key::Character("\"".into()),
+            Key::Quote => winit::keyboard::Key::Character("\'".into()),
             Key::Num0 => winit::keyboard::Key::Character("0".into()),
             Key::Num1 => winit::keyboard::Key::Character("1".into()),
             Key::Num2 => winit::keyboard::Key::Character("2".into()),
@@ -1077,7 +1163,7 @@ impl From<winit::keyboard::Key> for Key {
                     "+" => Key::Plus,
                     "=" => Key::Equals,
                     ";" => Key::Semicolon,
-                    "\"" => Key::Quote,
+                    "\'" => Key::Quote,
                     "0" => Key::Num0,
                     "1" => Key::Num1,
                     "2" => Key::Num2,

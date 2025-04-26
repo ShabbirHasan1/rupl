@@ -608,7 +608,7 @@ impl Graph {
         let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
         let oy = self.screen_offset.y + self.offset.y;
         let ny = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
-        if !self.disable_lines {
+        if !self.disable_lines && self.graph_mode != GraphMode::DomainColoring {
             let mx =
                 ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
             let my =
@@ -1029,7 +1029,6 @@ impl Graph {
         self.keybinds_inner(i)
     }
     fn keybinds_inner(&mut self, i: &InputState) {
-        //TODO all keys should be optional an settings
         if let Some(mpos) = i.pointer_pos {
             let mpos = Vec2 {
                 x: mpos.x,
@@ -1124,70 +1123,35 @@ impl Graph {
             _ => {}
         }
         self.last_interact = i.pointer_pos;
-        let shift = i.modifiers.shift;
-        let (a, b, c) = if shift {
-            (
-                4.0 * self.delta
-                    / if self.zoom > 1.0 {
-                        2.0 * self.zoom
-                    } else {
-                        1.0
-                    },
-                PI / 16.0,
-                4,
-            )
-        } else {
-            (
-                self.delta
-                    / if self.zoom > 1.0 {
-                        2.0 * self.zoom
-                    } else {
-                        1.0
-                    },
-                PI / 64.0,
-                1,
-            )
-        };
-        if i.key_pressed(Key::A) || i.key_pressed(Key::ArrowLeft) {
-            if self.is_3d {
-                if i.key_pressed(Key::ArrowLeft) {
-                    if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
-                        self.recalculate = true;
-                    }
-                    self.offset3d.x -= 1.0
+        let (a, b, c) = (
+            self.delta
+                / if self.zoom > 1.0 {
+                    2.0 * self.zoom
                 } else {
-                    self.angle.x = ((self.angle.x / b - 1.0).round() * b).rem_euclid(TAU);
-                }
+                    1.0
+                },
+            PI / 64.0,
+            1,
+        );
+        if i.keys_pressed(self.keybinds.left) {
+            if self.is_3d {
+                self.angle.x = ((self.angle.x / b - 1.0).round() * b).rem_euclid(TAU);
             } else {
                 self.offset.x += a;
                 self.recalculate = true;
             }
         }
-        if i.key_pressed(Key::D) || i.key_pressed(Key::ArrowRight) {
+        if i.keys_pressed(self.keybinds.right) {
             if self.is_3d {
-                if i.key_pressed(Key::ArrowRight) {
-                    if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
-                        self.recalculate = true;
-                    }
-                    self.offset3d.x += 1.0
-                } else {
-                    self.angle.x = ((self.angle.x / b + 1.0).round() * b).rem_euclid(TAU);
-                }
+                self.angle.x = ((self.angle.x / b + 1.0).round() * b).rem_euclid(TAU);
             } else {
                 self.offset.x -= a;
                 self.recalculate = true;
             }
         }
-        if i.key_pressed(Key::W) || i.key_pressed(Key::ArrowUp) {
+        if i.keys_pressed(self.keybinds.up) {
             if self.is_3d {
-                if i.key_pressed(Key::ArrowUp) {
-                    if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
-                        self.recalculate = true;
-                    }
-                    self.offset3d.y -= 1.0
-                } else {
-                    self.angle.y = ((self.angle.y / b - 1.0).round() * b).rem_euclid(TAU);
-                }
+                self.angle.y = ((self.angle.y / b - 1.0).round() * b).rem_euclid(TAU);
             } else {
                 if self.graph_mode == GraphMode::DomainColoring {
                     self.recalculate = true;
@@ -1195,16 +1159,9 @@ impl Graph {
                 self.offset.y += a;
             }
         }
-        if i.key_pressed(Key::S) || i.key_pressed(Key::ArrowDown) {
+        if i.keys_pressed(self.keybinds.down) {
             if self.is_3d {
-                if i.key_pressed(Key::ArrowDown) {
-                    if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
-                        self.recalculate = true;
-                    }
-                    self.offset3d.y += 1.0
-                } else {
-                    self.angle.y = ((self.angle.y / b + 1.0).round() * b).rem_euclid(TAU);
-                }
+                self.angle.y = ((self.angle.y / b + 1.0).round() * b).rem_euclid(TAU);
             } else {
                 if self.graph_mode == GraphMode::DomainColoring {
                     self.recalculate = true;
@@ -1212,36 +1169,60 @@ impl Graph {
                 self.offset.y -= a;
             }
         }
-        if i.key_pressed(Key::Z) {
+        if i.keys_pressed(self.keybinds.lines) {
             self.disable_lines = !self.disable_lines;
         }
-        if i.key_pressed(Key::X) {
+        if i.keys_pressed(self.keybinds.axis) {
             self.disable_axis = !self.disable_axis;
         }
-        if i.key_pressed(Key::C) {
+        if i.keys_pressed(self.keybinds.coord) {
             self.disable_coord = !self.disable_coord;
         }
-        if i.key_pressed(Key::R) {
+        if i.keys_pressed(self.keybinds.anti_alias) {
             self.anti_alias = !self.anti_alias;
             self.cache = None;
         }
         if self.is_3d {
-            if i.key_pressed(Key::F) {
+            if i.keys_pressed(self.keybinds.left_3d) {
+                if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
+                    self.recalculate = true;
+                }
+                self.offset3d.x -= 1.0
+            }
+            if i.keys_pressed(self.keybinds.right_3d) {
+                if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
+                    self.recalculate = true;
+                }
+                self.offset3d.x += 1.0
+            }
+            if i.keys_pressed(self.keybinds.down_3d) {
+                if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
+                    self.recalculate = true;
+                }
+                self.offset3d.y += 1.0
+            }
+            if i.keys_pressed(self.keybinds.up_3d) {
+                if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
+                    self.recalculate = true;
+                }
+                self.offset3d.y -= 1.0
+            }
+            if i.keys_pressed(self.keybinds.in_3d) {
                 self.offset3d.z += 1.0;
                 if matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
                     self.recalculate = true;
                 }
             }
-            if i.key_pressed(Key::G) {
+            if i.keys_pressed(self.keybinds.out_3d) {
                 self.offset3d.z -= 1.0;
                 if matches!(self.graph_mode, GraphMode::Depth | GraphMode::SliceDepth) {
                     self.recalculate = true;
                 }
             }
-            if i.key_pressed(Key::P) {
+            if i.keys_pressed(self.keybinds.ignore_bounds) {
                 self.ignore_bounds = !self.ignore_bounds;
             }
-            if i.key_pressed(Key::O) {
+            if i.keys_pressed(self.keybinds.color_depth) {
                 self.color_depth = match self.color_depth {
                     DepthColor::None => DepthColor::Vertical,
                     DepthColor::Vertical => DepthColor::Depth,
@@ -1249,11 +1230,11 @@ impl Graph {
                 };
             }
             let mut changed = false;
-            if i.key_pressed(Key::Semicolon) && self.box_size > 0.1 {
+            if i.keys_pressed(self.keybinds.zoom_in_3d) && self.box_size > 0.1 {
                 self.box_size -= 0.1;
                 changed = true
             }
-            if i.key_pressed(Key::Quote) {
+            if i.keys_pressed(self.keybinds.zoom_out_3d) {
                 self.box_size += 0.1;
                 changed = true
             }
@@ -1268,14 +1249,14 @@ impl Graph {
                     self.box_size = 3.0f64.sqrt()
                 }
             }
-            if i.key_pressed(Key::Y) {
+            if i.keys_pressed(self.keybinds.show_box) {
                 self.show_box = !self.show_box
             }
             self.angle.x = (self.angle.x - i.raw_scroll_delta.x / 512.0).rem_euclid(TAU);
             self.angle.y = (self.angle.y + i.raw_scroll_delta.y / 512.0).rem_euclid(TAU);
         } else {
             let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
-            if i.key_pressed(Key::Y) {
+            if i.keys_pressed(self.keybinds.domain_alternate) {
                 self.cache = None;
                 self.domain_alternate = !self.domain_alternate
             }
@@ -1315,7 +1296,7 @@ impl Graph {
                 _ => {}
             }
         }
-        if i.key_pressed(Key::Q) {
+        if i.keys_pressed(self.keybinds.zoom_out) {
             if self.is_3d {
                 self.zoom3d *= 2.0;
                 self.bound *= 2.0;
@@ -1334,7 +1315,7 @@ impl Graph {
             }
             self.recalculate = true;
         }
-        if i.key_pressed(Key::E) {
+        if i.keys_pressed(self.keybinds.zoom_in) {
             if self.is_3d {
                 self.zoom3d /= 2.0;
                 self.bound /= 2.0;
@@ -1357,69 +1338,67 @@ impl Graph {
             self.graph_mode,
             GraphMode::Slice | GraphMode::SliceFlatten | GraphMode::SliceDepth
         ) {
-            if i.key_pressed(Key::Period) {
+            if i.keys_pressed(self.keybinds.slice_up) {
                 self.recalculate = true;
                 self.slice += c
             }
-            if i.key_pressed(Key::Comma) {
+            if i.keys_pressed(self.keybinds.slice_down) {
                 self.recalculate = true;
                 self.slice -= c
             }
-            if i.key_pressed(Key::Slash) {
+            if i.keys_pressed(self.keybinds.slice_view) {
                 self.recalculate = true;
                 self.view_x = !self.view_x
             }
         }
-        if i.key_pressed(Key::L) {
-            if self.graph_mode == GraphMode::DomainColoring {
-                self.cache = None;
-                self.log_scale = !self.log_scale
-            } else {
-                self.lines = match self.lines {
-                    Lines::Lines => Lines::Points,
-                    Lines::Points => Lines::LinesPoints,
-                    Lines::LinesPoints => Lines::Lines,
-                };
-            }
+        if self.graph_mode == GraphMode::DomainColoring && i.keys_pressed(self.keybinds.log_scale) {
+            self.cache = None;
+            self.log_scale = !self.log_scale
         }
-        if self.graph_mode == GraphMode::Flatten || self.graph_mode == GraphMode::SliceFlatten {
-            let s = if shift {
-                (self.var.y - self.var.x) * 0.5
-            } else {
-                (self.var.y - self.var.x) / 4.0
+        if i.keys_pressed(self.keybinds.line_style) {
+            self.lines = match self.lines {
+                Lines::Lines => Lines::Points,
+                Lines::Points => Lines::LinesPoints,
+                Lines::LinesPoints => Lines::Lines,
             };
-            if i.key_pressed(Key::H) {
+        }
+        if matches!(
+            self.graph_mode,
+            GraphMode::Flatten | GraphMode::SliceFlatten | GraphMode::SliceDepth
+        ) {
+            let s = (self.var.y - self.var.x) / 4.0;
+            if i.keys_pressed(self.keybinds.var_down) {
                 self.var.x -= s;
                 self.var.y -= s;
                 self.recalculate = true;
             }
-            if i.key_pressed(Key::J) {
+            if i.keys_pressed(self.keybinds.var_up) {
                 self.var.x += s;
                 self.var.y += s;
                 self.recalculate = true;
             }
-            if i.key_pressed(Key::M) {
-                if shift {
-                    self.var.x = (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x) / 4.0;
-                    self.var.y = (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x) / 4.0;
-                } else {
-                    self.var.x = (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x);
-                    self.var.y = (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x);
-                }
+            if i.keys_pressed(self.keybinds.var_in) {
+                self.var.x = (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x) / 4.0;
+                self.var.y = (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x) / 4.0;
+                self.recalculate = true;
+            }
+            if i.keys_pressed(self.keybinds.var_out) {
+                self.var.x = (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x);
+                self.var.y = (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x);
                 self.recalculate = true;
             }
         }
-        if i.key_pressed(Key::OpenBracket) {
+        if i.keys_pressed(self.keybinds.prec_up) {
             self.recalculate = true;
             self.prec /= 2.0;
             self.slice /= 2;
         }
-        if i.key_pressed(Key::CloseBracket) {
+        if i.keys_pressed(self.keybinds.prec_down) {
             self.recalculate = true;
             self.prec *= 2.0;
             self.slice *= 2;
         }
-        if i.key_pressed(Key::N) {
+        if i.keys_pressed(self.keybinds.ruler) {
             let last = self.ruler_pos;
             self.ruler_pos = self.mouse_position.map(|a| {
                 let a = self.to_coord(a.to_pos());
@@ -1429,54 +1408,16 @@ impl Graph {
                 self.ruler_pos = None;
             }
         }
-        if self.is_complex && i.key_pressed(Key::I) {
+        if self.is_complex && i.keys_pressed(self.keybinds.view) {
             self.show = match self.show {
                 Show::Complex => Show::Real,
                 Show::Real => Show::Imag,
                 Show::Imag => Show::Complex,
             }
         }
-        if i.key_pressed(Key::B) {
+        if i.keys_pressed(self.keybinds.mode_up) {
             if self.is_complex {
                 self.graph_mode = match self.graph_mode {
-                    GraphMode::Normal if shift => {
-                        self.recalculate = true;
-                        if self.is_3d {
-                            self.is_3d = false;
-                            GraphMode::DomainColoring
-                        } else {
-                            self.is_3d = true;
-                            GraphMode::Depth
-                        }
-                    }
-                    GraphMode::Slice if shift => {
-                        self.is_3d = true;
-                        self.recalculate = true;
-                        GraphMode::Normal
-                    }
-                    GraphMode::SliceDepth if shift => {
-                        self.is_3d = false;
-                        self.recalculate = true;
-                        GraphMode::SliceFlatten
-                    }
-                    GraphMode::SliceFlatten if shift => {
-                        self.recalculate = true;
-                        GraphMode::Slice
-                    }
-                    GraphMode::Flatten if shift => {
-                        self.recalculate = true;
-                        GraphMode::Normal
-                    }
-                    GraphMode::DomainColoring if shift => {
-                        self.is_3d = true;
-                        self.recalculate = true;
-                        GraphMode::SliceDepth
-                    }
-                    GraphMode::Depth if shift => {
-                        self.is_3d = false;
-                        self.recalculate = true;
-                        GraphMode::Flatten
-                    }
                     GraphMode::Normal => {
                         self.recalculate = true;
                         if self.is_3d {
@@ -1534,7 +1475,67 @@ impl Graph {
                 }
             }
         }
-        if i.key_pressed(Key::T) {
+        if i.keys_pressed(self.keybinds.mode_down) {
+            if self.is_complex {
+                self.graph_mode = match self.graph_mode {
+                    GraphMode::Normal => {
+                        self.recalculate = true;
+                        if self.is_3d {
+                            self.is_3d = false;
+                            GraphMode::DomainColoring
+                        } else {
+                            self.is_3d = true;
+                            GraphMode::Depth
+                        }
+                    }
+                    GraphMode::Slice => {
+                        self.is_3d = true;
+                        self.recalculate = true;
+                        GraphMode::Normal
+                    }
+                    GraphMode::SliceDepth => {
+                        self.is_3d = false;
+                        self.recalculate = true;
+                        GraphMode::SliceFlatten
+                    }
+                    GraphMode::SliceFlatten => {
+                        self.recalculate = true;
+                        GraphMode::Slice
+                    }
+                    GraphMode::Flatten => {
+                        self.recalculate = true;
+                        GraphMode::Normal
+                    }
+                    GraphMode::DomainColoring => {
+                        self.is_3d = true;
+                        self.recalculate = true;
+                        GraphMode::SliceDepth
+                    }
+                    GraphMode::Depth => {
+                        self.is_3d = false;
+                        self.recalculate = true;
+                        GraphMode::Flatten
+                    }
+                }
+            } else {
+                match self.graph_mode {
+                    GraphMode::Normal => {
+                        if self.is_3d {
+                            self.recalculate = true;
+                            self.is_3d = false;
+                            self.graph_mode = GraphMode::Slice
+                        }
+                    }
+                    GraphMode::Slice => {
+                        self.recalculate = true;
+                        self.is_3d = true;
+                        self.graph_mode = GraphMode::Normal;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if i.keys_pressed(self.keybinds.reset) {
             self.offset3d = Vec3::splat(0.0);
             self.offset = Vec2::splat(0.0);
             self.var = self.bound;
