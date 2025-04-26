@@ -8,6 +8,9 @@ fn is_3d(data: &[GraphType]) -> bool {
     data.iter()
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
 }
+//TODO optional x/y float types
+//TODO make complex type out of vector
+//TODO wasm
 //TODO 2d logscale
 //TODO 2d axis labels
 //TODO labels in flatten/depth/domain coloring
@@ -98,7 +101,7 @@ impl Graph {
             axis_color: Color::splat(0),
             axis_color_light: Color::splat(220),
             text_color: Color::splat(0),
-            #[cfg(feature = "skia")]
+            #[cfg(any(feature = "skia", feature = "tiny-skia"))]
             background_color: Color::splat(255),
             mouse_position: None,
             mouse_moved: false,
@@ -277,6 +280,7 @@ impl Graph {
             UpdateResult::None
         }
     }
+    #[cfg(not(feature = "tiny-skia"))]
     fn max(&self) -> usize {
         self.data
             .iter()
@@ -319,6 +323,23 @@ impl Graph {
             self.font.clone(),
             self.fast_3d(),
             self.max(),
+            self.anti_alias,
+        );
+        let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
+        self.update_inner(&mut painter, width as f64, height as f64, plot);
+        painter.save(buffer);
+    }
+    #[cfg(feature = "tiny-skia")]
+    ///repaints the screen
+    pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T)
+    where
+        T: std::ops::DerefMut<Target = [u32]>,
+    {
+        let mut painter = Painter::new(
+            width,
+            height,
+            self.background_color,
+            self.fast_3d(),
             self.anti_alias,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
@@ -534,6 +555,8 @@ impl Graph {
     fn text(&self, pos: Pos, align: Align, text: &str, col: &Color, painter: &mut Painter) {
         painter.text(pos, align, text, col, self.font_size);
     }
+    #[cfg(feature = "tiny-skia")]
+    fn text(&self, _: Pos, _: Align, _: &str, _: &Color, _: &mut Painter) {}
     fn write_angle(&self, painter: &mut Painter) {
         if !self.disable_coord {
             self.text(
@@ -602,7 +625,7 @@ impl Graph {
             None
         }
     }
-    #[cfg(feature = "skia")]
+    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
     fn draw_point(
         &self,
         painter: &mut Painter,
@@ -1061,7 +1084,7 @@ impl Graph {
     pub fn keybinds(&mut self, ui: &egui::Ui) {
         ui.input(|i| self.keybinds_inner(&i.into()));
     }
-    #[cfg(feature = "skia")]
+    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
     ///process the current keys and mouse/touch inputs, see Keybinds for more info,
     ///expected to run before update_res()
     pub fn keybinds(&mut self, i: &InputState) {
@@ -1597,10 +1620,10 @@ impl Graph {
              last: Option<Pos>|
              -> Option<Pos> { main.draw_point(painter, ui, x, y, color, last) };
         let anti_alias = self.anti_alias;
-        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: &[u8]| {
+        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
             *cache = Some(Image(ui.ctx().load_texture(
                 "dc",
-                egui::ColorImage::from_rgb([lenx, leny], data),
+                egui::ColorImage::from_rgb([lenx, leny], &data),
                 if anti_alias {
                     egui::TextureOptions::LINEAR
                 } else {
@@ -1619,7 +1642,7 @@ impl Graph {
                           color: &Color,
                           last: Option<Pos>|
          -> Option<Pos> { main.draw_point(painter, x, y, color, last) };
-        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: &[u8]| {
+        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
             let info = skia_safe::ImageInfo::new(
                 (lenx as i32, leny as i32),
                 skia_safe::ColorType::RGB888x,
@@ -1628,8 +1651,26 @@ impl Graph {
             );
             *cache = skia_safe::images::raster_from_data(
                 &info,
-                skia_safe::Data::new_copy(data),
+                skia_safe::Data::new_copy(&data),
                 4 * lenx,
+            )
+            .map(Image);
+        };
+        self.plot_inner(painter, draw_point, tex)
+    }
+    #[cfg(feature = "tiny-skia")]
+    fn plot(&mut self, painter: &mut Painter) -> Option<Vec<(f32, Draw, Color)>> {
+        let draw_point = |main: &Graph,
+                          painter: &mut Painter,
+                          x: f64,
+                          y: f64,
+                          color: &Color,
+                          last: Option<Pos>|
+         -> Option<Pos> { main.draw_point(painter, x, y, color, last) };
+        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
+            *cache = tiny_skia::Pixmap::from_vec(
+                data,
+                tiny_skia::IntSize::from_wh(lenx as u32, leny as u32).unwrap(),
             )
             .map(Image);
         };
@@ -1643,7 +1684,7 @@ impl Graph {
     ) -> Option<Vec<(f32, Draw, Color)>>
     where
         F: Fn(&Graph, &mut Painter, f64, f64, &Color, Option<Pos>) -> Option<Pos>,
-        G: Fn(&mut Option<Image>, usize, usize, &[u8]),
+        G: Fn(&mut Option<Image>, usize, usize, Vec<u8>),
     {
         let mut buffer: Option<Vec<(f32, Draw, Color)>> = (!self.fast_3d()).then(|| {
             let n = self
@@ -1991,7 +2032,7 @@ impl Graph {
                                 #[cfg(feature = "skia")]
                                 rgb.push(0)
                             }
-                            tex(&mut self.cache, lenx, leny, &rgb);
+                            tex(&mut self.cache, lenx, leny, rgb);
                         }
                         if let Some(texture) = &self.cache {
                             painter.image(texture, self.screen);

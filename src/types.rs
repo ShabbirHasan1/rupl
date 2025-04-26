@@ -102,6 +102,8 @@ impl AsRef<skia_safe::Image> for Image {
         &self.0
     }
 }
+#[cfg(feature = "tiny-skia")]
+pub(crate) struct Image(pub tiny_skia::Pixmap);
 pub struct Graph {
     ///current data sets
     pub data: Vec<GraphType>,
@@ -163,7 +165,7 @@ pub struct Graph {
     pub axis_color: Color,
     ///minor ticks axis color
     pub axis_color_light: Color,
-    #[cfg(feature = "skia")]
+    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
     ///background color
     pub background_color: Color,
     ///text color
@@ -556,6 +558,10 @@ impl Color {
             self.b as f32 / 255.0,
             1.0,
         )
+    }
+    #[cfg(feature = "tiny-skia")]
+    pub(crate) fn to_col(self) -> tiny_skia::Color {
+        tiny_skia::Color::from_rgba8(self.r, self.g, self.b, 255)
     }
 }
 #[derive(Copy, Clone, PartialEq)]

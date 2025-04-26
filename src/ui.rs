@@ -1,4 +1,4 @@
-use crate::types::{Align, Color, Image, Pos, Vec2};
+use crate::types::{Color, Image, Pos, Vec2};
 #[cfg(feature = "egui")]
 pub(crate) struct Painter<'a> {
     painter: &'a egui::Painter,
@@ -57,7 +57,14 @@ impl<'a> Painter<'a> {
             );
         }
     }
-    pub(crate) fn text(&self, p0: Pos, p1: Align, p2: &str, p4: &Color, font_size: f32) {
+    pub(crate) fn text(
+        &self,
+        p0: Pos,
+        p1: crate::types::Align,
+        p2: &str,
+        p4: &Color,
+        font_size: f32,
+    ) {
         self.painter.text(
             p0.to_pos2(),
             p1.into(),
@@ -223,7 +230,7 @@ impl Painter {
             }
         }
     }
-    pub(crate) fn text(&mut self, p0: Pos, p1: Align, p2: &str, p4: &Color) {
+    pub(crate) fn text(&mut self, p0: Pos, p1: crate::types::Align, p2: &str, p4: &Color) {
         let mut pos = p0.to_pos2();
         let paint = make_paint(1.0, p4, false, false);
         let strs = p2.split('\n').collect::<Vec<&str>>();
@@ -233,48 +240,212 @@ impl Painter {
             if !s.is_empty() {
                 let mut pos = pos;
                 match p1 {
-                    Align::CenterBottom | Align::CenterCenter | Align::CenterTop => {
-                        pos.x -= width / 2.0
-                    }
-                    Align::LeftBottom | Align::LeftCenter | Align::LeftTop => {}
-                    Align::RightBottom | Align::RightCenter | Align::RightTop => pos.x -= width,
+                    crate::types::Align::CenterBottom
+                    | crate::types::Align::CenterCenter
+                    | crate::types::Align::CenterTop => pos.x -= width / 2.0,
+                    crate::types::Align::LeftBottom
+                    | crate::types::Align::LeftCenter
+                    | crate::types::Align::LeftTop => {}
+                    crate::types::Align::RightBottom
+                    | crate::types::Align::RightCenter
+                    | crate::types::Align::RightTop => pos.x -= width,
                 }
                 match p1 {
-                    Align::CenterCenter | Align::LeftCenter | Align::RightCenter => {
-                        pos.y += height / 2.0
-                    }
-                    Align::CenterBottom | Align::LeftBottom | Align::RightBottom => {}
-                    Align::CenterTop | Align::LeftTop | Align::RightTop => pos.y += height,
+                    crate::types::Align::CenterCenter
+                    | crate::types::Align::LeftCenter
+                    | crate::types::Align::RightCenter => pos.y += height / 2.0,
+                    crate::types::Align::CenterBottom
+                    | crate::types::Align::LeftBottom
+                    | crate::types::Align::RightBottom => {}
+                    crate::types::Align::CenterTop
+                    | crate::types::Align::LeftTop
+                    | crate::types::Align::RightTop => pos.y += height,
                 }
                 self.canvas.canvas().draw_str(s, pos, &self.font, &paint);
             }
             match p1 {
-                Align::CenterTop | Align::RightTop | Align::LeftTop => {
+                crate::types::Align::CenterTop
+                | crate::types::Align::RightTop
+                | crate::types::Align::LeftTop => {
                     pos.y += height;
                 }
-                Align::CenterBottom | Align::RightBottom | Align::LeftBottom => {
+                crate::types::Align::CenterBottom
+                | crate::types::Align::RightBottom
+                | crate::types::Align::LeftBottom => {
                     pos.y -= height;
                 }
-                Align::CenterCenter | Align::RightCenter | Align::LeftCenter => {
+                crate::types::Align::CenterCenter
+                | crate::types::Align::RightCenter
+                | crate::types::Align::LeftCenter => {
                     pos.y += height / 2.0;
                 }
             }
         };
         match p1 {
-            Align::CenterTop | Align::RightTop | Align::LeftTop => {
+            crate::types::Align::CenterTop
+            | crate::types::Align::RightTop
+            | crate::types::Align::LeftTop => {
                 for s in strs {
                     body(s)
                 }
             }
-            Align::CenterBottom | Align::RightBottom | Align::LeftBottom => {
+            crate::types::Align::CenterBottom
+            | crate::types::Align::RightBottom
+            | crate::types::Align::LeftBottom => {
                 for s in strs.iter().rev() {
                     body(s)
                 }
             }
-            Align::CenterCenter | Align::RightCenter | Align::LeftCenter => {
+            crate::types::Align::CenterCenter
+            | crate::types::Align::RightCenter
+            | crate::types::Align::LeftCenter => {
                 for s in strs {
                     body(s)
                 }
+            }
+        }
+    }
+}
+#[cfg(feature = "tiny-skia")]
+pub(crate) struct Painter {
+    canvas: tiny_skia::Pixmap,
+    line: Line,
+    fast: bool,
+    anti_alias: bool,
+}
+#[cfg(feature = "tiny-skia")]
+impl Painter {
+    pub(crate) fn new(
+        width: u32,
+        height: u32,
+        background: Color,
+        fast: bool,
+        anti_alias: bool,
+    ) -> Self {
+        let mut canvas = tiny_skia::Pixmap::new(width, height).unwrap();
+        canvas.fill(background.to_col());
+        Self {
+            canvas,
+            line: if fast {
+                Line::Fast(FastLine {
+                    line: Default::default(),
+                })
+            } else {
+                Line::Slow(SlowLine {
+                    line: Default::default(),
+                    color: Color::new(0, 0, 0),
+                    last: None,
+                })
+            },
+            fast,
+            anti_alias,
+        }
+    }
+    pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p2: &Color) {
+        self.line.line(
+            p0,
+            p2,
+            if self.fast {
+                None
+            } else {
+                Some(&mut self.canvas)
+            },
+        );
+    }
+    fn draw(&mut self) {
+        std::mem::replace(&mut self.line, Line::None).draw(&mut self.canvas, self.anti_alias);
+    }
+    #[cfg(not(feature = "skia-png"))]
+    pub(crate) fn save<T>(&mut self, buffer: &mut T)
+    where
+        T: std::ops::DerefMut<Target = [u32]>,
+    {
+        self.draw();
+        for (dst, p) in buffer.iter_mut().zip(self.canvas.pixels()) {
+            *dst = (p.red() as u32) << 16 | (p.green() as u32) << 8 | p.blue() as u32;
+        }
+    }
+    #[cfg(feature = "skia-png")]
+    pub(crate) fn save(&mut self, format: &ImageFormat) -> Data {
+        self.draw(); //TODO
+        self.draw_pts();
+        Data {
+            data: self
+                .canvas
+                .image_snapshot()
+                .encode(None, format.into(), None)
+                .unwrap(),
+        }
+    }
+    pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
+        self.canvas.fill_rect(
+            tiny_skia::Rect::from_ltrb(p0.x - 1.0, p0.y - 1.0, p0.x + 1.0, p0.y + 1.0).unwrap(),
+            &make_paint(3.0, p2, false, true),
+            tiny_skia::Transform::default(),
+            None,
+        );
+    }
+    pub(crate) fn image(&mut self, p0: &Image, _pos: Vec2) {
+        self.canvas.draw_pixmap(
+            0,
+            0,
+            p0.0.as_ref(),
+            &tiny_skia::PixmapPaint::default(),
+            tiny_skia::Transform::default(),
+            None,
+        );
+    }
+    pub(crate) fn hline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
+        if p1.is_finite() {
+            if p2 != 1.0 {
+                let mut path = tiny_skia::PathBuilder::new();
+                path.move_to(0.0, p1);
+                path.line_to(p0, p1);
+                let path = path.finish().unwrap();
+                self.canvas.stroke_path(
+                    &path,
+                    &make_paint(p2, p3, false, false),
+                    &tiny_skia::Stroke::default(),
+                    tiny_skia::Transform::default(),
+                    None,
+                );
+            } else {
+                self.line.line(
+                    [Pos::new(0.0, p1), Pos::new(p0, p1)],
+                    p3,
+                    if self.fast {
+                        None
+                    } else {
+                        Some(&mut self.canvas)
+                    },
+                );
+            }
+        }
+    }
+    pub(crate) fn vline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
+        if p0.is_finite() {
+            if p2 != 1.0 {
+                let mut path = tiny_skia::PathBuilder::new();
+                path.move_to(p0, 0.0);
+                path.line_to(p0, p1);
+                let path = path.finish().unwrap();
+                self.canvas.stroke_path(
+                    &path,
+                    &make_paint(p2, p3, false, false),
+                    &tiny_skia::Stroke::default(),
+                    tiny_skia::Transform::default(),
+                    None,
+                );
+            } else {
+                self.line.line(
+                    [Pos::new(p0, 0.0), Pos::new(p0, p1)],
+                    p3,
+                    if self.fast {
+                        None
+                    } else {
+                        Some(&mut self.canvas)
+                    },
+                );
             }
         }
     }
@@ -338,9 +509,24 @@ fn make_paint(p1: f32, p2: &Color, alias: bool, fill: bool) -> skia_safe::Paint 
     p.set_anti_alias(alias);
     p
 }
+#[cfg(feature = "tiny-skia")]
+fn make_paint(_p1: f32, p2: &Color, alias: bool, _fill: bool) -> tiny_skia::Paint {
+    let mut p = tiny_skia::Paint::default();
+    p.set_color(p2.to_col());
+    p.anti_alias = alias;
+    /*p.set_stroke_width(p1);
+    p.set_style(tiny_skia::PaintStyle::Stroke);
+    if fill {
+        p.set_stroke_cap(tiny_skia::PaintCap::Square);
+    }
+    p.set_anti_alias(alias);*/
+    p
+}
 struct FastLine {
     #[cfg(feature = "skia")]
     line: std::collections::HashMap<Color, skia_safe::Path>,
+    #[cfg(feature = "tiny-skia")]
+    line: std::collections::HashMap<Color, tiny_skia::PathBuilder>,
     #[cfg(feature = "egui")]
     line: std::collections::HashMap<Color, Vec<egui::Pos2>>,
     #[cfg(feature = "egui")]
@@ -349,17 +535,20 @@ struct FastLine {
 struct SlowLine {
     #[cfg(feature = "skia")]
     line: skia_safe::Path,
+    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+    last: Option<Pos>,
+    #[cfg(feature = "tiny-skia")]
+    line: tiny_skia::PathBuilder,
     #[cfg(feature = "egui")]
     line: Vec<egui::Pos2>,
     #[cfg(feature = "egui")]
     size: usize,
     color: Color,
-    #[cfg(feature = "skia")]
-    last: Option<Pos>,
 }
 enum Line {
     Fast(FastLine),
     Slow(SlowLine),
+    None,
 }
 #[cfg(feature = "skia")]
 impl Line {
@@ -416,6 +605,84 @@ impl Line {
                     canvas.draw_path(line, &make_paint(1.0, color, anti_alias, false));
                 }
             }
+        }
+    }
+}
+#[cfg(feature = "tiny-skia")]
+impl Line {
+    fn line(&mut self, p0: [Pos; 2], p2: &Color, canvas: Option<&mut tiny_skia::Pixmap>) {
+        match self {
+            Line::Fast(FastLine { line }) => {
+                let path = line.entry(*p2).or_insert({
+                    let mut path = tiny_skia::PathBuilder::new();
+                    path.move_to(p0[0].x, p0[0].y);
+                    path
+                });
+                let last = path.last_point().unwrap();
+                let last = Pos::new(last.x, last.y);
+                let a = !p0[0].close(last);
+                let b = !p0[1].close(last);
+                if b {
+                    if a {
+                        path.move_to(p0[0].x, p0[0].y);
+                    }
+                    path.line_to(p0[1].x, p0[1].y);
+                } else if a {
+                    path.line_to(p0[0].x, p0[0].y);
+                }
+            }
+            Line::Slow(SlowLine { line, last, color }) => {
+                if p2 == color && last.map(|l| p0[0].close(l)).unwrap_or(false) {
+                    if !last.unwrap().close(p0[1]) {
+                        line.line_to(p0[1].x, p0[1].y);
+                    }
+                } else {
+                    if last.is_some() {
+                        let path = std::mem::take(line).finish().unwrap();
+                        canvas.unwrap().stroke_path(
+                            &path,
+                            &make_paint(1.0, color, true, false),
+                            &tiny_skia::Stroke::default(),
+                            tiny_skia::Transform::default(),
+                            None,
+                        );
+                    }
+                    line.move_to(p0[0].x, p0[0].y);
+                    line.line_to(p0[1].x, p0[1].y);
+                    *color = *p2;
+                }
+                *last = Some(p0[1])
+            }
+            Line::None => {}
+        }
+    }
+    fn draw(self, canvas: &mut tiny_skia::Pixmap, anti_alias: bool) {
+        match self {
+            Line::Fast(FastLine { line }) => {
+                for (color, path) in line {
+                    let path = path.finish().unwrap();
+                    canvas.stroke_path(
+                        &path,
+                        &make_paint(1.0, &color, anti_alias, false),
+                        &tiny_skia::Stroke::default(),
+                        tiny_skia::Transform::default(),
+                        None,
+                    );
+                }
+            }
+            Line::Slow(SlowLine { line, color, .. }) => {
+                if line.last_point().is_some() {
+                    let path = line.finish().unwrap();
+                    canvas.stroke_path(
+                        &path,
+                        &make_paint(1.0, &color, anti_alias, false),
+                        &tiny_skia::Stroke::default(),
+                        tiny_skia::Transform::default(),
+                        None,
+                    );
+                }
+            }
+            Line::None => {}
         }
     }
 }
