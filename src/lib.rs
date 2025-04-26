@@ -9,6 +9,8 @@ fn is_3d(data: &[GraphType]) -> bool {
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
 }
 //TODO 2d logscale
+//TODO 2d axis labels
+//TODO labels in flatten/depth/domain coloring
 //TODO toggle disable graphs
 //TODO tiny skia backend
 //TODO vulkan renderer
@@ -16,6 +18,15 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO only recalculate when needed
 //TODO fast3d multithread
 impl Graph {
+    ///creates a new struct where data is the initial set of data to be painted
+    ///
+    ///names are the labels of the functions which will be painted and
+    ///must be in order of data vector to get correct colors, empty name strings will be ignored.
+    ///
+    ///is_complex is weather the graph contains imaginary elements or not,
+    ///will change what graph modes are available
+    ///
+    ///start,end are the initial visual bounds of the box
     pub fn new(
         data: Vec<GraphType>,
         names: Vec<Name>,
@@ -49,13 +60,11 @@ impl Graph {
             offset: Vec2::splat(0.0),
             angle: Vec2::splat(PI / 6.0),
             slice: 0,
-            switch: false,
             mult: 1.0,
             is_complex,
             show: Show::Complex,
             ignore_bounds: false,
             zoom: 1.0,
-            zoom3d: 1.0,
             mouse_held: false,
             screen: Vec2::splat(0.0),
             screen_offset: Vec2::splat(0.0),
@@ -108,6 +117,7 @@ impl Graph {
         }
     }
     #[cfg(feature = "skia")]
+    ///sets font
     pub fn set_font(&mut self, bytes: &[u8]) {
         let typeface = skia_safe::FontMgr::default()
             .new_from_data(bytes, None)
@@ -115,17 +125,26 @@ impl Graph {
         self.font = skia_safe::Font::new(typeface, self.font_size);
         self.font_width = 0.0;
     }
+    ///sets font size
+    pub fn set_font_size(&mut self, size: f32) {
+        self.font_size = size;
+        self.font_width = 0.0;
+    }
+    ///sets data and resets domain coloring cache
     pub fn set_data(&mut self, data: Vec<GraphType>) {
         self.data = data;
         self.cache = None;
     }
+    ///clears data and domain coloring cache
     pub fn clear_data(&mut self) {
         self.data.clear();
         self.cache = None;
     }
+    ///resets current 3d view based on the data that is supplied
     pub fn reset_3d(&mut self) {
         self.is_3d = is_3d(&self.data);
     }
+    ///sets the current graph_mode and reprocesses is_3d
     pub fn set_mode(&mut self, mode: GraphMode) {
         match mode {
             GraphMode::DomainColoring | GraphMode::Slice => self.is_3d = false,
@@ -145,6 +164,9 @@ impl Graph {
             self.prec
         }
     }
+    ///if keybinds does something that requires more data to be generated,
+    ///will return a corrosponding UpdateResult asking for more data,
+    ///meant to be ran before update()
     pub fn update_res(&mut self) -> UpdateResult {
         if self.recalculate {
             self.recalculate = false;
@@ -167,8 +189,8 @@ impl Graph {
                             cf.0,
                             cf.1,
                             Prec::Dimension(
-                                (self.screen.x * prec) as usize,
-                                (self.screen.y * prec) as usize,
+                                (self.screen.x * prec * self.mult) as usize,
+                                (self.screen.y * prec * self.mult) as usize,
                             ),
                         )
                     }
@@ -181,7 +203,7 @@ impl Graph {
                                 self.bound.x,
                                 cf.0,
                                 self.bound.y,
-                                Prec::Slice(prec, self.view_x, self.slice),
+                                Prec::Slice(prec),
                             )
                         } else {
                             UpdateResult::Width3D(
@@ -189,7 +211,7 @@ impl Graph {
                                 c.0,
                                 self.bound.y,
                                 cf.0,
-                                Prec::Slice(prec, self.view_x, self.slice),
+                                Prec::Slice(prec),
                             )
                         }
                     }
@@ -200,7 +222,7 @@ impl Graph {
                                 self.bound.x,
                                 self.var.y,
                                 self.bound.y,
-                                Prec::Slice(self.prec, self.view_x, self.slice),
+                                Prec::Slice(self.prec),
                             )
                         } else {
                             UpdateResult::Width3D(
@@ -208,7 +230,7 @@ impl Graph {
                                 self.var.x,
                                 self.bound.y,
                                 self.var.y,
-                                Prec::Slice(self.prec, self.view_x, self.slice),
+                                Prec::Slice(self.prec),
                             )
                         }
                     }
@@ -219,7 +241,7 @@ impl Graph {
                                 self.bound.x,
                                 self.bound.y - self.offset3d.z,
                                 self.bound.y,
-                                Prec::Slice(self.prec, self.view_x, self.slice),
+                                Prec::Slice(self.prec),
                             )
                         } else {
                             UpdateResult::Width3D(
@@ -227,7 +249,7 @@ impl Graph {
                                 self.bound.x - self.offset3d.z,
                                 self.bound.y,
                                 self.bound.y - self.offset3d.z,
-                                Prec::Slice(self.prec, self.view_x, self.slice),
+                                Prec::Slice(self.prec),
                             )
                         }
                     }
@@ -268,6 +290,7 @@ impl Graph {
             .unwrap_or(0)
     }
     #[cfg(feature = "egui")]
+    ///repaints the screen
     pub fn update(&mut self, ctx: &egui::Context, ui: &egui::Ui) {
         self.font_width(ctx);
         let mut painter = Painter::new(ui, self.fast_3d(), self.max());
@@ -283,6 +306,7 @@ impl Graph {
     }
     #[cfg(feature = "skia")]
     #[cfg(not(feature = "skia-png"))]
+    ///repaints the screen
     pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
@@ -302,6 +326,7 @@ impl Graph {
         painter.save(buffer);
     }
     #[cfg(feature = "skia-png")]
+    ///repaints the screen
     pub fn update(&mut self, width: u32, height: u32) -> ui::Data {
         let mut painter = Painter::new(
             width,
@@ -387,7 +412,12 @@ impl Graph {
                         );
                     }
                     Show::Imag => {
-                        painter.text(pos, Align::RightTop, name, &self.text_color);
+                        painter.text(
+                            pos,
+                            Align::RightTop,
+                            &format!("im:{}", name),
+                            &self.text_color,
+                        );
                         painter.line_segment(
                             [
                                 Pos::new(pos.x + 4.0, y),
@@ -945,20 +975,22 @@ impl Graph {
                 _ => unreachable!(),
             };
             if (s == "z" && [i, j].contains(&&zl)) || (s != "z" && [i, j].contains(&&xl)) {
-                line(
-                    buffer,
-                    self.fast_3d().then_some(painter),
-                    (!self.fast_3d()).then(|| {
-                        if vertices[*i].1.unwrap() < 0.5 || vertices[*j].1.unwrap() < 0.5 {
-                            0.0
-                        } else {
-                            1.0
-                        }
-                    }),
-                    vertices[*i].0,
-                    vertices[*j].0,
-                    self.axis_color,
-                );
+                if !self.disable_axis || self.show_box {
+                    line(
+                        buffer,
+                        self.fast_3d().then_some(painter),
+                        (!self.fast_3d()).then(|| {
+                            if vertices[*i].1.unwrap() < 0.5 || vertices[*j].1.unwrap() < 0.5 {
+                                0.0
+                            } else {
+                                1.0
+                            }
+                        }),
+                        vertices[*i].0,
+                        vertices[*j].0,
+                        self.axis_color,
+                    );
+                }
                 if !self.disable_axis {
                     let p = vertices[*i].0 + vertices[*j].0;
                     let align = match s {
@@ -1021,10 +1053,14 @@ impl Graph {
         }
     }
     #[cfg(feature = "egui")]
+    ///process the current keys and mouse/touch inputs, see Keybinds for more info,
+    ///expected to run before update_res()
     pub fn keybinds(&mut self, ui: &egui::Ui) {
         ui.input(|i| self.keybinds_inner(&i.into()));
     }
     #[cfg(feature = "skia")]
+    ///process the current keys and mouse/touch inputs, see Keybinds for more info,
+    ///expected to run before update_res()
     pub fn keybinds(&mut self, i: &InputState) {
         self.keybinds_inner(i)
     }
@@ -1298,7 +1334,6 @@ impl Graph {
         }
         if i.keys_pressed(self.keybinds.zoom_out) {
             if self.is_3d {
-                self.zoom3d *= 2.0;
                 self.bound *= 2.0;
             } else {
                 self.offset.x += if self.mouse_moved && !self.is_3d {
@@ -1317,7 +1352,6 @@ impl Graph {
         }
         if i.keys_pressed(self.keybinds.zoom_in) {
             if self.is_3d {
-                self.zoom3d /= 2.0;
                 self.bound /= 2.0;
             } else {
                 self.zoom *= 2.0;
@@ -1540,7 +1574,6 @@ impl Graph {
             self.offset = Vec2::splat(0.0);
             self.var = self.bound;
             self.zoom = 1.0;
-            self.zoom3d = 1.0;
             self.slice = 0;
             self.angle = Vec2::splat(PI / 6.0);
             self.box_size = 3.0f64.sqrt();
@@ -2080,13 +2113,13 @@ fn hsv2rgb(hue: f64, sat: f64, val: f64) -> [u8; 3] {
 fn rgb2val(r: f64, g: f64, b: f64) -> [u8; 3] {
     [(255.0 * r) as u8, (255.0 * g) as u8, (255.0 * b) as u8]
 }
-pub fn get_lch(color: [f32; 3]) -> (f32, f32, f32) {
+fn get_lch(color: [f32; 3]) -> (f32, f32, f32) {
     let c = (color[1].powi(2) + color[2].powi(2)).sqrt();
     let h = color[2].atan2(color[1]);
     (color[0], c, h)
 }
 #[allow(clippy::excessive_precision)]
-pub fn rgb_to_oklch(color: &mut [f32; 3]) {
+fn rgb_to_oklch(color: &mut [f32; 3]) {
     let mut l = 0.4122214694707629 * color[0]
         + 0.5363325372617349 * color[1]
         + 0.0514459932675022 * color[2];

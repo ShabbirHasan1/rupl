@@ -2,37 +2,69 @@ use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 #[derive(PartialEq)]
 pub enum GraphMode {
+    ///given a 3d data set maps in 3d, given a 2d data set maps in 2d
     Normal,
+    ///takes a slice of the 3d data set and displays it in 2d,
+    ///what slice is depended on Graph.view_x and Graph.slice
     Slice,
+    ///takes a slice of the 3d data set and maps the real part to the x axis and imaginary part to the y axis
     SliceFlatten,
+    ///takes a slice of the 3d data set and maps the real part to the x axis and imaginary part to the y axis
+    ///and the input variable to the z axis
     SliceDepth,
+    ///graphs the 3d data set as a domain coloring plot, explained more in Graph.domain_alternate
     DomainColoring,
+    ///maps the real part to the x axis and imaginary part to the y axis
     Flatten,
+    ///maps the real part to the x axis and imaginary part to the y axis
+    ///and the input variable to the z axis
     Depth,
 }
 pub enum GraphType {
+    ///2d data set where the first element in the vector maps to the first float on the x axis,
+    ///and the last element in the vector maps to the last float on the x axis, with even spacing
     Width(Vec<Complex>, f64, f64),
+    ///each complex number is mapped to the first element in the tuple on the x axis
     Coord(Vec<(f64, Complex)>),
+    ///3d data set where the first 2 floats are the starting x/y positions and the last 2 floats are
+    ///the ending x/y positions,
+    ///
+    ///the ith element in the vector corrosponds to the (i % len)th element down the x axis
+    ///and the (i / len)th element down the y axis
+    ///
+    ///expects square vector size
     Width3D(Vec<Complex>, f64, f64, f64, f64),
+    ///each complex number is mapped to the first element in the tuple on the x axis
+    ///and the second element in the tuple on the y axis
     Coord3D(Vec<(f64, f64, Complex)>),
 }
 pub struct Name {
+    ///name of the function
     pub name: String,
+    ///if the function has an imaginary part or not
     pub show: Show,
 }
 #[derive(Copy, Clone)]
-pub enum Draw {
+pub(crate) enum Draw {
     Line(Pos, Pos),
     Point(Pos),
 }
 pub enum Prec {
+    ///a multiplier on the precision of the graph to update data on, potentially note Graph.prec
     Mult(f64),
-    Slice(f64, bool, isize),
+    ///a multiplier on the precision of the graph to update data on, potentially note Graph.prec
+    ///
+    ///expecting you to only get the slice data
+    Slice(f64),
+    ///the amount of x/y data is requested for domain coloring
     Dimension(usize, usize),
 }
 pub enum UpdateResult {
+    ///a 2d data set is requested
     Width(f64, f64, Prec),
+    ///a 3d data set is requested
     Width3D(f64, f64, f64, f64, Prec),
+    ///no data is requested
     None,
 }
 pub enum Show {
@@ -54,14 +86,16 @@ pub enum Lines {
     Lines,
 }
 pub enum DepthColor {
+    ///colors based off of how far on the z axis the value is
     Vertical,
+    ///colors based off of how close to the camera it is
     Depth,
     None,
 }
 #[cfg(feature = "egui")]
-pub struct Image(pub egui::TextureHandle);
+pub(crate) struct Image(pub egui::TextureHandle);
 #[cfg(feature = "skia")]
-pub struct Image(pub skia_safe::Image);
+pub(crate) struct Image(pub skia_safe::Image);
 #[cfg(feature = "skia")]
 impl AsRef<skia_safe::Image> for Image {
     fn as_ref(&self) -> &skia_safe::Image {
@@ -69,106 +103,186 @@ impl AsRef<skia_safe::Image> for Image {
     }
 }
 pub struct Graph {
+    ///current data sets
     pub data: Vec<GraphType>,
+    ///current data sets names for labeling, ordered by data
     pub names: Vec<Name>,
-    pub cache: Option<Image>,
+    pub(crate) cache: Option<Image>,
     #[cfg(feature = "skia")]
-    pub font: skia_safe::Font,
-    pub font_size: f32,
-    pub font_width: f32,
+    pub(crate) font: skia_safe::Font,
+    pub(crate) font_size: f32,
+    pub(crate) font_width: f32,
     #[cfg(feature = "skia-png")]
     pub image_format: crate::ui::ImageFormat,
+    ///a fast 3d mode ignoring depth
     pub fast_3d: bool,
+    ///enable fast 3d only when moving with a mouse
     pub fast_3d_move: bool,
+    ///request less data when moving with a mouse
     pub reduced_move: bool,
+    ///current initial bound of window
     pub bound: Vec2,
+    ///weather data is complex or not, changes graph mode options from keybinds
     pub is_complex: bool,
+    ///offset in 3d mode
     pub offset3d: Vec3,
+    ///offset in 2d mode
     pub offset: Vec2,
+    ///view angle in 3d mode
     pub angle: Vec2,
+    ///weather bounds should be ignored in 3d mode
     pub ignore_bounds: bool,
+    ///current zoom
     pub zoom: f64,
+    ///what slice we are currently at in any slice mode
     pub slice: isize,
-    pub switch: bool,
+    ///var range used for flatten or depth
     pub var: Vec2,
+    ///log scale for domain coloring
     pub log_scale: bool,
+    ///how large the box should be in 3d
     pub box_size: f64,
+    ///alternate domain coloring mode
     pub domain_alternate: bool,
-    pub screen: Vec2,
-    pub screen_offset: Vec2,
-    pub delta: f64,
+    pub(crate) screen: Vec2,
+    pub(crate) screen_offset: Vec2,
+    pub(crate) delta: f64,
+    ///if real/imag should be displayed
     pub show: Show,
+    ///weather some elements should be anti aliased or not
     pub anti_alias: bool,
+    ///what color depth mode is currently enabled for 3d
     pub color_depth: DepthColor,
+    ///weather all box lines should be displayed
     pub show_box: bool,
-    pub zoom3d: f64,
+    ///colors of data sets for real part, ordered by data
     pub main_colors: Vec<Color>,
+    ///colors of data sets for imag part, ordered by data
     pub alt_colors: Vec<Color>,
+    ///major ticks axis color
     pub axis_color: Color,
+    ///minor ticks axis color
     pub axis_color_light: Color,
     #[cfg(feature = "skia")]
+    ///background color
     pub background_color: Color,
+    ///text color
     pub text_color: Color,
-    pub mouse_position: Option<Vec2>,
-    pub mouse_moved: bool,
+    pub(crate) mouse_position: Option<Vec2>,
+    pub(crate) mouse_moved: bool,
+    ///weather non origin lines are disabled or not
     pub disable_lines: bool,
+    ///weather axis text is disabled or not
     pub disable_axis: bool,
+    ///weather mouse position is disabled or not
     pub disable_coord: bool,
+    ///is slice viewing the x part or y part
     pub view_x: bool,
+    ///current graph mode
     pub graph_mode: GraphMode,
+    ///weather we are displaying a 3d plot or 2d
     pub is_3d: bool,
-    pub last_interact: Option<Vec2>,
-    pub recalculate: bool,
+    pub(crate) last_interact: Option<Vec2>,
+    pub(crate) recalculate: bool,
+    ///current line style
     pub lines: Lines,
+    ///current ruler position
     pub ruler_pos: Option<Vec2>,
-    pub prec: f64,
-    pub mouse_held: bool,
+    pub(crate) prec: f64,
+    pub(crate) mouse_held: bool,
+    ///how much extra reduced precision domain coloring should have
     pub mult: f64,
     pub(crate) cos_phi: f64,
     pub(crate) sin_phi: f64,
     pub(crate) cos_theta: f64,
     pub(crate) sin_theta: f64,
+    ///current keybinds
     pub keybinds: Keybinds,
 }
 #[derive(Copy, Clone, PartialEq)]
 pub struct Keybinds {
+    ///moves left on the x axis in 2d, rotates left in 3d
     pub left: Option<Keys>,
+    ///moves right on the x axis in 2d, rotates right in 3d
     pub right: Option<Keys>,
+    ///moves up on the y axis in 2d, rotates up in 3d
     pub up: Option<Keys>,
+    ///moves down on the y axis in 2d, rotates down in 3d
     pub down: Option<Keys>,
+    ///moves viewport left in 3d
     pub left_3d: Option<Keys>,
+    ///moves viewport right in 3d
     pub right_3d: Option<Keys>,
+    ///moves viewport up in 3d
     pub up_3d: Option<Keys>,
+    ///moves viewport down in 3d
     pub down_3d: Option<Keys>,
+    ///in 3d, moves up on the z axis
     pub in_3d: Option<Keys>,
+    ///in 3d, moves down on the z axis
     pub out_3d: Option<Keys>,
+    ///zooms the into the data set, in 2d, towards the cursor if moved since last reset,
+    ///otherwise towards center of screen
     pub zoom_in: Option<Keys>,
+    ///zooms the out of the data set, in 2d, away from cursor if moved since last reset,
+    ///otherwise towards center of screen
     pub zoom_out: Option<Keys>,
+    ///toggles non center lines in 2d, or all lines with axis aditionally disabled
     pub lines: Option<Keys>,
+    ///toggles display of axis numbers, or all lines with axis aditionally disabled
     pub axis: Option<Keys>,
+    ///toggles current coordonate of mouse in bottom left, or angle in 3d
     pub coord: Option<Keys>,
+    ///toggles anti alias for some things
     pub anti_alias: Option<Keys>,
+    ///in 3d, ignores the bounds of the box and displays all data points
     pub ignore_bounds: Option<Keys>,
+    ///in 3d, toggles the color depth enum
     pub color_depth: Option<Keys>,
+    ///makes viewport larger in 3d
     pub zoom_in_3d: Option<Keys>,
+    ///makes viewport smaller in 3d
     pub zoom_out_3d: Option<Keys>,
+    ///in 3d, shows the full box instead of just the axis lines,
+    ///or none if additionally axis is disabled
     pub show_box: Option<Keys>,
+    ///toggles domain alternate mode, see Graph.domain_alternate for more info
     pub domain_alternate: Option<Keys>,
+    ///iterates Graph.slice foward
     pub slice_up: Option<Keys>,
+    ///iterates Graph.slice backward
     pub slice_down: Option<Keys>,
+    ///toggles Graph.view_x
     pub slice_view: Option<Keys>,
+    ///log scale, currently only for domain coloring
     pub log_scale: Option<Keys>,
+    ///toggles line style enum
     pub line_style: Option<Keys>,
+    ///for flatten or depth graph modes, move the input variables range foward
     pub var_up: Option<Keys>,
+    ///for flatten or depth graph modes, move the input variables range backward
     pub var_down: Option<Keys>,
+    ///for flatten or depth graph modes, decrease range of input variables range
     pub var_in: Option<Keys>,
+    ///for flatten or depth graph modes, incrase range of input variables range
     pub var_out: Option<Keys>,
+    ///increases amount of data asked for
     pub prec_up: Option<Keys>,
+    ///decreases amount of data asked for
     pub prec_down: Option<Keys>,
+    ///toggles a ruler at current mouse position, in bottom right will have the following info,
+    ///delta x of ruler
+    ///delta y of ruler
+    ///norm of ruler
+    ///angle of ruler in degrees
     pub ruler: Option<Keys>,
+    ///toggles showing real/imag parts of graphs
     pub view: Option<Keys>,
+    ///toggles the current graph mode enum foward
     pub mode_up: Option<Keys>,
+    ///toggles the current graph mode enum backward
     pub mode_down: Option<Keys>,
+    ///resets most settings to default
     pub reset: Option<Keys>,
 }
 impl Default for Keybinds {
@@ -249,16 +363,25 @@ impl Default for Keybinds {
     }
 }
 pub struct Multi {
+    ///how much touch input has zoomed in this frame
     pub zoom_delta: f64,
+    ///how much touch input translated in this frame
     pub translation_delta: Vec2,
 }
 pub struct InputState {
+    ///which keys have been pressed this frame
     pub keys_pressed: Vec<Key>,
+    ///which modifiers are pressed
     pub modifiers: Modifiers,
+    ///how much scroll wheel has scrolled
     pub raw_scroll_delta: Vec2,
+    ///where the pointer is currently
     pub pointer_pos: Option<Vec2>,
+    ///is the pointer down now
     pub pointer_down: bool,
+    ///is the pointer down this frame
     pub pointer_just_down: bool,
+    ///Some if multiple touch inputs have been detected
     pub multi: Option<Multi>,
 }
 impl Default for InputState {
@@ -275,6 +398,8 @@ impl Default for InputState {
     }
 }
 impl InputState {
+    ///resets raw_scroll_delta, keys_pressed, pointer_just_down, multi,
+    ///expected to happen after update()
     pub fn reset(&mut self) {
         self.raw_scroll_delta = Vec2::splat(0.0);
         self.keys_pressed = Vec::new();
@@ -318,10 +443,7 @@ impl From<&egui::InputState> for InputState {
     }
 }
 impl InputState {
-    pub fn key_pressed(&self, key: Key) -> bool {
-        self.keys_pressed.contains(&key)
-    }
-    pub fn keys_pressed(&self, keys: Option<Keys>) -> bool {
+    pub(crate) fn keys_pressed(&self, keys: Option<Keys>) -> bool {
         if let Some(keys) = keys {
             keys.modifiers
                 .map(|m| self.modifiers == m)
@@ -334,6 +456,7 @@ impl InputState {
 }
 #[derive(Copy, Clone, PartialEq)]
 pub struct Keys {
+    ///None is equivalent to a set of false Modifiers
     modifiers: Option<Modifiers>,
     key: Key,
 }
@@ -384,7 +507,7 @@ impl From<egui::Modifiers> for Modifiers {
     }
 }
 impl Modifiers {
-    pub fn is_false(&self) -> bool {
+    pub(crate) fn is_false(&self) -> bool {
         !self.mac_cmd && !self.alt && !self.command && !self.ctrl && !self.shift
     }
     pub fn alt(mut self) -> Self {
@@ -415,18 +538,18 @@ pub struct Color {
     pub b: u8,
 }
 impl Color {
-    pub fn new(r: u8, g: u8, b: u8) -> Self {
+    pub(crate) fn new(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
     }
-    pub fn splat(c: u8) -> Self {
+    pub(crate) fn splat(c: u8) -> Self {
         Self { r: c, g: c, b: c }
     }
     #[cfg(feature = "egui")]
-    pub fn to_col(&self) -> egui::Color32 {
+    pub(crate) fn to_col(self) -> egui::Color32 {
         egui::Color32::from_rgb(self.r, self.g, self.b)
     }
     #[cfg(feature = "skia")]
-    pub fn to_col(&self) -> skia_safe::Color4f {
+    pub(crate) fn to_col(self) -> skia_safe::Color4f {
         skia_safe::Color4f::new(
             self.r as f32 / 255.0,
             self.g as f32 / 255.0,
@@ -441,14 +564,14 @@ pub struct Pos {
     pub y: f32,
 }
 impl Pos {
-    pub fn close(&self, rhs: Self) -> bool {
+    pub(crate) fn close(&self, rhs: Self) -> bool {
         self.x.floor() == rhs.x.floor() && self.y.floor() == rhs.y.floor()
     }
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
     #[cfg(feature = "egui")]
-    pub fn to_pos2(self) -> egui::Pos2 {
+    pub(crate) fn to_pos2(self) -> egui::Pos2 {
         egui::Pos2 {
             x: self.x,
             y: self.y,
@@ -473,14 +596,6 @@ impl Complex {
             Complex::Complex(y, z) => (Some(y), Some(z)),
         }
     }
-    pub fn from(y: Option<f64>, z: Option<f64>) -> Self {
-        match (y, z) {
-            (Some(y), Some(z)) => Self::Complex(y, z),
-            (Some(y), None) => Self::Real(y),
-            (None, Some(z)) => Self::Imag(z),
-            (None, None) => Self::Complex(f64::NAN, f64::NAN),
-        }
-    }
 }
 #[derive(Copy, Clone, PartialEq)]
 pub struct Vec2 {
@@ -497,14 +612,14 @@ impl Vec2 {
     pub fn new(x: f64, y: f64) -> Self {
         Self { x, y }
     }
-    pub fn to_pos(self) -> Pos {
+    pub(crate) fn to_pos(self) -> Pos {
         Pos {
             x: self.x as f32,
             y: self.y as f32,
         }
     }
     #[cfg(feature = "egui")]
-    pub fn to_pos2(self) -> egui::Pos2 {
+    pub(crate) fn to_pos2(self) -> egui::Pos2 {
         egui::Pos2 {
             x: self.x as f32,
             y: self.y as f32,
@@ -559,10 +674,10 @@ pub struct Vec3 {
     pub z: f64,
 }
 impl Vec3 {
-    pub fn splat(v: f64) -> Self {
+    pub(crate) fn splat(v: f64) -> Self {
         Self { x: v, y: v, z: v }
     }
-    pub fn new(x: f64, y: f64, z: f64) -> Self {
+    pub(crate) fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
     }
 }
@@ -626,8 +741,9 @@ impl Div<f64> for Vec2 {
         Vec2::new(self.x / rhs, self.y / rhs)
     }
 }
+#[allow(dead_code)]
 #[derive(Copy, Clone)]
-pub enum Align {
+pub(crate) enum Align {
     LeftBottom,
     LeftCenter,
     LeftTop,
