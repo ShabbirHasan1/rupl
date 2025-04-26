@@ -5,6 +5,9 @@ edition = "2024"
 license = "GPL-3.0-only"
 description = "a complex graphing library"
 authors = ["bgkillas <mswalhelm@gmail.com>"]
+documentation = "https://docs.rs/rupl"
+repository = "https://github.com/bgkillas/rupl"
+homepage = "https://github.com/bgkillas/rupl"
 
 [features]
 default = ["egui"]
