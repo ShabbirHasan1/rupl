@@ -548,6 +548,7 @@ struct SlowLine {
 enum Line {
     Fast(FastLine),
     Slow(SlowLine),
+    #[cfg(feature = "tiny-skia")]
     None,
 }
 #[cfg(feature = "skia")]
