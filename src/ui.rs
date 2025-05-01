@@ -321,7 +321,7 @@ impl Painter {
         }
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p2: &Color) {
-        let p0 = p0.map(|p| Pos{x:p.x+0.5,y:p.y+0.5});
+        let p0 = p0.map(|p| Pos{x:p.x-0.5,y:p.y-0.5});
         self.line.line(
             p0,
             p2,
@@ -378,8 +378,8 @@ impl Painter {
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         if p1.is_finite() {
                 let mut path = tiny_skia::PathBuilder::new();
-                path.move_to(0.0, p1);
-                path.line_to(p0, p1);
+                path.move_to(0.0, p1 - 0.5);
+                path.line_to(p0, p1 - 0.5);
                 let path = path.finish().unwrap();
                 self.canvas.stroke_path(
                     &path,
@@ -393,8 +393,8 @@ impl Painter {
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         if p0.is_finite() {
                 let mut path = tiny_skia::PathBuilder::new();
-                path.move_to(p0, 0.0);
-                path.line_to(p0, p1);
+                path.move_to(p0 - 0.5, 0.0);
+                path.line_to(p0 - 0.5, p1);
                 let path = path.finish().unwrap();
                 self.canvas.stroke_path(
                     &path,
