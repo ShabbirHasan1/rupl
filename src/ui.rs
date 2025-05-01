@@ -24,7 +24,10 @@ impl<'a> Painter<'a> {
         }
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p2: &Color) {
-        let p0 = p0.map(|p| Pos{x:p.x+0.5,y:p.y+0.5});
+        let p0 = p0.map(|p| Pos {
+            x: p.x + 0.5,
+            y: p.y + 0.5,
+        });
         self.line.line(p0, p2, self.painter)
     }
     pub(crate) fn save(&mut self) {
@@ -128,7 +131,10 @@ impl Painter {
         }
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p2: &Color) {
-        let p0 = p0.map(|p| Pos{x:p.x-0.5,y:p.y-0.5});
+        let p0 = p0.map(|p| Pos {
+            x: p.x - 0.5,
+            y: p.y - 0.5,
+        });
         self.line.line(
             p0,
             p2,
@@ -170,7 +176,10 @@ impl Painter {
         }
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
-        let p0 = Pos{x:p0.x-0.5,y:p0.y-0.5};
+        let p0 = Pos {
+            x: p0.x - 0.5,
+            y: p0.y - 0.5,
+        };
         self.points.point(
             p0,
             p2,
@@ -193,20 +202,20 @@ impl Painter {
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         if p1.is_finite() {
-                self.canvas.canvas().draw_line(
-                    Pos::new(0.0, p1 - 0.5).to_pos2(),
-                    Pos::new(p0, p1 - 0.5).to_pos2(),
-                    &make_paint(p2, p3, false, false),
-                );
+            self.canvas.canvas().draw_line(
+                Pos::new(0.0, p1 - 0.5).to_pos2(),
+                Pos::new(p0, p1 - 0.5).to_pos2(),
+                &make_paint(p2, p3, false, false),
+            );
         }
     }
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         if p0.is_finite() {
-                self.canvas.canvas().draw_line(
-                    Pos::new(p0 - 0.5, 0.0).to_pos2(),
-                    Pos::new(p0 - 0.5, p1).to_pos2(),
-                    &make_paint(p2, p3, false, false),
-                );
+            self.canvas.canvas().draw_line(
+                Pos::new(p0 - 0.5, 0.0).to_pos2(),
+                Pos::new(p0 - 0.5, p1).to_pos2(),
+                &make_paint(p2, p3, false, false),
+            );
         }
     }
     pub(crate) fn text(&mut self, p0: Pos, p1: crate::types::Align, p2: &str, p4: &Color) {
@@ -321,7 +330,10 @@ impl Painter {
         }
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p2: &Color) {
-        let p0 = p0.map(|p| Pos{x:p.x-0.5,y:p.y-0.5});
+        let p0 = p0.map(|p| Pos {
+            x: p.x - 0.5,
+            y: p.y - 0.5,
+        });
         self.line.line(
             p0,
             p2,
@@ -377,32 +389,32 @@ impl Painter {
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         if p1.is_finite() {
-                let mut path = tiny_skia::PathBuilder::new();
-                path.move_to(0.0, p1 - 0.5);
-                path.line_to(p0, p1 - 0.5);
-                let path = path.finish().unwrap();
-                self.canvas.stroke_path(
-                    &path,
-                    &make_paint(p2, p3, false, false),
-                    &tiny_skia::Stroke::default(),
-                    tiny_skia::Transform::default(),
-                    None,
-                );
+            let mut path = tiny_skia::PathBuilder::new();
+            path.move_to(0.0, p1 - 0.5);
+            path.line_to(p0, p1 - 0.5);
+            let path = path.finish().unwrap();
+            self.canvas.stroke_path(
+                &path,
+                &make_paint(p2, p3, false, false),
+                &tiny_skia::Stroke::default(),
+                tiny_skia::Transform::default(),
+                None,
+            );
         }
     }
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         if p0.is_finite() {
-                let mut path = tiny_skia::PathBuilder::new();
-                path.move_to(p0 - 0.5, 0.0);
-                path.line_to(p0 - 0.5, p1);
-                let path = path.finish().unwrap();
-                self.canvas.stroke_path(
-                    &path,
-                    &make_paint(p2, p3, false, false),
-                    &tiny_skia::Stroke::default(),
-                    tiny_skia::Transform::default(),
-                    None,
-                );
+            let mut path = tiny_skia::PathBuilder::new();
+            path.move_to(p0 - 0.5, 0.0);
+            path.line_to(p0 - 0.5, p1);
+            let path = path.finish().unwrap();
+            self.canvas.stroke_path(
+                &path,
+                &make_paint(p2, p3, false, false),
+                &tiny_skia::Stroke::default(),
+                tiny_skia::Transform::default(),
+                None,
+            );
         }
     }
 }

@@ -23,7 +23,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO fast3d multithread
 //TODO option to not create lines on relatively large jumps compared to delta
 //TODO off center center line, prob 3px
-//TODO 0+x0 not at 0 line
+//TODO 3d points being rendered over axis
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -61,7 +61,7 @@ impl Graph {
             #[cfg(feature = "skia-png")]
             image_format: ui::ImageFormat::Png,
             fast_3d_move: false,
-            reduced_move: true,
+            reduced_move: false,
             bound: Vec2::new(start, end),
             offset3d: Vec3::splat(0.0),
             offset: Vec2::splat(0.0),
@@ -603,6 +603,7 @@ impl Graph {
         y: f64,
         color: &Color,
         last: Option<Pos>,
+        delta: f32,
     ) -> Option<Pos> {
         if !x.is_finite() || !y.is_finite() {
             return None;
@@ -618,7 +619,9 @@ impl Graph {
         }
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
-                if ui.is_rect_visible(egui::Rect::from_points(&[last.to_pos2(), pos.to_pos2()])) {
+                if ui.is_rect_visible(egui::Rect::from_points(&[last.to_pos2(), pos.to_pos2()]))
+                    && (last.y - pos.y).abs() < delta.abs() * 8.0
+                {
                     painter.line_segment([last, pos], color);
                 }
             }
@@ -635,6 +638,7 @@ impl Graph {
         y: f64,
         color: &Color,
         last: Option<Pos>,
+        delta: f32,
     ) -> Option<Pos> {
         if !x.is_finite() || !y.is_finite() {
             return None;
@@ -650,7 +654,9 @@ impl Graph {
         }
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
-                painter.line_segment([last, pos], color);
+                if (last.y - pos.y).abs() < delta.abs() * 8.0 {
+                    painter.line_segment([last, pos], color);
+                }
             }
             Some(pos)
         } else {
@@ -692,21 +698,11 @@ impl Graph {
         if !self.disable_lines {
             for j in nx..=mx {
                 let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
-                painter.vline(
-                    x,
-                    self.screen.y as f32,
-                    1.0,
-                    &self.axis_color,
-                );
+                painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color);
             }
             for j in my..=ny {
                 let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
-                painter.hline(
-                    self.screen.x as f32,
-                    y,
-                    1.0,
-                    &self.axis_color,
-                );
+                painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color);
             }
         } else if !self.disable_axis {
             if (nx..=mx).contains(&0) {
@@ -1611,8 +1607,9 @@ impl Graph {
              x: f64,
              y: f64,
              color: &Color,
-             last: Option<Pos>|
-             -> Option<Pos> { main.draw_point(painter, ui, x, y, color, last) };
+             last: Option<Pos>,
+             delta: f32|
+             -> Option<Pos> { main.draw_point(painter, ui, x, y, color, last, delta) };
         let anti_alias = self.anti_alias;
         let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
             *cache = Some(Image(ui.ctx().load_texture(
@@ -1629,13 +1626,15 @@ impl Graph {
     }
     #[cfg(feature = "skia")]
     fn plot(&mut self, painter: &mut Painter) -> Option<Vec<(f32, Draw, Color)>> {
-        let draw_point = |main: &Graph,
-                          painter: &mut Painter,
-                          x: f64,
-                          y: f64,
-                          color: &Color,
-                          last: Option<Pos>|
-         -> Option<Pos> { main.draw_point(painter, x, y, color, last) };
+        let draw_point =
+            |main: &Graph,
+             painter: &mut Painter,
+             x: f64,
+             y: f64,
+             color: &Color,
+             last: Option<Pos>,
+             delta: f32|
+             -> Option<Pos> { main.draw_point(painter, x, y, color, last, delta) };
         let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
             let info = skia_safe::ImageInfo::new(
                 (lenx as i32, leny as i32),
@@ -1654,13 +1653,15 @@ impl Graph {
     }
     #[cfg(feature = "tiny-skia")]
     fn plot(&mut self, painter: &mut Painter) -> Option<Vec<(f32, Draw, Color)>> {
-        let draw_point = |main: &Graph,
-                          painter: &mut Painter,
-                          x: f64,
-                          y: f64,
-                          color: &Color,
-                          last: Option<Pos>|
-         -> Option<Pos> { main.draw_point(painter, x, y, color, last) };
+        let draw_point =
+            |main: &Graph,
+             painter: &mut Painter,
+             x: f64,
+             y: f64,
+             color: &Color,
+             last: Option<Pos>,
+             delta: f32|
+             -> Option<Pos> { main.draw_point(painter, x, y, color, last, delta) };
         let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
             *cache = tiny_skia::Pixmap::from_vec(
                 data,
@@ -1677,7 +1678,7 @@ impl Graph {
         tex: G,
     ) -> Option<Vec<(f32, Draw, Color)>>
     where
-        F: Fn(&Graph, &mut Painter, f64, f64, &Color, Option<Pos>) -> Option<Pos>,
+        F: Fn(&Graph, &mut Painter, f64, f64, &Color, Option<Pos>, f32) -> Option<Pos>,
         G: Fn(&mut Option<Image>, usize, usize, Vec<u8>),
     {
         let mut buffer: Option<Vec<(f32, Draw, Color)>> = (!self.fast_3d()).then(|| {
@@ -1713,6 +1714,7 @@ impl Graph {
                     | GraphMode::SliceFlatten
                     | GraphMode::SliceDepth => unreachable!(),
                     GraphMode::Normal => {
+                        let delta = ((1.0 / (data.len() - 1) as f64 - 0.5) * (end - start)) as f32;
                         for (i, y) in data.iter().enumerate() {
                             let x = (i as f64 / (data.len() - 1) as f64 - 0.5) * (end - start)
                                 + (start + end) * 0.5;
@@ -1727,6 +1729,7 @@ impl Graph {
                                     y,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
+                                    delta,
                                 )
                             } else {
                                 None
@@ -1741,6 +1744,7 @@ impl Graph {
                                     z,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     b,
+                                    delta,
                                 )
                             } else {
                                 None
@@ -1758,6 +1762,7 @@ impl Graph {
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
+                                    0.0,
                                 )
                             } else {
                                 None
@@ -1804,6 +1809,7 @@ impl Graph {
                                     y,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
+                                    0.0,
                                 )
                             } else {
                                 None
@@ -1818,6 +1824,7 @@ impl Graph {
                                     z,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     b,
+                                    0.0,
                                 )
                             } else {
                                 None
@@ -1835,6 +1842,7 @@ impl Graph {
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
+                                    0.0,
                                 )
                             } else {
                                 None
@@ -1920,6 +1928,12 @@ impl Graph {
                     }
                     GraphMode::Slice => {
                         let len = data.len();
+                        let delta = ((1.0 / (len - 1) as f64 - 0.5)
+                            * if self.view_x {
+                                end_x - start_x
+                            } else {
+                                end_y - start_y
+                            }) as f32;
                         let mut body = |i: usize, y: &Complex| {
                             let x = (i as f64 / (len - 1) as f64 - 0.5)
                                 * if self.view_x {
@@ -1943,6 +1957,7 @@ impl Graph {
                                     y,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
+                                    delta,
                                 )
                             } else {
                                 None
@@ -1957,6 +1972,7 @@ impl Graph {
                                     z,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     b,
+                                    delta,
                                 )
                             } else {
                                 None
@@ -1977,6 +1993,7 @@ impl Graph {
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
+                                    0.0,
                                 )
                             } else {
                                 None
