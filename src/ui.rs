@@ -145,19 +145,25 @@ impl Painter {
             },
         );
     }
-    fn draw(&mut self) {
+    pub fn draw(&mut self) {
         self.line.draw(self.canvas.canvas(), self.anti_alias);
     }
-    fn draw_pts(&mut self) {
+    pub fn draw_pts(&mut self) {
         self.points.draw(self.canvas.canvas());
+    }
+    pub fn clear(&mut self) {
+        self.line.clear()
+    }
+    pub fn clear_pts(&mut self) {
+        self.points.clear()
     }
     #[cfg(not(feature = "skia-png"))]
     pub(crate) fn save<T>(&mut self, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
-        self.draw();
         self.draw_pts();
+        self.draw();
         if let Some(pm) = self.canvas.peek_pixels() {
             let px = pm.pixels::<u32>().unwrap();
             buffer.copy_from_slice(px);
@@ -165,8 +171,8 @@ impl Painter {
     }
     #[cfg(feature = "skia-png")]
     pub(crate) fn save(&mut self, format: &ImageFormat) -> Data {
-        self.draw();
         self.draw_pts();
+        self.draw();
         Data {
             data: self
                 .canvas
@@ -576,6 +582,18 @@ impl Line {
             }
         }
     }
+    fn clear(&mut self) {
+        match self {
+            Line::Fast(FastLine { line }) => line.clear(),
+            Line::Slow(SlowLine { line, .. }) => {
+                let last = line.last_pt();
+                *line = skia_safe::Path::new();
+                if let Some(last) = last {
+                    line.move_to(last);
+                }
+            }
+        }
+    }
 }
 #[cfg(feature = "tiny-skia")]
 impl Line {
@@ -781,6 +799,12 @@ impl Point {
                     );
                 }
             }
+        }
+    }
+    fn clear(&mut self) {
+        match self {
+            Point::Fast(FastPoint { points, .. }) => points.clear(),
+            Point::Slow(SlowPoint { points, .. }) => points.clear(),
         }
     }
 }

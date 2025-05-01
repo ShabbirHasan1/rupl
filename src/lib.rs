@@ -397,14 +397,32 @@ impl Graph {
             (self.sin_theta, self.cos_theta) = self.angle.y.sin_cos();
             let mut buffer = plot(painter, self);
             self.write_axis_3d(painter, &mut buffer);
+            #[cfg(feature = "skia")]
+            let mut is_line: Option<bool> = None;
             if let Some(mut buffer) = buffer {
                 buffer.par_sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
                 for (_, a, c) in buffer {
                     match a {
                         Draw::Line(a, b) => {
+                            #[cfg(feature = "skia")]
+                            if !self.fast_3d() {
+                                if !is_line.unwrap_or(true) {
+                                    painter.draw_pts();
+                                    painter.clear_pts();
+                                }
+                                is_line = Some(true);
+                            }
                             painter.line_segment([a, b], &c);
                         }
                         Draw::Point(a) => {
+                            #[cfg(feature = "skia")]
+                            if !self.fast_3d() {
+                                if is_line.unwrap_or(false) {
+                                    painter.draw();
+                                    painter.clear();
+                                }
+                                is_line = Some(false);
+                            }
                             painter.rect_filled(a, &c);
                         }
                     }
