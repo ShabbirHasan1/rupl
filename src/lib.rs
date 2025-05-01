@@ -23,6 +23,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO fast3d multithread
 //TODO option to not create lines on relatively large jumps compared to delta
 //TODO off center center line, prob 3px
+//TODO 0+x0 not at 0 line
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -422,8 +423,6 @@ impl Graph {
         for (i, Name { name, show }) in self.names.iter().enumerate() {
             if !name.is_empty() {
                 let y = (pos.y + 3.0 * self.font_size / 4.0).round();
-                #[cfg(feature = "skia")]
-                let y = y - 0.5;
                 match show {
                     Show::Real => {
                         self.text(pos, Align::RightTop, name, &self.text_color, painter);
@@ -675,16 +674,12 @@ impl Graph {
             for j in nx..=mx {
                 if j % 4 != 0 {
                     let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
-                    #[cfg(feature = "skia")]
-                    let x = x + 0.5;
                     painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color_light);
                 }
             }
             for j in my..=ny {
                 if j % 4 != 0 {
                     let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
-                    #[cfg(feature = "skia")]
-                    let y = y - 0.5;
                     painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color_light);
                 }
             }
@@ -697,8 +692,6 @@ impl Graph {
         if !self.disable_lines {
             for j in nx..=mx {
                 let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
-                #[cfg(feature = "skia")]
-                let x = x + 0.5;
                 painter.vline(
                     x,
                     self.screen.y as f32,
@@ -708,8 +701,6 @@ impl Graph {
             }
             for j in my..=ny {
                 let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
-                #[cfg(feature = "skia")]
-                let y = y - 0.5;
                 painter.hline(
                     self.screen.x as f32,
                     y,
