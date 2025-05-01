@@ -190,44 +190,20 @@ impl Painter {
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         if p1.is_finite() {
-            if p2 != 1.0 {
                 self.canvas.canvas().draw_line(
                     Pos::new(0.0, p1).to_pos2(),
                     Pos::new(p0, p1).to_pos2(),
                     &make_paint(p2, p3, false, false),
                 );
-            } else {
-                self.line.line(
-                    [Pos::new(0.0, p1), Pos::new(p0, p1)],
-                    p3,
-                    if self.fast {
-                        None
-                    } else {
-                        Some(self.canvas.canvas())
-                    },
-                );
-            }
         }
     }
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         if p0.is_finite() {
-            if p2 != 1.0 {
                 self.canvas.canvas().draw_line(
                     Pos::new(p0, 0.0).to_pos2(),
                     Pos::new(p0, p1).to_pos2(),
                     &make_paint(p2, p3, false, false),
                 );
-            } else {
-                self.line.line(
-                    [Pos::new(p0, 0.0), Pos::new(p0, p1)],
-                    p3,
-                    if self.fast {
-                        None
-                    } else {
-                        Some(self.canvas.canvas())
-                    },
-                );
-            }
         }
     }
     pub(crate) fn text(&mut self, p0: Pos, p1: crate::types::Align, p2: &str, p4: &Color) {
@@ -397,7 +373,6 @@ impl Painter {
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         if p1.is_finite() {
-            if p2 != 1.0 {
                 let mut path = tiny_skia::PathBuilder::new();
                 path.move_to(0.0, p1);
                 path.line_to(p0, p1);
@@ -409,22 +384,10 @@ impl Painter {
                     tiny_skia::Transform::default(),
                     None,
                 );
-            } else {
-                self.line.line(
-                    [Pos::new(0.0, p1), Pos::new(p0, p1)],
-                    p3,
-                    if self.fast {
-                        None
-                    } else {
-                        Some(&mut self.canvas)
-                    },
-                );
-            }
         }
     }
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p2: f32, p3: &Color) {
         if p0.is_finite() {
-            if p2 != 1.0 {
                 let mut path = tiny_skia::PathBuilder::new();
                 path.move_to(p0, 0.0);
                 path.line_to(p0, p1);
@@ -436,17 +399,6 @@ impl Painter {
                     tiny_skia::Transform::default(),
                     None,
                 );
-            } else {
-                self.line.line(
-                    [Pos::new(p0, 0.0), Pos::new(p0, p1)],
-                    p3,
-                    if self.fast {
-                        None
-                    } else {
-                        Some(&mut self.canvas)
-                    },
-                );
-            }
         }
     }
 }

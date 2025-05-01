@@ -11,6 +11,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO optional x/y float types
 //TODO make complex type out of vector
 //TODO wasm
+//TODO raqote backend
 //TODO 2d logscale
 //TODO 2d axis labels
 //TODO labels in flatten/depth/domain coloring
@@ -20,6 +21,8 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO only refresh when needed
 //TODO only recalculate when needed
 //TODO fast3d multithread
+//TODO option to not create lines on relatively large jumps compared to delta
+//TODO off center center line, prob 3px
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -699,7 +702,7 @@ impl Graph {
                 painter.vline(
                     x,
                     self.screen.y as f32,
-                    if j == 0 { 2.0 } else { 1.0 },
+                    1.0,
                     &self.axis_color,
                 );
             }
@@ -710,7 +713,7 @@ impl Graph {
                 painter.hline(
                     self.screen.x as f32,
                     y,
-                    if j == 0 { 2.0 } else { 1.0 },
+                    1.0,
                     &self.axis_color,
                 );
             }
