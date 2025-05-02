@@ -4,6 +4,10 @@ use crate::types::*;
 use crate::ui::Painter;
 use rayon::slice::ParallelSliceMut;
 use std::f64::consts::{PI, TAU};
+#[cfg(feature = "skia")]
+pub use ui::Data;
+#[cfg(feature = "skia")]
+pub use ui::ImageFormat;
 fn is_3d(data: &[GraphType]) -> bool {
     data.iter()
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
@@ -55,12 +59,10 @@ impl Graph {
             cache: None,
             #[cfg(feature = "skia")]
             font,
-            #[cfg(feature = "tiny-skia")]
-            save_png: false,
             font_size,
             font_width: 0.0,
             #[cfg(feature = "skia")]
-            image_format: None,
+            image_format: ImageFormat::Png,
             fast_3d_move: false,
             reduced_move: false,
             bound: Vec2::new(start, end),
@@ -315,7 +317,7 @@ impl Graph {
     }
     #[cfg(feature = "skia")]
     ///repaints the screen
-    pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T) -> Option<ui::Data>
+    pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
@@ -331,16 +333,28 @@ impl Graph {
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, width as f64, height as f64, plot);
-        if let Some(fmt) = &self.image_format {
-            Some(painter.save_img(fmt))
-        } else {
-            painter.save(buffer);
-            None
-        }
+        painter.save(buffer);
+    }
+    #[cfg(feature = "skia")]
+    ///get png data
+    pub fn get_png(&mut self, width: u32, height: u32) -> Data {
+        self.font_width();
+        let mut painter = Painter::new(
+            width,
+            height,
+            self.background_color,
+            self.font.clone(),
+            self.fast_3d(),
+            self.max(),
+            self.anti_alias,
+        );
+        let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
+        self.update_inner(&mut painter, width as f64, height as f64, plot);
+        painter.save_img(&self.image_format)
     }
     #[cfg(feature = "tiny-skia")]
     ///repaints the screen
-    pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T) -> Option<Vec<u8>>
+    pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
@@ -353,12 +367,21 @@ impl Graph {
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, width as f64, height as f64, plot);
-        if self.save_png {
-            Some(painter.save_png())
-        } else {
-            painter.save(buffer);
-            None
-        }
+        painter.save(buffer);
+    }
+    #[cfg(feature = "tiny-skia")]
+    ///get png data
+    pub fn get_png(&mut self, width: u32, height: u32) -> Vec<u8> {
+        let mut painter = Painter::new(
+            width,
+            height,
+            self.background_color,
+            self.fast_3d(),
+            self.anti_alias,
+        );
+        let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
+        self.update_inner(&mut painter, width as f64, height as f64, plot);
+        painter.save_png()
     }
     fn update_inner<F>(&mut self, painter: &mut Painter, width: f64, height: f64, plot: F)
     where
