@@ -10,10 +10,9 @@ repository = "https://github.com/bgkillas/rupl"
 homepage = "https://github.com/bgkillas/rupl"
 
 [features]
-default = ["skia", "winit"]
+default = ["tiny-skia", "winit"]
 egui = ["dep:egui"]
 skia = ["dep:skia-safe"]
-skia-png = []
 tiny-skia = ["dep:tiny-skia"]
 winit = ["dep:winit"]
 

@@ -22,6 +22,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO fast3d multithread
 //TODO skia domain coloring alias
 //TODO amount of lines option
+//TODO line width option
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -54,10 +55,12 @@ impl Graph {
             cache: None,
             #[cfg(feature = "skia")]
             font,
+            #[cfg(feature = "tiny-skia")]
+            save_png: false,
             font_size,
             font_width: 0.0,
-            #[cfg(feature = "skia-png")]
-            image_format: ui::ImageFormat::Png,
+            #[cfg(feature = "skia")]
+            image_format: None,
             fast_3d_move: false,
             reduced_move: false,
             bound: Vec2::new(start, end),
@@ -311,9 +314,8 @@ impl Graph {
         painter.save();
     }
     #[cfg(feature = "skia")]
-    #[cfg(not(feature = "skia-png"))]
     ///repaints the screen
-    pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T)
+    pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T) -> Option<ui::Data>
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
@@ -329,11 +331,16 @@ impl Graph {
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, width as f64, height as f64, plot);
-        painter.save(buffer);
+        if let Some(fmt) = &self.image_format {
+            Some(painter.save_img(fmt))
+        } else {
+            painter.save(buffer);
+            None
+        }
     }
     #[cfg(feature = "tiny-skia")]
     ///repaints the screen
-    pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T)
+    pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T) -> Option<Vec<u8>>
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
@@ -346,21 +353,12 @@ impl Graph {
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, width as f64, height as f64, plot);
-        painter.save(buffer);
-    }
-    #[cfg(feature = "skia-png")]
-    ///repaints the screen
-    pub fn update(&mut self, width: u32, height: u32) -> ui::Data {
-        let mut painter = Painter::new(
-            width,
-            height,
-            self.background_color,
-            self.font.clone(),
-            self.fast_3d(),
-        );
-        let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
-        self.update_inner(&mut painter, width as f64, height as f64, plot);
-        painter.save(&self.image_format)
+        if self.save_png {
+            Some(painter.save_png())
+        } else {
+            painter.save(buffer);
+            None
+        }
     }
     fn update_inner<F>(&mut self, painter: &mut Painter, width: f64, height: f64, plot: F)
     where
@@ -1675,15 +1673,13 @@ impl Graph {
     }
     #[cfg(feature = "tiny-skia")]
     fn plot(&mut self, painter: &mut Painter) -> Option<Vec<(f32, Draw, Color)>> {
-        let draw_point =
-            |main: &Graph,
-             painter: &mut Painter,
-             x: f64,
-             y: f64,
-             color: &Color,
-             last: Option<Pos>,
-             delta: f32|
-             -> Option<Pos> { main.draw_point(painter, x, y, color, last, delta) };
+        let draw_point = |main: &Graph,
+                          painter: &mut Painter,
+                          x: f64,
+                          y: f64,
+                          color: &Color,
+                          last: Option<Pos>|
+         -> Option<Pos> { main.draw_point(painter, x, y, color, last) };
         let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
             *cache = tiny_skia::Pixmap::from_vec(
                 data,

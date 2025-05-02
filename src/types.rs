@@ -114,8 +114,12 @@ pub struct Graph {
     pub(crate) font: skia_safe::Font,
     pub(crate) font_size: f32,
     pub(crate) font_width: f32,
-    #[cfg(feature = "skia-png")]
-    pub image_format: crate::ui::ImageFormat,
+    #[cfg(feature = "skia")]
+    ///if Some, then returns bytes of an image format from update
+    pub image_format: Option<crate::ui::ImageFormat>,
+    #[cfg(feature = "tiny-skia")]
+    ///if true, update returns png data
+    pub save_png: bool,
     ///a fast 3d mode ignoring depth
     pub fast_3d: bool,
     ///enable fast 3d only when moving with a mouse

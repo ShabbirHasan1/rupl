@@ -157,7 +157,6 @@ impl Painter {
     pub fn clear_pts(&mut self) {
         self.points.clear()
     }
-    #[cfg(not(feature = "skia-png"))]
     pub(crate) fn save<T>(&mut self, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
@@ -169,8 +168,7 @@ impl Painter {
             buffer.copy_from_slice(px);
         }
     }
-    #[cfg(feature = "skia-png")]
-    pub(crate) fn save(&mut self, format: &ImageFormat) -> Data {
+    pub(crate) fn save_img(&mut self, format: &ImageFormat) -> Data {
         self.draw_pts();
         self.draw();
         Data {
@@ -353,7 +351,6 @@ impl Painter {
     fn draw(&mut self) {
         std::mem::replace(&mut self.line, Line::None).draw(&mut self.canvas, self.anti_alias);
     }
-    #[cfg(not(feature = "skia-png"))]
     pub(crate) fn save<T>(&mut self, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
@@ -363,17 +360,9 @@ impl Painter {
             *dst = (p.red() as u32) << 16 | (p.green() as u32) << 8 | p.blue() as u32;
         }
     }
-    #[cfg(feature = "skia-png")]
-    pub(crate) fn save(&mut self, format: &ImageFormat) -> Data {
-        self.draw(); //TODO
-        self.draw_pts();
-        Data {
-            data: self
-                .canvas
-                .image_snapshot()
-                .encode(None, format.into(), None)
-                .unwrap(),
-        }
+    pub(crate) fn save_png(&mut self) -> Vec<u8> {
+        self.draw();
+        self.canvas.encode_png().unwrap_or_default()
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
         self.canvas.fill_rect(
@@ -424,17 +413,17 @@ impl Painter {
         }
     }
 }
-#[cfg(feature = "skia-png")]
+#[cfg(feature = "skia")]
 pub struct Data {
     data: skia_safe::Data,
 }
-#[cfg(feature = "skia-png")]
+#[cfg(feature = "skia")]
 impl Data {
     pub fn as_bytes(&self) -> &[u8] {
         self.data.as_bytes()
     }
 }
-#[cfg(feature = "skia-png")]
+#[cfg(feature = "skia")]
 pub enum ImageFormat {
     Bmp,
     Gif,
@@ -451,7 +440,7 @@ pub enum ImageFormat {
     Avif,
     Jpegxl,
 }
-#[cfg(feature = "skia-png")]
+#[cfg(feature = "skia")]
 impl From<&ImageFormat> for skia_safe::EncodedImageFormat {
     fn from(value: &ImageFormat) -> Self {
         match value {
