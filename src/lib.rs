@@ -9,7 +9,6 @@ fn is_3d(data: &[GraphType]) -> bool {
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
 }
 //TODO optional x/y float types
-//TODO make complex type out of vector
 //TODO wasm
 //TODO raqote backend
 //TODO 2d logscale
@@ -21,9 +20,6 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO only refresh when needed
 //TODO only recalculate when needed
 //TODO fast3d multithread
-//TODO option to not create lines on relatively large jumps compared to delta
-//TODO off center center line, prob 3px
-//TODO 3d points being rendered over axis
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -405,7 +401,7 @@ impl Graph {
                     match a {
                         Draw::Line(a, b) => {
                             #[cfg(feature = "skia")]
-                            if !self.fast_3d() {
+                            {
                                 if !is_line.unwrap_or(true) {
                                     painter.draw_pts();
                                     painter.clear_pts();
@@ -416,7 +412,7 @@ impl Graph {
                         }
                         Draw::Point(a) => {
                             #[cfg(feature = "skia")]
-                            if !self.fast_3d() {
+                            {
                                 if is_line.unwrap_or(false) {
                                     painter.draw();
                                     painter.clear();
@@ -621,7 +617,6 @@ impl Graph {
         y: f64,
         color: &Color,
         last: Option<Pos>,
-        delta: f32,
     ) -> Option<Pos> {
         if !x.is_finite() || !y.is_finite() {
             return None;
@@ -637,9 +632,7 @@ impl Graph {
         }
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
-                if ui.is_rect_visible(egui::Rect::from_points(&[last.to_pos2(), pos.to_pos2()]))
-                    && (last.y - pos.y).abs() < delta.abs() * 8.0
-                {
+                if ui.is_rect_visible(egui::Rect::from_points(&[last.to_pos2(), pos.to_pos2()])) {
                     painter.line_segment([last, pos], color);
                 }
             }
@@ -656,7 +649,6 @@ impl Graph {
         y: f64,
         color: &Color,
         last: Option<Pos>,
-        delta: f32,
     ) -> Option<Pos> {
         if !x.is_finite() || !y.is_finite() {
             return None;
@@ -672,9 +664,7 @@ impl Graph {
         }
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
-                if (last.y - pos.y).abs() < delta.abs() * 8.0 {
-                    painter.line_segment([last, pos], color);
-                }
+                painter.line_segment([last, pos], color);
             }
             Some(pos)
         } else {
@@ -1625,9 +1615,8 @@ impl Graph {
              x: f64,
              y: f64,
              color: &Color,
-             last: Option<Pos>,
-             delta: f32|
-             -> Option<Pos> { main.draw_point(painter, ui, x, y, color, last, delta) };
+             last: Option<Pos>|
+             -> Option<Pos> { main.draw_point(painter, ui, x, y, color, last) };
         let anti_alias = self.anti_alias;
         let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
             *cache = Some(Image(ui.ctx().load_texture(
@@ -1644,15 +1633,13 @@ impl Graph {
     }
     #[cfg(feature = "skia")]
     fn plot(&mut self, painter: &mut Painter) -> Option<Vec<(f32, Draw, Color)>> {
-        let draw_point =
-            |main: &Graph,
-             painter: &mut Painter,
-             x: f64,
-             y: f64,
-             color: &Color,
-             last: Option<Pos>,
-             delta: f32|
-             -> Option<Pos> { main.draw_point(painter, x, y, color, last, delta) };
+        let draw_point = |main: &Graph,
+                          painter: &mut Painter,
+                          x: f64,
+                          y: f64,
+                          color: &Color,
+                          last: Option<Pos>|
+         -> Option<Pos> { main.draw_point(painter, x, y, color, last) };
         let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
             let info = skia_safe::ImageInfo::new(
                 (lenx as i32, leny as i32),
@@ -1696,7 +1683,7 @@ impl Graph {
         tex: G,
     ) -> Option<Vec<(f32, Draw, Color)>>
     where
-        F: Fn(&Graph, &mut Painter, f64, f64, &Color, Option<Pos>, f32) -> Option<Pos>,
+        F: Fn(&Graph, &mut Painter, f64, f64, &Color, Option<Pos>) -> Option<Pos>,
         G: Fn(&mut Option<Image>, usize, usize, Vec<u8>),
     {
         let mut buffer: Option<Vec<(f32, Draw, Color)>> = (!self.fast_3d()).then(|| {
@@ -1732,7 +1719,6 @@ impl Graph {
                     | GraphMode::SliceFlatten
                     | GraphMode::SliceDepth => unreachable!(),
                     GraphMode::Normal => {
-                        let delta = ((1.0 / (data.len() - 1) as f64 - 0.5) * (end - start)) as f32;
                         for (i, y) in data.iter().enumerate() {
                             let x = (i as f64 / (data.len() - 1) as f64 - 0.5) * (end - start)
                                 + (start + end) * 0.5;
@@ -1747,7 +1733,6 @@ impl Graph {
                                     y,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
-                                    delta,
                                 )
                             } else {
                                 None
@@ -1762,7 +1747,6 @@ impl Graph {
                                     z,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     b,
-                                    delta,
                                 )
                             } else {
                                 None
@@ -1780,7 +1764,6 @@ impl Graph {
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
-                                    0.0,
                                 )
                             } else {
                                 None
@@ -1827,7 +1810,6 @@ impl Graph {
                                     y,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
-                                    0.0,
                                 )
                             } else {
                                 None
@@ -1842,7 +1824,6 @@ impl Graph {
                                     z,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     b,
-                                    0.0,
                                 )
                             } else {
                                 None
@@ -1860,7 +1841,6 @@ impl Graph {
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
-                                    0.0,
                                 )
                             } else {
                                 None
@@ -1946,12 +1926,6 @@ impl Graph {
                     }
                     GraphMode::Slice => {
                         let len = data.len();
-                        let delta = ((1.0 / (len - 1) as f64 - 0.5)
-                            * if self.view_x {
-                                end_x - start_x
-                            } else {
-                                end_y - start_y
-                            }) as f32;
                         let mut body = |i: usize, y: &Complex| {
                             let x = (i as f64 / (len - 1) as f64 - 0.5)
                                 * if self.view_x {
@@ -1975,7 +1949,6 @@ impl Graph {
                                     y,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
-                                    delta,
                                 )
                             } else {
                                 None
@@ -1990,7 +1963,6 @@ impl Graph {
                                     z,
                                     &self.alt_colors[k % self.alt_colors.len()],
                                     b,
-                                    delta,
                                 )
                             } else {
                                 None
@@ -2011,7 +1983,6 @@ impl Graph {
                                     z,
                                     &self.main_colors[k % self.main_colors.len()],
                                     a,
-                                    0.0,
                                 )
                             } else {
                                 None
