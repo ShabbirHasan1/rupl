@@ -20,6 +20,8 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO only refresh when needed
 //TODO only recalculate when needed
 //TODO fast3d multithread
+//TODO skia domain coloring alias
+//TODO amount of lines option
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -388,6 +390,7 @@ impl Graph {
                 plot(painter, self);
                 self.write_axis(painter);
             }
+            self.write_text(painter);
         } else {
             (self.sin_phi, self.cos_phi) = self.angle.x.sin_cos();
             (self.sin_theta, self.cos_theta) = self.angle.y.sin_cos();
@@ -430,7 +433,9 @@ impl Graph {
         } else {
             self.write_angle(painter);
         }
-        self.write_label(painter)
+        if self.graph_mode != GraphMode::DomainColoring {
+            self.write_label(painter)
+        }
     }
     fn write_label(&self, painter: &mut Painter) {
         let mut pos = Pos::new(self.screen.x as f32 - 48.0, 0.0);
@@ -715,13 +720,25 @@ impl Graph {
         } else if !self.disable_axis {
             if (nx..=mx).contains(&0) {
                 let x = self.to_screen(0.0, 0.0).x;
-                painter.vline(x, self.screen.y as f32, 2.0, &self.axis_color);
+                painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color);
             }
             if (my..=ny).contains(&0) {
                 let y = self.to_screen(0.0, 0.0).y;
-                painter.hline(self.screen.x as f32, y, 2.0, &self.axis_color);
+                painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color);
             }
         }
+    }
+    fn write_text(&self, painter: &mut Painter) {
+        let delta = 2.0f64.powf((-self.zoom.log2()).round());
+        let minor =
+            4.0 * self.screen.x / (self.delta * delta * (self.bound.y - self.bound.x).powi(2));
+        let s = self.screen.x / (self.bound.y - self.bound.x);
+        let ox = self.screen_offset.x + self.offset.x;
+        let oy = self.screen_offset.y + self.offset.y;
+        let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
+        let mx = ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
+        let ny = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
+        let my = (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
         if !self.disable_axis {
             let mut align = false;
             let y = if (my..=ny).contains(&0) {
