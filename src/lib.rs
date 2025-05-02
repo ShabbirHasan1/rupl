@@ -741,9 +741,9 @@ impl Graph {
         let my = (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
         if !self.disable_axis {
             let mut align = false;
-            let y = if (my..=ny).contains(&0) {
+            let y = if (my..ny).contains(&0) {
                 self.to_screen(0.0, 0.0).y
-            } else if my.is_positive() {
+            } else if my.is_negative() {
                 0.0
             } else {
                 align = true;
