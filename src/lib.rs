@@ -144,11 +144,27 @@ impl Graph {
     pub fn set_data(&mut self, data: Vec<GraphType>) {
         self.data = data;
         self.cache = None;
+        self.recalculate = true;
+    }
+    ///sets screen dimensions
+    pub fn set_screen(&mut self, width: f64, height: f64) {
+        self.screen = Vec2::new(width, height);
+        let t = Vec2::new(
+            self.screen.x * 0.5 - (self.delta * (self.bound.x + self.bound.y) * 0.5),
+            self.screen.y * 0.5,
+        );
+        if t != self.screen_offset {
+            if self.graph_mode == GraphMode::DomainColoring {
+                self.recalculate = true;
+            }
+            self.screen_offset = t;
+        }
     }
     ///clears data and domain coloring cache
     pub fn clear_data(&mut self) {
         self.data.clear();
         self.cache = None;
+        self.recalculate = true;
     }
     ///resets current 3d view based on the data that is supplied
     pub fn reset_3d(&mut self) {
@@ -163,6 +179,7 @@ impl Graph {
             }
         }
         self.graph_mode = mode;
+        self.recalculate = true;
     }
     fn fast_3d(&self) -> bool {
         self.is_3d && (self.fast_3d || (self.fast_3d_move && self.mouse_held))
@@ -387,22 +404,12 @@ impl Graph {
     where
         F: Fn(&mut Painter, &mut Graph) -> Option<Vec<(f32, Draw, Color)>>,
     {
-        self.screen = Vec2::new(width, height);
+        self.set_screen(width, height);
         self.delta = if self.is_3d {
             self.screen.x.min(self.screen.y)
         } else {
             self.screen.x
         } / (self.bound.y - self.bound.x);
-        let t = Vec2::new(
-            self.screen.x * 0.5 - (self.delta * (self.bound.x + self.bound.y) * 0.5),
-            self.screen.y * 0.5,
-        );
-        if t != self.screen_offset {
-            if self.graph_mode == GraphMode::DomainColoring {
-                self.recalculate = true;
-            }
-            self.screen_offset = t;
-        }
         if !self.is_3d {
             if self.graph_mode != GraphMode::DomainColoring {
                 self.write_axis(painter);
