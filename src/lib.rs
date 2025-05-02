@@ -27,6 +27,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO skia domain coloring alias
 //TODO amount of lines option
 //TODO line width option
+//TODO polar graphs
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -478,7 +479,7 @@ impl Graph {
                                 Pos::new(pos.x + 4.0, y),
                                 Pos::new(self.screen.x as f32 - 4.0, y),
                             ],
-                            &self.main_colors[i],
+                            &self.main_colors[i % self.main_colors.len()],
                         );
                     }
                     Show::Imag => {
@@ -494,7 +495,7 @@ impl Graph {
                                 Pos::new(pos.x + 4.0, y),
                                 Pos::new(self.screen.x as f32 - 4.0, y),
                             ],
-                            &self.alt_colors[i],
+                            &self.alt_colors[i % self.alt_colors.len()],
                         );
                     }
                     Show::Complex => {
@@ -510,7 +511,7 @@ impl Graph {
                                 Pos::new(pos.x + 4.0, y),
                                 Pos::new(self.screen.x as f32 - 4.0, y),
                             ],
-                            &self.main_colors[i],
+                            &self.main_colors[i % self.main_colors.len()],
                         );
                         pos.y += self.font_size;
                         let y = y + self.font_size;
@@ -526,7 +527,7 @@ impl Graph {
                                 Pos::new(pos.x + 4.0, y),
                                 Pos::new(self.screen.x as f32 - 4.0, y),
                             ],
-                            &self.alt_colors[i],
+                            &self.alt_colors[i % self.alt_colors.len()],
                         );
                     }
                 }
