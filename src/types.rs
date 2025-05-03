@@ -1,24 +1,26 @@
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum GraphMode {
     ///given a 3d data set maps in 3d, given a 2d data set maps in 2d
     Normal,
     ///takes a slice of the 3d data set and displays it in 2d,
     ///what slice is depended on Graph.view_x and Graph.slice
     Slice,
-    ///takes a slice of the 3d data set and maps the real part to the x axis and imaginary part to the y axis
-    SliceFlatten,
-    ///takes a slice of the 3d data set and maps the real part to the x axis and imaginary part to the y axis
-    ///and the input variable to the z axis
-    SliceDepth,
     ///graphs the 3d data set as a domain coloring plot, explained more in Graph.domain_alternate
     DomainColoring,
     ///maps the real part to the x axis and imaginary part to the y axis
+    ///in 3d takes a slice and applys the above logic
     Flatten,
     ///maps the real part to the x axis and imaginary part to the y axis
     ///and the input variable to the z axis
+    ///in 3d takes a slice and applys the above logic
     Depth,
+    ///turns a 2d function into a polar graph by mapping the x axis to angle of rotation and the y axis to radius,
+    ///given a 3d function it maps the z to radius, x to the polar angle, y to the azimuthal angle
+    Polar,
+    ///takes a slice of a 3d function and applys polar logic
+    SlicePolar,
 }
 pub enum GraphType {
     ///2d data set where the first element in the vector maps to the first float on the x axis,
@@ -185,6 +187,7 @@ pub struct Graph {
     pub graph_mode: GraphMode,
     ///weather we are displaying a 3d plot or 2d
     pub is_3d: bool,
+    pub is_3d_data: bool,
     pub(crate) last_interact: Option<Vec2>,
     pub(crate) recalculate: bool,
     ///current line style

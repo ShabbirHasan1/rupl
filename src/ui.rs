@@ -23,6 +23,13 @@ impl<'a> Painter<'a> {
             },
         }
     }
+    pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color) {
+        self.painter.circle_stroke(
+            p0.to_pos2(),
+            r,
+            egui::Stroke::new(1.0, p2.to_col()),
+        );
+    }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p2: &Color) {
         let p0 = p0.map(|p| Pos {
             x: p.x + 0.5,
@@ -156,6 +163,11 @@ impl Painter {
     }
     pub fn clear_pts(&mut self) {
         self.points.clear()
+    }
+    pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color) {
+        self.canvas
+            .canvas()
+            .draw_circle(p0.to_pos2(), r, &make_paint(1.0, p2, true, false));
     }
     pub(crate) fn save<T>(&mut self, buffer: &mut T)
     where
@@ -350,6 +362,18 @@ impl Painter {
     }
     fn draw(&mut self) {
         std::mem::replace(&mut self.line, Line::None).draw(&mut self.canvas, self.anti_alias);
+    }
+    pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color) {
+        let mut path = tiny_skia::PathBuilder::new();
+        path.push_circle(p0.x, p0.y, r);
+        let path = path.finish().unwrap();
+        self.canvas.stroke_path(
+            &path,
+            &make_paint(1.0, p2, true, false),
+            &tiny_skia::Stroke::default(),
+            tiny_skia::Transform::default(),
+            None,
+        );
     }
     pub(crate) fn save<T>(&mut self, buffer: &mut T)
     where
