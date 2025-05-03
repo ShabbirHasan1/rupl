@@ -24,11 +24,8 @@ impl<'a> Painter<'a> {
         }
     }
     pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color) {
-        self.painter.circle_stroke(
-            p0.to_pos2(),
-            r,
-            egui::Stroke::new(1.0, p2.to_col()),
-        );
+        self.painter
+            .circle_stroke(p0.to_pos2(), r, egui::Stroke::new(1.0, p2.to_col()));
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p2: &Color) {
         let p0 = p0.map(|p| Pos {

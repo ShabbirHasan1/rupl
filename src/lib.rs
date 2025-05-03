@@ -446,15 +446,14 @@ impl Graph {
             if self.graph_mode == GraphMode::DomainColoring {
                 plot(painter, self);
                 self.write_axis(painter);
-                self.write_text(painter);
-            } else if matches!(self.graph_mode, GraphMode::SlicePolar | GraphMode::Polar) {
-                plot(painter, self);
+            } else if self.is_polar() {
                 self.write_polar_axis(painter);
+                plot(painter, self);
             } else {
                 self.write_axis(painter);
                 plot(painter, self);
-                self.write_text(painter);
             }
+            self.write_text(painter);
         } else {
             (self.sin_phi, self.cos_phi) = self.angle.x.sin_cos();
             (self.sin_theta, self.cos_theta) = self.angle.y.sin_cos();
@@ -741,6 +740,7 @@ impl Graph {
         }
     }
     fn write_polar_axis(&self, painter: &mut Painter) {
+        let o = self.to_screen(0.0, 0.0);
         if !self.disable_lines {
             let delta = 2.0f64.powf((-self.zoom.log2()).round());
             let minor =
@@ -748,7 +748,6 @@ impl Graph {
             let s = self.screen.x / (self.bound.y - self.bound.x);
             let ox = self.screen_offset.x + self.offset.x;
             let oy = self.screen_offset.y + self.offset.y;
-            let o = self.to_screen(0.0, 0.0);
             let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
             let mx =
                 ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
@@ -756,7 +755,9 @@ impl Graph {
             let my =
                 (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
             //TODO 2 should be more precise
-            for j in 1..=mx.abs().max(nx.abs()).max(ny.abs()).max(my.abs()) * 2 {
+            for j in mx.min(nx).min(ny).min(my).max(2) / 2
+                ..=mx.abs().max(nx.abs()).max(ny.abs()).max(my.abs()) * 2
+            {
                 if j % 4 != 0 {
                     let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
                     painter.circle(o, x - o.x, &self.axis_color_light);
@@ -769,10 +770,15 @@ impl Graph {
             let ny = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
             let my =
                 (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
-            for j in 1..=mx.abs().max(nx.abs()).max(ny.abs()).max(my.abs()) * 2 {
+            for j in mx.min(nx).min(ny).min(my).max(2) / 2
+                ..=mx.abs().max(nx.abs()).max(ny.abs()).max(my.abs()) * 2
+            {
                 let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
                 painter.circle(o, x - o.x, &self.axis_color);
             }
+        }
+        if !self.disable_axis {
+            painter.circle(o, 1.0, &self.axis_color);
         }
     }
     fn write_axis(&self, painter: &mut Painter) {
@@ -849,15 +855,24 @@ impl Graph {
                 self.screen.y as f32
             };
             for j in nx.saturating_sub(1)..=mx {
+                if self.is_polar() && j == 0 {
+                    continue;
+                }
                 let j = j as f64 / (2.0 * minor);
                 let x = self.to_screen(j, 0.0).x;
-                let mut p = Pos::new(x + 2.0, y);
+                let mut p = Pos::new(if self.is_polar() { x } else { x + 2.0 }, y);
                 if !align {
                     p.y = p.y.min(self.screen.y as f32 - self.font_size)
                 }
                 self.text(
                     p,
-                    if align {
+                    if self.is_polar() {
+                        if align {
+                            Align::LeftBottom
+                        } else {
+                            Align::LeftCenter
+                        }
+                    } else if align {
                         Align::LeftBottom
                     } else {
                         Align::LeftTop
@@ -877,9 +892,12 @@ impl Graph {
                 self.screen.x as f32
             };
             for j in my..=ny.saturating_add(1) {
+                if self.is_polar() && j == 0 {
+                    continue;
+                }
                 let j = j as f64 / (2.0 * minor);
                 let y = self.to_screen(0.0, j).y;
-                let mut p = Pos::new(x + 2.0, y);
+                let mut p = Pos::new(if self.is_polar() { x } else { x + 2.0 }, y);
                 let j = j.to_string();
                 if !align {
                     p.x =
@@ -887,7 +905,13 @@ impl Graph {
                 }
                 self.text(
                     p,
-                    if align {
+                    if self.is_polar() {
+                        if align {
+                            Align::RightTop
+                        } else {
+                            Align::CenterBottom
+                        }
+                    } else if align {
                         Align::RightTop
                     } else {
                         Align::LeftTop
@@ -898,6 +922,9 @@ impl Graph {
                 );
             }
         }
+    }
+    fn is_polar(&self) -> bool {
+        matches!(self.graph_mode, GraphMode::Polar | GraphMode::SlicePolar)
     }
     #[cfg(feature = "skia")]
     fn font_width(&mut self) {
