@@ -748,6 +748,33 @@ impl Graph {
     }
     fn write_polar_axis(&self, painter: &mut Painter) {
         let o = self.to_screen(0.0, 0.0);
+        if !self.disable_lines && !self.disable_axis {
+            for y in [self.screen.x as f32, 0.0] {
+                for l in [o.x - y, y - o.x] {
+                    painter.line_segment(
+                        [o, Pos::new(y, o.y + l * (2.0 - 3.0f32.sqrt()))],
+                        1.0,
+                        &self.axis_color_light,
+                    );
+                    painter.line_segment(
+                        [o, Pos::new(y, o.y + l * (2.0 + 3.0f32.sqrt()))],
+                        1.0,
+                        &self.axis_color_light,
+                    );
+                    painter.line_segment([o, Pos::new(y, o.y + l)], 1.0, &self.axis_color_light);
+                    painter.line_segment(
+                        [o, Pos::new(y, o.y + l / 3.0f32.sqrt())],
+                        1.0,
+                        &self.axis_color,
+                    );
+                    painter.line_segment(
+                        [o, Pos::new(y, o.y + l * 3.0f32.sqrt())],
+                        1.0,
+                        &self.axis_color,
+                    );
+                }
+            }
+        }
         if !self.disable_axis {
             let or = self.to_coord(self.screen.to_pos() / 2.0);
             fn norm((x, y): (f64, f64)) -> f64 {
@@ -801,30 +828,6 @@ impl Graph {
             }
             painter.vline(o.x, self.screen.y as f32, 1.0, &self.axis_color);
             painter.hline(self.screen.x as f32, o.y, 1.0, &self.axis_color);
-        }
-        if !self.disable_lines && !self.disable_axis {
-            for y in [self.screen.x as f32, 0.0] {
-                painter.line_segment(
-                    [o, Pos::new(y, o.y + (o.x - y) / 3.0f32.sqrt())],
-                    1.0,
-                    &self.axis_color,
-                );
-                painter.line_segment(
-                    [o, Pos::new(y, o.y + (o.x - y) * 3.0f32.sqrt())],
-                    1.0,
-                    &self.axis_color,
-                );
-                painter.line_segment(
-                    [o, Pos::new(y, o.y + (y - o.x) * 3.0f32.sqrt())],
-                    1.0,
-                    &self.axis_color,
-                );
-                painter.line_segment(
-                    [o, Pos::new(y, o.y + (y - o.x) / 3.0f32.sqrt())],
-                    1.0,
-                    &self.axis_color,
-                );
-            }
         }
     }
     fn write_axis(&self, painter: &mut Painter) {
