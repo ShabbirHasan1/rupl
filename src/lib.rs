@@ -17,13 +17,10 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO 2d logscale
 //TODO 2d axis labels
 //TODO labels in flatten/depth/domain coloring
-//TODO toggle disable graphs
-//TODO tiny skia backend
 //TODO vulkan renderer
 //TODO only refresh when needed
 //TODO only recalculate when needed
 //TODO fast3d multithread
-//TODO skia domain coloring alias
 //TODO amount of lines option
 //TODO consider collecting data aggregately
 impl Graph {
@@ -58,6 +55,7 @@ impl Graph {
             fast_3d: false,
             data,
             cache: None,
+            blacklist_graphs: Vec::new(),
             line_width: 3.0,
             #[cfg(feature = "skia")]
             font,
@@ -594,7 +592,7 @@ impl Graph {
                                     p.1,
                                     x,
                                     y,
-                                    x.hypot(y),
+                                    y.hypot(x),
                                     y.atan2(x)
                                 )
                             } else {
@@ -603,6 +601,8 @@ impl Graph {
                         } else {
                             format!("{:e}\n{:e}", p.0, p.1)
                         }
+                    } else if matches!(self.graph_mode, GraphMode::Polar | GraphMode::SlicePolar) {
+                        format!("{:e}\n{}", p.1.hypot(p.0), p.1.atan2(p.0))
                     } else {
                         format!("{:e}\n{:e}", p.0, p.1)
                     };
@@ -905,7 +905,7 @@ impl Graph {
                 self.screen.x as f32
             };
             for j in my..=ny.saturating_add(1) {
-                if self.is_polar() && j == 0 {
+                if j == 0 {
                     continue;
                 }
                 let j = j as f64 / (2.0 * minor);
@@ -1741,7 +1741,9 @@ impl Graph {
             let n = self
                 .data
                 .iter()
-                .map(|a| match a {
+                .enumerate()
+                .filter(|(k, _)| !self.blacklist_graphs.contains(k))
+                .map(|(_, a)| match a {
                     GraphType::Coord(_) => 0,
                     GraphType::Coord3D(d) => d.len(),
                     GraphType::Width(_, _, _) => 0,
@@ -1761,6 +1763,9 @@ impl Graph {
             Vec::with_capacity(n + 12)
         });
         for (k, data) in self.data.iter().enumerate() {
+            if self.blacklist_graphs.contains(&k) {
+                continue;
+            }
             let (mut a, mut b, mut c) = (None, None, None);
             match data {
                 GraphType::Width(data, start, end) => match self.graph_mode {

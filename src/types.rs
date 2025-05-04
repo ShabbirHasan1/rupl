@@ -168,6 +168,8 @@ pub struct Graph {
     pub alt_colors: Vec<Color>,
     ///major ticks axis color
     pub axis_color: Color,
+    ///do not show graph with these indices
+    pub blacklist_graphs: Vec<usize>,
     ///minor ticks axis color
     pub axis_color_light: Color,
     #[cfg(any(feature = "skia", feature = "tiny-skia"))]
