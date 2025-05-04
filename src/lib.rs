@@ -75,6 +75,7 @@ impl Graph {
             show: Show::Complex,
             ignore_bounds: false,
             zoom: 1.0,
+            angle_type: Angle::Radian,
             mouse_held: false,
             screen: Vec2::splat(0.0),
             screen_offset: Vec2::splat(0.0),
@@ -593,7 +594,7 @@ impl Graph {
                                     x,
                                     y,
                                     y.hypot(x),
-                                    y.atan2(x)
+                                    self.angle_type.to_val(y.atan2(x))
                                 )
                             } else {
                                 format!("{:e}\n{:e}", p.0, p.1)
@@ -602,7 +603,11 @@ impl Graph {
                             format!("{:e}\n{:e}", p.0, p.1)
                         }
                     } else if matches!(self.graph_mode, GraphMode::Polar | GraphMode::SlicePolar) {
-                        format!("{:e}\n{}", p.1.hypot(p.0), p.1.atan2(p.0))
+                        format!(
+                            "{:e}\n{}",
+                            p.1.hypot(p.0),
+                            self.angle_type.to_val(p.1.atan2(p.0))
+                        )
                     } else {
                         format!("{:e}\n{:e}", p.0, p.1)
                     };
@@ -624,8 +629,8 @@ impl Graph {
                             "{:e}\n{:e}\n{:e}\n{}",
                             dx,
                             dy,
-                            (dx * dx + dy * dy).sqrt(),
-                            dy.atan2(dx) * 360.0 / TAU
+                            dy.hypot(dx),
+                            self.angle_type.to_val(dy.atan2(dx))
                         ),
                         &self.text_color,
                         painter,

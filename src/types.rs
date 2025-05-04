@@ -104,6 +104,20 @@ impl AsRef<skia_safe::Image> for Image {
         &self.0
     }
 }
+pub enum Angle {
+    Radian,
+    Degree,
+    Gradian,
+}
+impl Angle {
+    pub(crate) fn to_val(&self, t: f64) -> f64 {
+        match self {
+            Angle::Radian => t,
+            Angle::Degree => 180.0 * t / std::f64::consts::PI,
+            Angle::Gradian => 200.0 * t / std::f64::consts::PI,
+        }
+    }
+}
 #[cfg(feature = "tiny-skia")]
 pub(crate) struct Image(pub tiny_skia::Pixmap);
 pub struct Graph {
@@ -191,7 +205,10 @@ pub struct Graph {
     pub graph_mode: GraphMode,
     ///weather we are displaying a 3d plot or 2d
     pub is_3d: bool,
+    ///weather the data type supplied is naturally 3d or not
     pub is_3d_data: bool,
+    ///what angle type will be displayed
+    pub angle_type: Angle,
     pub(crate) last_interact: Option<Vec2>,
     pub(crate) recalculate: bool,
     ///current line style
