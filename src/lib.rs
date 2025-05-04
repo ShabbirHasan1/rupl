@@ -26,7 +26,6 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO skia domain coloring alias
 //TODO amount of lines option
 //TODO line width option
-//TODO polar graphs
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -765,12 +764,12 @@ impl Graph {
                     painter.line_segment(
                         [o, Pos::new(y, o.y + l / 3.0f32.sqrt())],
                         1.0,
-                        &self.axis_color,
+                        &self.axis_color_light,
                     );
                     painter.line_segment(
                         [o, Pos::new(y, o.y + l * 3.0f32.sqrt())],
                         1.0,
-                        &self.axis_color,
+                        &self.axis_color_light,
                     );
                 }
             }
@@ -1691,14 +1690,12 @@ impl Graph {
         };
         if i.keys_pressed(self.keybinds.mode_up) {
             if let Some(pt) = order.iter().position(|c| *c == self.graph_mode) {
-                self.recalculate = true;
-                self.graph_mode = order[((pt as isize + 1) % order.len() as isize) as usize]
+                self.set_mode(order[((pt as isize + 1) % order.len() as isize) as usize])
             }
         }
         if i.keys_pressed(self.keybinds.mode_down) {
             if let Some(pt) = order.iter().position(|c| *c == self.graph_mode) {
-                self.recalculate = true;
-                self.graph_mode = order[(pt as isize - 1).rem_euclid(order.len() as isize) as usize]
+                self.set_mode(order[(pt as isize - 1).rem_euclid(order.len() as isize) as usize])
             }
         }
         if i.keys_pressed(self.keybinds.reset) {
