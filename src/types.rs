@@ -1,3 +1,5 @@
+use crate::ImageFormat;
+use std::f64::consts::PI;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 #[derive(PartialEq, Clone, Copy)]
@@ -219,12 +221,107 @@ pub struct Graph {
     pub(crate) mouse_held: bool,
     ///how much extra reduced precision domain coloring should have
     pub mult: f64,
+    ///how many major lines to display
+    pub line_major: usize,
+    ///how many minor lines inbetween major lines to display
+    pub line_minor: usize,
     pub(crate) cos_phi: f64,
     pub(crate) sin_phi: f64,
     pub(crate) cos_theta: f64,
     pub(crate) sin_theta: f64,
     ///current keybinds
     pub keybinds: Keybinds,
+}
+impl Default for Graph {
+    fn default() -> Self {
+        #[cfg(feature = "skia")]
+        let typeface = skia_safe::FontMgr::default()
+            .new_from_data(include_bytes!("../terminus.otb"), None)
+            .unwrap();
+        let font_size = 18.0;
+        #[cfg(feature = "skia")]
+        let font = skia_safe::Font::new(typeface, font_size);
+        Self {
+            is_3d: false,
+            is_3d_data: false,
+            names: Vec::new(),
+            fast_3d: false,
+            data: Vec::new(),
+            cache: None,
+            blacklist_graphs: Vec::new(),
+            line_width: 3.0,
+            #[cfg(feature = "skia")]
+            font,
+            font_size,
+            font_width: 0.0,
+            #[cfg(feature = "skia")]
+            image_format: ImageFormat::Png,
+            fast_3d_move: false,
+            reduced_move: false,
+            bound: Vec2::new(-2.0, 2.0),
+            offset3d: Vec3::splat(0.0),
+            offset: Vec2::splat(0.0),
+            angle: Vec2::splat(PI / 6.0),
+            slice: 0,
+            mult: 1.0,
+            line_major: 8,
+            line_minor: 4,
+            is_complex: false,
+            show: Show::Complex,
+            ignore_bounds: false,
+            zoom: 1.0,
+            angle_type: Angle::Radian,
+            mouse_held: false,
+            screen: Vec2::splat(0.0),
+            screen_offset: Vec2::splat(0.0),
+            delta: 0.0,
+            show_box: true,
+            log_scale: false,
+            view_x: true,
+            color_depth: DepthColor::None,
+            box_size: 3.0f64.sqrt(),
+            anti_alias: true,
+            lines: Lines::Lines,
+            domain_alternate: true,
+            var: Vec2::new(-2.0, 2.0),
+            last_interact: None,
+            main_colors: vec![
+                Color::new(255, 85, 85),
+                Color::new(85, 85, 255),
+                Color::new(255, 85, 255),
+                Color::new(85, 255, 85),
+                Color::new(85, 255, 255),
+                Color::new(255, 255, 85),
+            ],
+            alt_colors: vec![
+                Color::new(170, 0, 0),
+                Color::new(0, 0, 170),
+                Color::new(170, 0, 170),
+                Color::new(0, 170, 0),
+                Color::new(0, 170, 170),
+                Color::new(170, 170, 0),
+            ],
+            axis_color: Color::splat(0),
+            axis_color_light: Color::splat(220),
+            text_color: Color::splat(0),
+            #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+            background_color: Color::splat(255),
+            mouse_position: None,
+            mouse_moved: false,
+            disable_lines: false,
+            disable_axis: false,
+            disable_coord: false,
+            graph_mode: GraphMode::Normal,
+            prec: 1.0,
+            recalculate: false,
+            ruler_pos: None,
+            cos_phi: 0.0,
+            sin_phi: 0.0,
+            cos_theta: 0.0,
+            sin_theta: 0.0,
+            keybinds: Keybinds::default(),
+        }
+    }
 }
 #[derive(Copy, Clone, PartialEq)]
 pub struct Keybinds {

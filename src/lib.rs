@@ -21,7 +21,6 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO only refresh when needed
 //TODO only recalculate when needed
 //TODO fast3d multithread
-//TODO amount of lines option
 //TODO consider collecting data aggregately
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
@@ -40,91 +39,15 @@ impl Graph {
         start: f64,
         end: f64,
     ) -> Self {
-        #[cfg(feature = "skia")]
-        let typeface = skia_safe::FontMgr::default()
-            .new_from_data(include_bytes!("../terminus.otb"), None)
-            .unwrap();
-        let font_size = 18.0;
-        #[cfg(feature = "skia")]
-        let font = skia_safe::Font::new(typeface, font_size);
         let is_3d = is_3d(&data);
         Self {
             is_3d,
-            is_3d_data: is_3d,
             names,
-            fast_3d: false,
             data,
-            cache: None,
-            blacklist_graphs: Vec::new(),
-            line_width: 3.0,
-            #[cfg(feature = "skia")]
-            font,
-            font_size,
-            font_width: 0.0,
-            #[cfg(feature = "skia")]
-            image_format: ImageFormat::Png,
-            fast_3d_move: false,
-            reduced_move: false,
             bound: Vec2::new(start, end),
-            offset3d: Vec3::splat(0.0),
-            offset: Vec2::splat(0.0),
-            angle: Vec2::splat(PI / 6.0),
-            slice: 0,
-            mult: 1.0,
             is_complex,
-            show: Show::Complex,
-            ignore_bounds: false,
-            zoom: 1.0,
-            angle_type: Angle::Radian,
-            mouse_held: false,
-            screen: Vec2::splat(0.0),
-            screen_offset: Vec2::splat(0.0),
-            delta: 0.0,
-            show_box: true,
-            log_scale: false,
-            view_x: true,
-            color_depth: DepthColor::None,
-            box_size: 3.0f64.sqrt(),
-            anti_alias: true,
-            lines: Lines::Lines,
-            domain_alternate: true,
             var: Vec2::new(start, end),
-            last_interact: None,
-            main_colors: vec![
-                Color::new(255, 85, 85),
-                Color::new(85, 85, 255),
-                Color::new(255, 85, 255),
-                Color::new(85, 255, 85),
-                Color::new(85, 255, 255),
-                Color::new(255, 255, 85),
-            ],
-            alt_colors: vec![
-                Color::new(170, 0, 0),
-                Color::new(0, 0, 170),
-                Color::new(170, 0, 170),
-                Color::new(0, 170, 0),
-                Color::new(0, 170, 170),
-                Color::new(170, 170, 0),
-            ],
-            axis_color: Color::splat(0),
-            axis_color_light: Color::splat(220),
-            text_color: Color::splat(0),
-            #[cfg(any(feature = "skia", feature = "tiny-skia"))]
-            background_color: Color::splat(255),
-            mouse_position: None,
-            mouse_moved: false,
-            disable_lines: false,
-            disable_axis: false,
-            disable_coord: false,
-            graph_mode: GraphMode::Normal,
-            prec: 1.0,
-            recalculate: false,
-            ruler_pos: None,
-            cos_phi: 0.0,
-            sin_phi: 0.0,
-            cos_theta: 0.0,
-            sin_theta: 0.0,
-            keybinds: Keybinds::default(),
+            ..Default::default()
         }
     }
     #[cfg(feature = "skia")]
@@ -778,8 +701,8 @@ impl Graph {
                 (s * a.min(b), a.max(b))
             };
             let delta = 2.0f64.powf((-self.zoom.log2()).round());
-            let minor =
-                16.0 * self.screen.x / (self.delta * delta * (self.bound.y - self.bound.x).powi(2));
+            let minor = (self.line_major * self.line_minor) as f64 * self.screen.x
+                / (2.0 * self.delta * delta * (self.bound.y - self.bound.x).powi(2));
             let s = self.screen.x / (self.bound.y - self.bound.x);
             let ox = self.screen_offset.x + self.offset.x;
             let nx = (((self.to_screen(a, 0.0).x as f64 / self.zoom - ox) / s) * 2.0 * minor).ceil()
@@ -792,7 +715,7 @@ impl Graph {
                     painter.circle(o, x - o.x, &self.axis_color_light);
                 }
             }
-            let minor = minor / 4.0;
+            let minor = minor / self.line_minor as f64;
             let nx = (((self.to_screen(a, 0.0).x as f64 / self.zoom - ox) / s) * 2.0 * minor).ceil()
                 as isize;
             let mx = (((self.to_screen(b, 0.0).x as f64 / self.zoom - ox) / s) * 2.0 * minor)
@@ -807,8 +730,8 @@ impl Graph {
     }
     fn write_axis(&self, painter: &mut Painter) {
         let delta = 2.0f64.powf((-self.zoom.log2()).round());
-        let minor =
-            16.0 * self.screen.x / (self.delta * delta * (self.bound.y - self.bound.x).powi(2));
+        let minor = (self.line_major * self.line_minor) as f64 * self.screen.x
+            / (2.0 * self.delta * delta * (self.bound.y - self.bound.x).powi(2));
         let s = self.screen.x / (self.bound.y - self.bound.x);
         let ox = self.screen_offset.x + self.offset.x;
         let oy = self.screen_offset.y + self.offset.y;
@@ -832,7 +755,7 @@ impl Graph {
                 }
             }
         }
-        let minor = minor / 4.0;
+        let minor = minor / self.line_minor as f64;
         let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
         let mx = ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
         let ny = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
@@ -859,8 +782,8 @@ impl Graph {
     }
     fn write_text(&self, painter: &mut Painter) {
         let delta = 2.0f64.powf((-self.zoom.log2()).round());
-        let minor =
-            4.0 * self.screen.x / (self.delta * delta * (self.bound.y - self.bound.x).powi(2));
+        let minor = self.line_major as f64 * self.screen.x
+            / (2.0 * self.delta * delta * (self.bound.y - self.bound.x).powi(2));
         let s = self.screen.x / (self.bound.y - self.bound.x);
         let ox = self.screen_offset.x + self.offset.x;
         let oy = self.screen_offset.y + self.offset.y;
