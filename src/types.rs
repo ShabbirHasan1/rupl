@@ -224,10 +224,13 @@ pub struct Graph {
     pub line_major: usize,
     ///how many minor lines inbetween major lines to display
     pub line_minor: usize,
+    pub(crate) draw_offset: Pos,
     pub(crate) cos_phi: f64,
     pub(crate) sin_phi: f64,
     pub(crate) cos_theta: f64,
     pub(crate) sin_theta: f64,
+    ///if we should draw the functions in a modifiable way on the left or bottom side
+    pub draw_side: bool,
     ///current keybinds
     pub keybinds: Keybinds,
 }
@@ -269,8 +272,10 @@ impl Default for Graph {
             show: Show::Complex,
             ignore_bounds: false,
             zoom: 1.0,
+            draw_offset: Pos::new(0.0, 0.0),
             angle_type: Angle::Radian,
             mouse_held: false,
+            draw_side: false,
             screen: Vec2::splat(0.0),
             screen_offset: Vec2::splat(0.0),
             delta: 0.0,
@@ -697,6 +702,12 @@ impl Pos {
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
+    pub fn to_vec(&self) -> Vec2 {
+        Vec2 {
+            x: self.x as f64,
+            y: self.y as f64,
+        }
+    }
     #[cfg(feature = "egui")]
     pub(crate) fn to_pos2(self) -> egui::Pos2 {
         egui::Pos2 {
@@ -741,13 +752,6 @@ impl Vec2 {
     }
     pub(crate) fn to_pos(self) -> Pos {
         Pos {
-            x: self.x as f32,
-            y: self.y as f32,
-        }
-    }
-    #[cfg(feature = "egui")]
-    pub(crate) fn to_pos2(self) -> egui::Pos2 {
-        egui::Pos2 {
             x: self.x as f32,
             y: self.y as f32,
         }

@@ -4,10 +4,17 @@ pub(crate) struct Painter<'a> {
     painter: &'a egui::Painter,
     line: Line,
     line_width: f32,
+    offset: Pos,
 }
 #[cfg(feature = "egui")]
 impl<'a> Painter<'a> {
-    pub(crate) fn new(ui: &'a egui::Ui, fast: bool, size: usize, line_width: f32) -> Self {
+    pub(crate) fn new(
+        ui: &'a egui::Ui,
+        fast: bool,
+        size: usize,
+        line_width: f32,
+        offset: Pos,
+    ) -> Self {
         Self {
             painter: ui.painter(),
             line: if fast {
@@ -25,16 +32,23 @@ impl<'a> Painter<'a> {
                 })
             },
             line_width,
+            offset,
         }
     }
     pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color) {
-        self.painter
-            .circle_stroke(p0.to_pos2(), r, egui::Stroke::new(1.0, p2.to_col()));
+        self.painter.circle_stroke(
+            (self.offset + p0).to_pos2(),
+            r,
+            egui::Stroke::new(1.0, p2.to_col()),
+        );
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], width: f32, p2: &Color) {
-        let p0 = p0.map(|p| Pos {
-            x: p.x + 0.5,
-            y: p.y + 0.5,
+        let p0 = p0.map(|p| {
+            self.offset
+                + Pos {
+                    x: p.x + 0.5,
+                    y: p.y + 0.5,
+                }
         });
         if width == self.line_width {
             self.line.line(p0, p2, self.painter)
@@ -49,11 +63,15 @@ impl<'a> Painter<'a> {
         self.line.draw(self.painter)
     }
     pub(crate) fn rect_filled(&self, p0: Pos, p2: &Color) {
-        let rect = egui::Rect::from_center_size(p0.to_pos2(), egui::Vec2::splat(3.0));
+        let rect =
+            egui::Rect::from_center_size((self.offset + p0).to_pos2(), egui::Vec2::splat(3.0));
         self.painter.rect_filled(rect, 0.0, p2.to_col());
     }
     pub(crate) fn image(&self, p0: &Image, pos: Vec2) {
-        let d = egui::Rect::from_points(&[egui::Pos2::new(0.0, 0.0), pos.to_pos2()]);
+        let d = egui::Rect::from_points(&[
+            self.offset.to_pos2(),
+            (self.offset + pos.to_pos()).to_pos2(),
+        ]);
         let a = egui::Rect::from_min_max(egui::Pos2::new(0.0, 0.0), egui::Pos2::new(1.0, 1.0));
         let c = egui::Color32::WHITE;
         self.painter.image(p0.0.id(), d, a, c);
@@ -61,8 +79,8 @@ impl<'a> Painter<'a> {
     pub(crate) fn hline(&self, p0: f32, p1: f32, p3: &Color) {
         if p1.is_finite() {
             self.painter.hline(
-                egui::Rangef::new(0.0, p0),
-                p1,
+                egui::Rangef::new(self.offset.x, p0 + self.offset.x),
+                p1 + self.offset.y,
                 egui::Stroke::new(1.0, p3.to_col()),
             );
         }
@@ -70,8 +88,8 @@ impl<'a> Painter<'a> {
     pub(crate) fn vline(&self, p0: f32, p1: f32, p3: &Color) {
         if p0.is_finite() {
             self.painter.vline(
-                p0,
-                egui::Rangef::new(0.0, p1),
+                p0 + self.offset.x,
+                egui::Rangef::new(self.offset.y, p1 + self.offset.y),
                 egui::Stroke::new(1.0, p3.to_col()),
             );
         }
@@ -85,7 +103,7 @@ impl<'a> Painter<'a> {
         font_size: f32,
     ) {
         self.painter.text(
-            p0.to_pos2(),
+            (p0 + self.offset).to_pos2(),
             p1.into(),
             p2,
             egui::FontId::monospace(font_size),
@@ -102,6 +120,7 @@ pub(crate) struct Painter {
     fast: bool,
     anti_alias: bool,
     line_width: f32,
+    offset: Pos,
 }
 #[cfg(feature = "skia")]
 impl Painter {
@@ -115,6 +134,7 @@ impl Painter {
         size: usize,
         anti_alias: bool,
         line_width: f32,
+        offset: Pos,
     ) -> Self {
         let mut canvas =
             skia_safe::surfaces::raster_n32_premul((width as i32, height as i32)).unwrap();
@@ -149,12 +169,16 @@ impl Painter {
             fast,
             anti_alias,
             line_width,
+            offset,
         }
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], width: f32, p2: &Color) {
-        let p0 = p0.map(|p| Pos {
-            x: p.x + 0.5,
-            y: p.y + 0.5,
+        let p0 = p0.map(|p| {
+            self.offset
+                + Pos {
+                    x: p.x + 0.5,
+                    y: p.y + 0.5,
+                }
         });
         if width == self.line_width {
             self.line.line(
@@ -187,9 +211,11 @@ impl Painter {
         self.points.clear()
     }
     pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color) {
-        self.canvas
-            .canvas()
-            .draw_circle(p0.to_pos2(), r, &make_paint(1.0, p2, true, false));
+        self.canvas.canvas().draw_circle(
+            (self.offset + p0).to_pos2(),
+            r,
+            &make_paint(1.0, p2, true, false),
+        );
     }
     pub(crate) fn save<T>(&mut self, buffer: &mut T)
     where
@@ -214,10 +240,11 @@ impl Painter {
         }
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
-        let p0 = Pos {
-            x: p0.x + 0.5,
-            y: p0.y + 0.5,
-        };
+        let p0 = self.offset
+            + Pos {
+                x: p0.x + 0.5,
+                y: p0.y + 0.5,
+            };
         self.points.point(
             p0,
             p2,
@@ -234,15 +261,20 @@ impl Painter {
         self.canvas.canvas().draw_image_rect(
             p0,
             None,
-            skia_safe::Rect::new(0.0, 0.0, pos.x as f32, pos.y as f32),
+            skia_safe::Rect::new(
+                self.offset.x,
+                self.offset.y,
+                self.offset.x + pos.x as f32,
+                self.offset.y + pos.y as f32,
+            ),
             &paint,
         );
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p3: &Color) {
         if p1.is_finite() {
             self.canvas.canvas().draw_line(
-                Pos::new(0.0, p1 + 0.5).to_pos2(),
-                Pos::new(p0, p1 + 0.5).to_pos2(),
+                (self.offset + Pos::new(0.0, p1 + 0.5)).to_pos2(),
+                (self.offset + Pos::new(p0, p1 + 0.5)).to_pos2(),
                 &make_paint(1.0, p3, false, false),
             );
         }
@@ -250,14 +282,14 @@ impl Painter {
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p3: &Color) {
         if p0.is_finite() {
             self.canvas.canvas().draw_line(
-                Pos::new(p0 + 0.5, 0.0).to_pos2(),
-                Pos::new(p0 + 0.5, p1).to_pos2(),
+                (self.offset + Pos::new(p0 + 0.5, 0.0)).to_pos2(),
+                (self.offset + Pos::new(p0 + 0.5, p1)).to_pos2(),
                 &make_paint(1.0, p3, false, false),
             );
         }
     }
     pub(crate) fn text(&mut self, p0: Pos, p1: crate::types::Align, p2: &str, p4: &Color) {
-        let mut pos = p0.to_pos2();
+        let mut pos = (self.offset + p0).to_pos2();
         let paint = make_paint(1.0, p4, false, false);
         let strs = p2.split('\n').collect::<Vec<&str>>();
         let mut body = |s: &str| {
@@ -339,6 +371,7 @@ pub(crate) struct Painter {
     fast: bool,
     anti_alias: bool,
     line_width: f32,
+    offset: Pos,
 }
 #[cfg(feature = "tiny-skia")]
 impl Painter {
@@ -349,6 +382,7 @@ impl Painter {
         fast: bool,
         anti_alias: bool,
         line_width: f32,
+        offset: Pos,
     ) -> Self {
         let mut canvas = tiny_skia::Pixmap::new(width, height).unwrap();
         canvas.fill(background.to_col());
@@ -370,12 +404,16 @@ impl Painter {
             fast,
             anti_alias,
             line_width,
+            offset,
         }
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], width: f32, p2: &Color) {
-        let p0 = p0.map(|p| Pos {
-            x: p.x + 0.5,
-            y: p.y + 0.5,
+        let p0 = p0.map(|p| {
+            self.offset
+                + Pos {
+                    x: p.x + 0.5,
+                    y: p.y + 0.5,
+                }
         });
         if width == self.line_width {
             self.line.line(
@@ -410,7 +448,7 @@ impl Painter {
     }
     pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color) {
         let mut path = tiny_skia::PathBuilder::new();
-        path.push_circle(p0.x, p0.y, r);
+        path.push_circle(self.offset.x + p0.x, self.offset.y + p0.y, r);
         let path = path.finish().unwrap();
         self.canvas.stroke_path(
             &path,
@@ -435,13 +473,20 @@ impl Painter {
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
         self.canvas.fill_rect(
-            tiny_skia::Rect::from_ltrb(p0.x - 1.0, p0.y - 1.0, p0.x + 2.0, p0.y + 2.0).unwrap(),
+            tiny_skia::Rect::from_ltrb(
+                self.offset.x + p0.x - 1.0,
+                self.offset.y + p0.y - 1.0,
+                self.offset.x + p0.x + 2.0,
+                self.offset.y + p0.y + 2.0,
+            )
+            .unwrap(),
             &make_paint(p2, true),
             tiny_skia::Transform::default(),
             None,
         );
     }
     pub(crate) fn image(&mut self, p0: &Image, _pos: Vec2) {
+        //TODO
         self.canvas.draw_pixmap(
             0,
             0,
@@ -454,8 +499,8 @@ impl Painter {
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p3: &Color) {
         if p1.is_finite() {
             let mut path = tiny_skia::PathBuilder::new();
-            path.move_to(0.0, p1 + 0.5);
-            path.line_to(p0, p1 + 0.5);
+            path.move_to(self.offset.x, self.offset.y + p1 + 0.5);
+            path.line_to(self.offset.x + p0, self.offset.y + p1 + 0.5);
             let path = path.finish().unwrap();
             self.canvas.stroke_path(
                 &path,
@@ -469,8 +514,8 @@ impl Painter {
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p3: &Color) {
         if p0.is_finite() {
             let mut path = tiny_skia::PathBuilder::new();
-            path.move_to(p0 + 0.5, 0.0);
-            path.line_to(p0 + 0.5, p1);
+            path.move_to(self.offset.x + p0 + 0.5, self.offset.y);
+            path.line_to(self.offset.x + p0 + 0.5, self.offset.y + p1);
             let path = path.finish().unwrap();
             self.canvas.stroke_path(
                 &path,

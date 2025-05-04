@@ -38,6 +38,7 @@ impl Graph {
         let is_3d = is_3d(&data);
         Self {
             is_3d,
+            is_3d_data: is_3d,
             names,
             data,
             bound: Vec2::new(start, end),
@@ -68,7 +69,20 @@ impl Graph {
     }
     ///sets screen dimensions
     pub fn set_screen(&mut self, width: f64, height: f64) {
-        self.screen = Vec2::new(width, height);
+        self.screen = if self.draw_side {
+            if height < width {
+                Vec2::new(height, height)
+            } else {
+                Vec2::new(width, width)
+            }
+        } else {
+            Vec2::new(width, height)
+        };
+        self.draw_offset = if self.draw_side && height < width {
+            Pos::new((width - height) as f32, 0.0)
+        } else {
+            Pos::new(0.0, 0.0)
+        };
         let t = Vec2::new(
             self.screen.x * 0.5 - (self.delta * (self.bound.x + self.bound.y) * 0.5),
             self.screen.y * 0.5,
@@ -89,6 +103,7 @@ impl Graph {
     ///resets current 3d view based on the data that is supplied
     pub fn reset_3d(&mut self) {
         self.is_3d = is_3d(&self.data);
+        self.is_3d_data = self.is_3d;
     }
     ///sets the current graph_mode and reprocesses is_3d
     pub fn set_mode(&mut self, mode: GraphMode) {
@@ -268,15 +283,17 @@ impl Graph {
     ///repaints the screen
     pub fn update(&mut self, ctx: &egui::Context, ui: &egui::Ui) {
         self.font_width(ctx);
-        let mut painter = Painter::new(ui, self.fast_3d(), self.max(), self.line_width);
         let rect = ctx.available_rect();
-        let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter, ui);
-        self.update_inner(
-            &mut painter,
-            rect.width() as f64,
-            rect.height() as f64,
-            plot,
+        self.set_screen(rect.width() as f64, rect.height() as f64);
+        let mut painter = Painter::new(
+            ui,
+            self.fast_3d(),
+            self.max(),
+            self.line_width,
+            self.draw_offset,
         );
+        let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter, ui);
+        self.update_inner(&mut painter, plot);
         painter.save();
     }
     #[cfg(feature = "skia")]
@@ -286,6 +303,7 @@ impl Graph {
         T: std::ops::DerefMut<Target = [u32]>,
     {
         self.font_width();
+        self.set_screen(width as f64, height as f64);
         let mut painter = Painter::new(
             width,
             height,
@@ -295,15 +313,17 @@ impl Graph {
             self.max(),
             self.anti_alias,
             self.line_width,
+            self.draw_offset,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
-        self.update_inner(&mut painter, width as f64, height as f64, plot);
+        self.update_inner(&mut painter, plot);
         painter.save(buffer);
     }
     #[cfg(feature = "skia")]
     ///get png data
     pub fn get_png(&mut self, width: u32, height: u32) -> ui::Data {
         self.font_width();
+        self.set_screen(width as f64, height as f64);
         let mut painter = Painter::new(
             width,
             height,
@@ -313,9 +333,10 @@ impl Graph {
             self.max(),
             self.anti_alias,
             self.line_width,
+            self.draw_offset,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
-        self.update_inner(&mut painter, width as f64, height as f64, plot);
+        self.update_inner(&mut painter, plot);
         painter.save_img(&self.image_format)
     }
     #[cfg(feature = "tiny-skia")]
@@ -324,6 +345,7 @@ impl Graph {
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
+        self.set_screen(width as f64, height as f64);
         let mut painter = Painter::new(
             width,
             height,
@@ -331,14 +353,16 @@ impl Graph {
             self.fast_3d(),
             self.anti_alias,
             self.line_width,
+            self.draw_offset,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
-        self.update_inner(&mut painter, width as f64, height as f64, plot);
+        self.update_inner(&mut painter, plot);
         painter.save(buffer);
     }
     #[cfg(feature = "tiny-skia")]
     ///get png data
     pub fn get_png(&mut self, width: u32, height: u32) -> Vec<u8> {
+        self.set_screen(width as f64, height as f64);
         let mut painter = Painter::new(
             width,
             height,
@@ -346,16 +370,16 @@ impl Graph {
             self.fast_3d(),
             self.anti_alias,
             self.line_width,
+            self.draw_offset,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
-        self.update_inner(&mut painter, width as f64, height as f64, plot);
+        self.update_inner(&mut painter, plot);
         painter.save_png()
     }
-    fn update_inner<F>(&mut self, painter: &mut Painter, width: f64, height: f64, plot: F)
+    fn update_inner<F>(&mut self, painter: &mut Painter, plot: F)
     where
         F: Fn(&mut Painter, &mut Graph) -> Option<Vec<(f32, Draw, Color)>>,
     {
-        self.set_screen(width, height);
         self.delta = if self.is_3d {
             self.screen.x.min(self.screen.y)
         } else {
@@ -1172,7 +1196,7 @@ impl Graph {
             let mpos = Vec2 {
                 x: mpos.x,
                 y: mpos.y,
-            };
+            } - self.draw_offset.to_vec();
             if let Some(pos) = self.mouse_position {
                 if mpos != pos {
                     self.mouse_moved = true;
@@ -1653,7 +1677,7 @@ impl Graph {
                 data,
                 tiny_skia::IntSize::from_wh(lenx as u32, leny as u32).unwrap(),
             )
-            .map(Image);
+            .map(Image)
         };
         self.plot_inner(painter, tex)
     }
@@ -2162,7 +2186,7 @@ impl Graph {
                             let mut rgb = Vec::new();
                             for z in data {
                                 rgb.extend(self.get_color(z));
-                                #[cfg(feature = "skia")]
+                                #[cfg(any(feature = "skia", feature = "tiny-skia"))]
                                 rgb.push(0)
                             }
                             tex(&mut self.cache, lenx, leny, rgb);
