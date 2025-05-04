@@ -25,7 +25,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO fast3d multithread
 //TODO skia domain coloring alias
 //TODO amount of lines option
-//TODO line width option
+//TODO consider collecting data aggregately
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -58,6 +58,7 @@ impl Graph {
             fast_3d: false,
             data,
             cache: None,
+            line_width: 3.0,
             #[cfg(feature = "skia")]
             font,
             font_size,
@@ -212,7 +213,6 @@ impl Graph {
                         Prec::Mult(self.prec),
                     ),
                     GraphMode::Polar => UpdateResult::Width3D(
-                        //TODO
                         self.bound.x + self.offset3d.x,
                         self.bound.x - self.offset3d.y,
                         self.bound.y + self.offset3d.x,
@@ -274,7 +274,6 @@ impl Graph {
                         }
                     }
                     GraphMode::Depth => {
-                        //TODO
                         if self.view_x {
                             UpdateResult::Width3D(
                                 self.bound.x - self.offset3d.z,
@@ -294,21 +293,20 @@ impl Graph {
                         }
                     }
                     GraphMode::SlicePolar => {
-                        //TODO
                         if self.view_x {
                             UpdateResult::Width3D(
-                                self.bound.x - self.offset3d.z,
+                                self.var.x,
                                 self.bound.x,
-                                self.bound.y - self.offset3d.z,
+                                self.var.y,
                                 self.bound.y,
                                 Prec::Slice(self.prec),
                             )
                         } else {
                             UpdateResult::Width3D(
                                 self.bound.x,
-                                self.bound.x - self.offset3d.z,
+                                self.var.x,
                                 self.bound.y,
-                                self.bound.y - self.offset3d.z,
+                                self.var.y,
                                 Prec::Slice(self.prec),
                             )
                         }
@@ -352,7 +350,7 @@ impl Graph {
     ///repaints the screen
     pub fn update(&mut self, ctx: &egui::Context, ui: &egui::Ui) {
         self.font_width(ctx);
-        let mut painter = Painter::new(ui, self.fast_3d(), self.max());
+        let mut painter = Painter::new(ui, self.fast_3d(), self.max(), self.line_width);
         let rect = ctx.available_rect();
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter, ui);
         self.update_inner(
@@ -378,6 +376,7 @@ impl Graph {
             self.fast_3d(),
             self.max(),
             self.anti_alias,
+            self.line_width,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, width as f64, height as f64, plot);
@@ -395,6 +394,7 @@ impl Graph {
             self.fast_3d(),
             self.max(),
             self.anti_alias,
+            self.line_width,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, width as f64, height as f64, plot);
@@ -412,6 +412,7 @@ impl Graph {
             self.background_color,
             self.fast_3d(),
             self.anti_alias,
+            self.line_width,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, width as f64, height as f64, plot);
@@ -426,6 +427,7 @@ impl Graph {
             self.background_color,
             self.fast_3d(),
             self.anti_alias,
+            self.line_width,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, width as f64, height as f64, plot);
@@ -464,7 +466,7 @@ impl Graph {
                 buffer.par_sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
                 for (_, a, c) in buffer {
                     match a {
-                        Draw::Line(a, b) => {
+                        Draw::Line(a, b, width) => {
                             #[cfg(feature = "skia")]
                             {
                                 if !is_line.unwrap_or(true) {
@@ -473,7 +475,7 @@ impl Graph {
                                 }
                                 is_line = Some(true);
                             }
-                            painter.line_segment([a, b], 3.0, &c);
+                            painter.line_segment([a, b], width, &c);
                         }
                         Draw::Point(a) => {
                             #[cfg(feature = "skia")]
@@ -681,12 +683,9 @@ impl Graph {
         let y = (oy - p.y as f64 / self.zoom) * s;
         (x, y)
     }
-    #[allow(clippy::too_many_arguments)]
-    #[cfg(feature = "egui")]
     fn draw_point(
         &self,
         painter: &mut Painter,
-        ui: &egui::Ui,
         x: f64,
         y: f64,
         color: &Color,
@@ -696,17 +695,13 @@ impl Graph {
             return None;
         }
         let pos = self.to_screen(x, y);
-        if !matches!(self.lines, Lines::Lines)
-            && pos.x > -2.0
-            && pos.x < self.screen.x as f32 + 2.0
-            && pos.y > -2.0
-            && pos.y < self.screen.y as f32 + 2.0
-        {
+        let is_in = self.in_screen(pos);
+        if !matches!(self.lines, Lines::Lines) && is_in {
             painter.rect_filled(pos, color);
         }
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
-                if ui.is_rect_visible(egui::Rect::from_points(&[last.to_pos2(), pos.to_pos2()])) {
+                if is_in || self.in_screen(last) {
                     painter.line_segment([last, pos], 3.0, color);
                 }
             }
@@ -715,35 +710,11 @@ impl Graph {
             None
         }
     }
-    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
-    fn draw_point(
-        &self,
-        painter: &mut Painter,
-        x: f64,
-        y: f64,
-        color: &Color,
-        last: Option<Pos>,
-    ) -> Option<Pos> {
-        if !x.is_finite() || !y.is_finite() {
-            return None;
-        }
-        let pos = self.to_screen(x, y);
-        if !matches!(self.lines, Lines::Lines)
-            && pos.x > -2.0
-            && pos.x < self.screen.x as f32 + 2.0
-            && pos.y > -2.0
-            && pos.y < self.screen.y as f32 + 2.0
-        {
-            painter.rect_filled(pos, color);
-        }
-        if !matches!(self.lines, Lines::Points) {
-            if let Some(last) = last {
-                painter.line_segment([last, pos], 3.0, color);
-            }
-            Some(pos)
-        } else {
-            None
-        }
+    fn in_screen(&self, p: Pos) -> bool {
+        p.x > -2.0
+            && p.x < self.screen.x as f32 + 2.0
+            && p.y > -2.0
+            && p.y < self.screen.y as f32 + 2.0
     }
     fn write_polar_axis(&self, painter: &mut Painter) {
         let o = self.to_screen(0.0, 0.0);
@@ -825,8 +796,8 @@ impl Graph {
                 let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
                 painter.circle(o, x - o.x, &self.axis_color);
             }
-            painter.vline(o.x, self.screen.y as f32, 1.0, &self.axis_color);
-            painter.hline(self.screen.x as f32, o.y, 1.0, &self.axis_color);
+            painter.vline(o.x, self.screen.y as f32, &self.axis_color);
+            painter.hline(self.screen.x as f32, o.y, &self.axis_color);
         }
     }
     fn write_axis(&self, painter: &mut Painter) {
@@ -846,13 +817,13 @@ impl Graph {
             for j in nx..=mx {
                 if j % 4 != 0 {
                     let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
-                    painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color_light);
+                    painter.vline(x, self.screen.y as f32, &self.axis_color_light);
                 }
             }
             for j in my..=ny {
                 if j % 4 != 0 {
                     let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
-                    painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color_light);
+                    painter.hline(self.screen.x as f32, y, &self.axis_color_light);
                 }
             }
         }
@@ -864,20 +835,20 @@ impl Graph {
         if !self.disable_lines {
             for j in nx..=mx {
                 let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
-                painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color);
+                painter.vline(x, self.screen.y as f32, &self.axis_color);
             }
             for j in my..=ny {
                 let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
-                painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color);
+                painter.hline(self.screen.x as f32, y, &self.axis_color);
             }
         } else if !self.disable_axis {
             if (nx..=mx).contains(&0) {
                 let x = self.to_screen(0.0, 0.0).x;
-                painter.vline(x, self.screen.y as f32, 1.0, &self.axis_color);
+                painter.vline(x, self.screen.y as f32, &self.axis_color);
             }
             if (my..=ny).contains(&0) {
                 let y = self.to_screen(0.0, 0.0).y;
-                painter.hline(self.screen.x as f32, y, 1.0, &self.axis_color);
+                painter.hline(self.screen.x as f32, y, &self.axis_color);
             }
         }
     }
@@ -1047,6 +1018,7 @@ impl Graph {
                         last.0.0,
                         pos.0,
                         self.shift_hue(d, z, color),
+                        self.line_width,
                     );
                 } else if inside {
                     let mut vi = last.1;
@@ -1077,6 +1049,7 @@ impl Graph {
                         last.0,
                         pos.0,
                         self.shift_hue(d, z, color),
+                        self.line_width,
                     );
                 } else if last.2 {
                     let mut vi = v;
@@ -1110,6 +1083,7 @@ impl Graph {
                         last.0,
                         pos.0,
                         self.shift_hue(d, z, color),
+                        self.line_width,
                     );
                 }
             };
@@ -1192,6 +1166,7 @@ impl Graph {
                         vertices[*i].0,
                         vertices[*j].0,
                         self.axis_color,
+                        2.0,
                     );
                 }
                 if !self.disable_axis {
@@ -1251,6 +1226,7 @@ impl Graph {
                     vertices[*i].0,
                     vertices[*j].0,
                     self.axis_color,
+                    2.0,
                 );
             }
         }
@@ -1714,14 +1690,6 @@ impl Graph {
     }
     #[cfg(feature = "egui")]
     fn plot(&mut self, painter: &mut Painter, ui: &egui::Ui) -> Option<Vec<(f32, Draw, Color)>> {
-        let draw_point =
-            |main: &Graph,
-             painter: &mut Painter,
-             x: f64,
-             y: f64,
-             color: &Color,
-             last: Option<Pos>|
-             -> Option<Pos> { main.draw_point(painter, ui, x, y, color, last) };
         let anti_alias = self.anti_alias;
         let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
             *cache = Some(Image(ui.ctx().load_texture(
@@ -1734,17 +1702,10 @@ impl Graph {
                 },
             )));
         };
-        self.plot_inner(painter, draw_point, tex)
+        self.plot_inner(painter, tex)
     }
     #[cfg(feature = "skia")]
     fn plot(&mut self, painter: &mut Painter) -> Option<Vec<(f32, Draw, Color)>> {
-        let draw_point = |main: &Graph,
-                          painter: &mut Painter,
-                          x: f64,
-                          y: f64,
-                          color: &Color,
-                          last: Option<Pos>|
-         -> Option<Pos> { main.draw_point(painter, x, y, color, last) };
         let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
             let info = skia_safe::ImageInfo::new(
                 (lenx as i32, leny as i32),
@@ -1759,17 +1720,10 @@ impl Graph {
             )
             .map(Image);
         };
-        self.plot_inner(painter, draw_point, tex)
+        self.plot_inner(painter, tex)
     }
     #[cfg(feature = "tiny-skia")]
     fn plot(&mut self, painter: &mut Painter) -> Option<Vec<(f32, Draw, Color)>> {
-        let draw_point = |main: &Graph,
-                          painter: &mut Painter,
-                          x: f64,
-                          y: f64,
-                          color: &Color,
-                          last: Option<Pos>|
-         -> Option<Pos> { main.draw_point(painter, x, y, color, last) };
         let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
             *cache = tiny_skia::Pixmap::from_vec(
                 data,
@@ -1777,16 +1731,10 @@ impl Graph {
             )
             .map(Image);
         };
-        self.plot_inner(painter, draw_point, tex)
+        self.plot_inner(painter, tex)
     }
-    fn plot_inner<F, G>(
-        &mut self,
-        painter: &mut Painter,
-        draw_point: F,
-        tex: G,
-    ) -> Option<Vec<(f32, Draw, Color)>>
+    fn plot_inner<G>(&mut self, painter: &mut Painter, tex: G) -> Option<Vec<(f32, Draw, Color)>>
     where
-        F: Fn(&Graph, &mut Painter, f64, f64, &Color, Option<Pos>) -> Option<Pos>,
         G: Fn(&mut Option<Image>, usize, usize, Vec<u8>),
     {
         let mut buffer: Option<Vec<(f32, Draw, Color)>> = (!self.fast_3d()).then(|| {
@@ -1825,8 +1773,7 @@ impl Graph {
                             a = if !self.show.real() {
                                 None
                             } else if let Some(y) = y {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     x,
                                     y,
@@ -1839,8 +1786,7 @@ impl Graph {
                             b = if !self.show.imag() {
                                 None
                             } else if let Some(z) = z {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     x,
                                     z,
@@ -1861,8 +1807,7 @@ impl Graph {
                             a = if !self.show.real() {
                                 None
                             } else if let Some(y) = y {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     c * y,
                                     s * y,
@@ -1875,8 +1820,7 @@ impl Graph {
                             b = if !self.show.imag() {
                                 None
                             } else if let Some(z) = z {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     c * z,
                                     s * z,
@@ -1892,8 +1836,7 @@ impl Graph {
                         for y in data {
                             let (y, z) = y.to_options();
                             a = if let (Some(y), Some(z)) = (y, z) {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     y,
                                     z,
@@ -1935,8 +1878,7 @@ impl Graph {
                             a = if !self.show.real() {
                                 None
                             } else if let Some(y) = y {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     *x,
                                     y,
@@ -1949,8 +1891,7 @@ impl Graph {
                             b = if !self.show.imag() {
                                 None
                             } else if let Some(z) = z {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     *x,
                                     z,
@@ -1969,8 +1910,7 @@ impl Graph {
                             a = if !self.show.real() {
                                 None
                             } else if let Some(y) = y {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     c * y,
                                     s * y,
@@ -1983,8 +1923,7 @@ impl Graph {
                             b = if !self.show.imag() {
                                 None
                             } else if let Some(z) = z {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     c * z,
                                     s * z,
@@ -2000,8 +1939,7 @@ impl Graph {
                         for (_, y) in data {
                             let (y, z) = y.to_options();
                             a = if let (Some(y), Some(z)) = (y, z) {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     y,
                                     z,
@@ -2164,8 +2102,7 @@ impl Graph {
                             a = if !self.show.real() {
                                 None
                             } else if let Some(y) = y {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     x,
                                     y,
@@ -2178,8 +2115,7 @@ impl Graph {
                             b = if !self.show.imag() {
                                 None
                             } else if let Some(z) = z {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     x,
                                     z,
@@ -2213,8 +2149,7 @@ impl Graph {
                             a = if !self.show.real() {
                                 None
                             } else if let Some(y) = y {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     c * y,
                                     s * y,
@@ -2227,8 +2162,7 @@ impl Graph {
                             b = if !self.show.imag() {
                                 None
                             } else if let Some(z) = z {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     c * z,
                                     s * z,
@@ -2247,8 +2181,7 @@ impl Graph {
                         let mut body = |y: &Complex| {
                             let (y, z) = y.to_options();
                             a = if let (Some(y), Some(z)) = (y, z) {
-                                draw_point(
-                                    self,
+                                self.draw_point(
                                     painter,
                                     y,
                                     z,
@@ -2535,11 +2468,12 @@ fn line(
     start: Pos,
     end: Pos,
     color: Color,
+    line_width: f32,
 ) {
     if let Some(buffer) = buffer {
-        buffer.push((depth.unwrap(), Draw::Line(start, end), color))
+        buffer.push((depth.unwrap(), Draw::Line(start, end, line_width), color))
     } else if let Some(painter) = painter {
-        painter.line_segment([start, end], 3.0, &color)
+        painter.line_segment([start, end], line_width, &color)
     }
 }
 fn point(

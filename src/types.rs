@@ -48,7 +48,7 @@ pub struct Name {
 }
 #[derive(Copy, Clone)]
 pub(crate) enum Draw {
-    Line(Pos, Pos),
+    Line(Pos, Pos, f32),
     Point(Pos),
 }
 pub enum Prec {
@@ -116,6 +116,8 @@ pub struct Graph {
     pub(crate) font: skia_safe::Font,
     pub(crate) font_size: f32,
     pub(crate) font_width: f32,
+    ///width of function lines
+    pub line_width: f32,
     #[cfg(feature = "skia")]
     ///if Some, then returns bytes of an image format from update
     pub image_format: crate::ui::ImageFormat,
