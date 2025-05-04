@@ -474,7 +474,7 @@ impl Graph {
                                 }
                                 is_line = Some(true);
                             }
-                            painter.line_segment([a, b], &c);
+                            painter.line_segment([a, b], 3.0, &c);
                         }
                         Draw::Point(a) => {
                             #[cfg(feature = "skia")]
@@ -513,6 +513,7 @@ impl Graph {
                                 Pos::new(pos.x + 4.0, y),
                                 Pos::new(self.screen.x as f32 - 4.0, y),
                             ],
+                            3.0,
                             &self.main_colors[i % self.main_colors.len()],
                         );
                     }
@@ -529,6 +530,7 @@ impl Graph {
                                 Pos::new(pos.x + 4.0, y),
                                 Pos::new(self.screen.x as f32 - 4.0, y),
                             ],
+                            3.0,
                             &self.alt_colors[i % self.alt_colors.len()],
                         );
                     }
@@ -545,6 +547,7 @@ impl Graph {
                                 Pos::new(pos.x + 4.0, y),
                                 Pos::new(self.screen.x as f32 - 4.0, y),
                             ],
+                            3.0,
                             &self.main_colors[i % self.main_colors.len()],
                         );
                         pos.y += self.font_size;
@@ -561,6 +564,7 @@ impl Graph {
                                 Pos::new(pos.x + 4.0, y),
                                 Pos::new(self.screen.x as f32 - 4.0, y),
                             ],
+                            3.0,
                             &self.alt_colors[i % self.alt_colors.len()],
                         );
                     }
@@ -625,8 +629,11 @@ impl Graph {
                         &self.text_color,
                         painter,
                     );
-                    painter
-                        .line_segment([pos.to_pos(), self.to_screen(ps.x, ps.y)], &self.axis_color);
+                    painter.line_segment(
+                        [pos.to_pos(), self.to_screen(ps.x, ps.y)],
+                        1.0,
+                        &self.axis_color,
+                    );
                 }
             }
         }
@@ -701,7 +708,7 @@ impl Graph {
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
                 if ui.is_rect_visible(egui::Rect::from_points(&[last.to_pos2(), pos.to_pos2()])) {
-                    painter.line_segment([last, pos], color);
+                    painter.line_segment([last, pos], 3.0, color);
                 }
             }
             Some(pos)
@@ -732,7 +739,7 @@ impl Graph {
         }
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
-                painter.line_segment([last, pos], color);
+                painter.line_segment([last, pos], 3.0, color);
             }
             Some(pos)
         } else {
@@ -741,7 +748,7 @@ impl Graph {
     }
     fn write_polar_axis(&self, painter: &mut Painter) {
         let o = self.to_screen(0.0, 0.0);
-        if !self.disable_lines {
+        if !self.disable_axis {
             let or = self.to_coord(self.screen.to_pos() / 2.0);
             fn norm((x, y): (f64, f64)) -> f64 {
                 x.hypot(y)
@@ -792,9 +799,32 @@ impl Graph {
                 let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
                 painter.circle(o, x - o.x, &self.axis_color);
             }
+            painter.vline(o.x, self.screen.y as f32, 1.0, &self.axis_color);
+            painter.hline(self.screen.x as f32, o.y, 1.0, &self.axis_color);
         }
-        if !self.disable_axis {
-            painter.circle(o, 1.0, &self.axis_color);
+        if !self.disable_lines && !self.disable_axis {
+            for y in [self.screen.x as f32, 0.0] {
+                painter.line_segment(
+                    [o, Pos::new(y, o.y + (o.x - y) / 3.0f32.sqrt())],
+                    1.0,
+                    &self.axis_color,
+                );
+                painter.line_segment(
+                    [o, Pos::new(y, o.y + (o.x - y) * 3.0f32.sqrt())],
+                    1.0,
+                    &self.axis_color,
+                );
+                painter.line_segment(
+                    [o, Pos::new(y, o.y + (y - o.x) * 3.0f32.sqrt())],
+                    1.0,
+                    &self.axis_color,
+                );
+                painter.line_segment(
+                    [o, Pos::new(y, o.y + (y - o.x) / 3.0f32.sqrt())],
+                    1.0,
+                    &self.axis_color,
+                );
+            }
         }
     }
     fn write_axis(&self, painter: &mut Painter) {
@@ -876,19 +906,13 @@ impl Graph {
                 }
                 let j = j as f64 / (2.0 * minor);
                 let x = self.to_screen(j, 0.0).x;
-                let mut p = Pos::new(if self.is_polar() { x } else { x + 2.0 }, y);
+                let mut p = Pos::new(x + 2.0, y);
                 if !align {
                     p.y = p.y.min(self.screen.y as f32 - self.font_size)
                 }
                 self.text(
                     p,
-                    if self.is_polar() {
-                        if align {
-                            Align::LeftBottom
-                        } else {
-                            Align::LeftCenter
-                        }
-                    } else if align {
+                    if align {
                         Align::LeftBottom
                     } else {
                         Align::LeftTop
@@ -913,7 +937,7 @@ impl Graph {
                 }
                 let j = j as f64 / (2.0 * minor);
                 let y = self.to_screen(0.0, j).y;
-                let mut p = Pos::new(if self.is_polar() { x } else { x + 2.0 }, y);
+                let mut p = Pos::new(x + 2.0, y);
                 let j = j.to_string();
                 if !align {
                     p.x =
@@ -921,13 +945,7 @@ impl Graph {
                 }
                 self.text(
                     p,
-                    if self.is_polar() {
-                        if align {
-                            Align::RightTop
-                        } else {
-                            Align::CenterBottom
-                        }
-                    } else if align {
+                    if align {
                         Align::RightTop
                     } else {
                         Align::LeftTop
@@ -1619,7 +1637,7 @@ impl Graph {
         }
         if i.keys_pressed(self.keybinds.prec_up) {
             self.recalculate = true;
-            self.prec /= 2.0;
+            self.prec *= 0.5;
             self.slice /= 2;
         }
         if i.keys_pressed(self.keybinds.prec_down) {
@@ -1670,11 +1688,13 @@ impl Graph {
         };
         if i.keys_pressed(self.keybinds.mode_up) {
             if let Some(pt) = order.iter().position(|c| *c == self.graph_mode) {
+                self.recalculate = true;
                 self.graph_mode = order[((pt as isize + 1) % order.len() as isize) as usize]
             }
         }
         if i.keys_pressed(self.keybinds.mode_down) {
             if let Some(pt) = order.iter().position(|c| *c == self.graph_mode) {
+                self.recalculate = true;
                 self.graph_mode = order[(pt as isize - 1).rem_euclid(order.len() as isize) as usize]
             }
         }
@@ -2519,7 +2539,7 @@ fn line(
     if let Some(buffer) = buffer {
         buffer.push((depth.unwrap(), Draw::Line(start, end), color))
     } else if let Some(painter) = painter {
-        painter.line_segment([start, end], &color)
+        painter.line_segment([start, end], 3.0, &color)
     }
 }
 fn point(

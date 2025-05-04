@@ -134,20 +134,28 @@ impl Painter {
             anti_alias,
         }
     }
-    pub(crate) fn line_segment(&mut self, p0: [Pos; 2], p2: &Color) {
+    pub(crate) fn line_segment(&mut self, p0: [Pos; 2], width: f32, p2: &Color) {
         let p0 = p0.map(|p| Pos {
             x: p.x + 0.5,
             y: p.y + 0.5,
         });
-        self.line.line(
-            p0,
-            p2,
-            if self.fast {
-                None
-            } else {
-                Some(self.canvas.canvas())
-            },
-        );
+        if width == 3.0 {
+            self.line.line(
+                p0,
+                p2,
+                if self.fast {
+                    None
+                } else {
+                    Some(self.canvas.canvas())
+                },
+            );
+        } else {
+            self.canvas.canvas().draw_line(
+                p0[0].to_pos2(),
+                p0[1].to_pos2(),
+                &make_paint(width, p2, true, false),
+            );
+        }
     }
     pub fn draw(&mut self) {
         self.line.draw(self.canvas.canvas(), self.anti_alias);
