@@ -42,6 +42,16 @@ impl<'a> Painter<'a> {
             egui::Stroke::new(1.0, p2.to_col()),
         );
     }
+    pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
+        self.painter.rect_filled(
+            egui::Rect::from_points(&[
+                egui::Pos2::new(0.0, 0.0),
+                egui::Pos2::new(self.offset.x, screen.y as f32),
+            ]),
+            0.0,
+            background.to_col(),
+        );
+    }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], width: f32, p2: &Color) {
         let p0 = p0.map(|p| {
             self.offset
@@ -217,20 +227,32 @@ impl Painter {
             &make_paint(1.0, p2, true, false),
         );
     }
+    pub(crate) fn finish(&mut self, clear: bool) {
+        self.draw();
+        self.draw_pts();
+        if clear {
+            self.clear();
+            self.clear_pts();
+        }
+    }
+    pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
+        let mut paint = make_paint(1.0, background, false, true);
+        paint.set_style(skia_safe::PaintStyle::Fill);
+        self.canvas.canvas().draw_rect(
+            skia_safe::Rect::from_ltrb(0.0, 0.0, self.offset.x, screen.y as f32),
+            &paint,
+        );
+    }
     pub(crate) fn save<T>(&mut self, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
-        self.draw_pts();
-        self.draw();
         if let Some(pm) = self.canvas.peek_pixels() {
             let px = pm.pixels::<u32>().unwrap();
             buffer.copy_from_slice(px);
         }
     }
     pub(crate) fn save_img(&mut self, format: &ImageFormat) -> Data {
-        self.draw_pts();
-        self.draw();
         Data {
             data: self
                 .canvas
@@ -443,7 +465,7 @@ impl Painter {
             )
         }
     }
-    fn draw(&mut self) {
+    pub fn draw(&mut self) {
         std::mem::replace(&mut self.line, Line::None).draw(&mut self.canvas, self.anti_alias);
     }
     pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color) {
@@ -462,13 +484,11 @@ impl Painter {
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
-        self.draw();
         for (dst, p) in buffer.iter_mut().zip(self.canvas.pixels()) {
             *dst = (p.red() as u32) << 16 | (p.green() as u32) << 8 | p.blue() as u32;
         }
     }
     pub(crate) fn save_png(&mut self) -> Vec<u8> {
-        self.draw();
         self.canvas.encode_png().unwrap_or_default()
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
@@ -481,6 +501,14 @@ impl Painter {
             )
             .unwrap(),
             &make_paint(p2, true),
+            tiny_skia::Transform::default(),
+            None,
+        );
+    }
+    pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
+        self.canvas.fill_rect(
+            tiny_skia::Rect::from_ltrb(0.0, 0.0, self.offset.x, screen.y as f32).unwrap(),
+            &make_paint(&background, false),
             tiny_skia::Transform::default(),
             None,
         );

@@ -187,7 +187,6 @@ pub struct Graph {
     pub blacklist_graphs: Vec<usize>,
     ///minor ticks axis color
     pub axis_color_light: Color,
-    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
     ///background color
     pub background_color: Color,
     ///text color
@@ -308,7 +307,6 @@ impl Default for Graph {
             axis_color: Color::splat(0),
             axis_color_light: Color::splat(220),
             text_color: Color::splat(0),
-            #[cfg(any(feature = "skia", feature = "tiny-skia"))]
             background_color: Color::splat(255),
             mouse_position: None,
             mouse_moved: false,

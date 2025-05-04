@@ -294,7 +294,6 @@ impl Graph {
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter, ui);
         self.update_inner(&mut painter, plot);
-        painter.save();
     }
     #[cfg(feature = "skia")]
     ///repaints the screen
@@ -442,6 +441,24 @@ impl Graph {
         if self.graph_mode != GraphMode::DomainColoring {
             self.write_label(painter)
         }
+        #[cfg(feature = "skia")]
+        painter.finish(self.draw_side);
+        #[cfg(feature = "tiny-skia")]
+        painter.draw();
+        #[cfg(feature = "egui")]
+        painter.save();
+        if self.draw_side {
+            self.write_side(painter);
+            #[cfg(feature = "skia")]
+            painter.finish(self.draw_side);
+            #[cfg(feature = "tiny-skia")]
+            painter.draw();
+            #[cfg(feature = "egui")]
+            painter.save();
+        }
+    }
+    fn write_side(&self, painter: &mut Painter) {
+        painter.clear_offset(self.screen, &self.background_color)
     }
     fn write_label(&self, painter: &mut Painter) {
         let mut pos = Pos::new(self.screen.x as f32 - 48.0, 0.0);
