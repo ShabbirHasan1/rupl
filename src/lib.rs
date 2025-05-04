@@ -742,37 +742,53 @@ impl Graph {
     fn write_polar_axis(&self, painter: &mut Painter) {
         let o = self.to_screen(0.0, 0.0);
         if !self.disable_lines {
+            let or = self.to_coord(self.screen.to_pos() / 2.0);
+            fn norm((x, y): (f64, f64)) -> f64 {
+                x.hypot(y)
+            }
+            let s = if o.x > 0.0
+                && (o.x as f64) < self.screen.x
+                && o.y > 0.0
+                && (o.y as f64) < self.screen.y
+            {
+                -1.0
+            } else {
+                1.0
+            };
+            let (a, b) = if (or.0 >= 0.0) == (or.1 <= 0.0) {
+                let (a, b) = (
+                    norm(self.to_coord(Pos::new(0.0, 0.0))),
+                    norm(self.to_coord(self.screen.to_pos())),
+                );
+                (s * a.min(b), a.max(b))
+            } else {
+                let (a, b) = (
+                    norm(self.to_coord(Pos::new(0.0, self.screen.y as f32))),
+                    norm(self.to_coord(Pos::new(self.screen.x as f32, 0.0))),
+                );
+                (s * a.min(b), a.max(b))
+            };
             let delta = 2.0f64.powf((-self.zoom.log2()).round());
             let minor =
                 16.0 * self.screen.x / (self.delta * delta * (self.bound.y - self.bound.x).powi(2));
             let s = self.screen.x / (self.bound.y - self.bound.x);
             let ox = self.screen_offset.x + self.offset.x;
-            let oy = self.screen_offset.y + self.offset.y;
-            let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
-            let mx =
-                ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
-            let ny = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
-            let my =
-                (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
-            //TODO 2 should be more precise
-            for j in mx.min(nx).min(ny).min(my).max(2) / 2
-                ..=mx.abs().max(nx.abs()).max(ny.abs()).max(my.abs()) * 2
-            {
+            let nx = (((self.to_screen(a, 0.0).x as f64 / self.zoom - ox) / s) * 2.0 * minor).ceil()
+                as isize;
+            let mx = (((self.to_screen(b, 0.0).x as f64 / self.zoom - ox) / s) * 2.0 * minor)
+                .floor() as isize;
+            for j in nx.max(1)..=mx {
                 if j % 4 != 0 {
                     let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
                     painter.circle(o, x - o.x, &self.axis_color_light);
                 }
             }
             let minor = minor / 4.0;
-            let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
-            let mx =
-                ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
-            let ny = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
-            let my =
-                (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
-            for j in mx.min(nx).min(ny).min(my).max(2) / 2
-                ..=mx.abs().max(nx.abs()).max(ny.abs()).max(my.abs()) * 2
-            {
+            let nx = (((self.to_screen(a, 0.0).x as f64 / self.zoom - ox) / s) * 2.0 * minor).ceil()
+                as isize;
+            let mx = (((self.to_screen(b, 0.0).x as f64 / self.zoom - ox) / s) * 2.0 * minor)
+                .floor() as isize;
+            for j in nx.max(1)..=mx {
                 let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
                 painter.circle(o, x - o.x, &self.axis_color);
             }
@@ -1774,7 +1790,6 @@ impl Graph {
                     Lines::Lines => 2,
                     Lines::LinesPoints => 3,
                 };
-
             Vec::with_capacity(n + 12)
         });
         for (k, data) in self.data.iter().enumerate() {
