@@ -1,4 +1,3 @@
-use crate::ImageFormat;
 use std::f64::consts::PI;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
@@ -115,8 +114,8 @@ impl Angle {
     pub(crate) fn to_val(&self, t: f64) -> f64 {
         match self {
             Angle::Radian => t,
-            Angle::Degree => 180.0 * t / std::f64::consts::PI,
-            Angle::Gradian => 200.0 * t / std::f64::consts::PI,
+            Angle::Degree => 180.0 * t / PI,
+            Angle::Gradian => 200.0 * t / PI,
         }
     }
 }
@@ -255,7 +254,7 @@ impl Default for Graph {
             font_size,
             font_width: 0.0,
             #[cfg(feature = "skia")]
-            image_format: ImageFormat::Png,
+            image_format: crate::ui::ImageFormat::Png,
             fast_3d_move: false,
             reduced_move: false,
             bound: Vec2::new(-2.0, 2.0),

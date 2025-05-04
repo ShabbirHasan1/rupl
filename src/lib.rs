@@ -4,10 +4,6 @@ use crate::types::*;
 use crate::ui::Painter;
 use rayon::slice::ParallelSliceMut;
 use std::f64::consts::{PI, TAU};
-#[cfg(feature = "skia")]
-pub use ui::Data;
-#[cfg(feature = "skia")]
-pub use ui::ImageFormat;
 fn is_3d(data: &[GraphType]) -> bool {
     data.iter()
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
@@ -306,7 +302,7 @@ impl Graph {
     }
     #[cfg(feature = "skia")]
     ///get png data
-    pub fn get_png(&mut self, width: u32, height: u32) -> Data {
+    pub fn get_png(&mut self, width: u32, height: u32) -> ui::Data {
         self.font_width();
         let mut painter = Painter::new(
             width,
