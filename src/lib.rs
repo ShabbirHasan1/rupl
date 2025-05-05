@@ -75,7 +75,7 @@ impl Graph {
             if height < width {
                 Vec2::new(new, height)
             } else {
-                Vec2::new(width, width)
+                Vec2::new(width, width) //TODO
             }
         } else {
             Vec2::new(width, height)
@@ -547,7 +547,7 @@ impl Graph {
         }
         for key in &i.keys_pressed {
             match key.into() {
-                KeyStr::Character(a) => {
+                KeyStr::Character(a) if !i.modifiers.ctrl => {
                     self.modify_name(
                         self.text_box.1 as usize,
                         self.text_box.0 as usize,
@@ -605,6 +605,7 @@ impl Graph {
                     NamedKey::Paste => {}
                     _ => {}
                 },
+                _ => {}
             }
         }
         true
