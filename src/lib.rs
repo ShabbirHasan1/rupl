@@ -126,6 +126,7 @@ impl Graph {
             | GraphMode::Slice
             | GraphMode::Flatten
             | GraphMode::SlicePolar => self.is_3d = false,
+            GraphMode::Depth => self.is_3d = true,
             _ => {
                 self.is_3d = self.is_3d_data;
             }
