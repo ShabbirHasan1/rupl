@@ -545,16 +545,23 @@ impl InputState {
 impl From<&egui::InputState> for InputState {
     fn from(val: &egui::InputState) -> Self {
         InputState {
-            keys_pressed: val
-                .events
-                .iter()
-                .filter_map(|event| match event {
-                    egui::Event::Key {
-                        key, pressed: true, ..
-                    } => Some(key.into()),
-                    _ => None,
-                })
-                .collect(),
+            keys_pressed: {
+                val.events
+                    .iter()
+                    .filter_map(|event| match event {
+                        egui::Event::Key {
+                            key, pressed: true, ..
+                        } => Some(key.into()),
+                        egui::Event::Text(s) => match s.as_str() {
+                            "^" => Some(Key::Caret),
+                            "(" => Some(Key::OpenParentheses),
+                            ")" => Some(Key::CloseParentheses),
+                            _ => None,
+                        },
+                        _ => None,
+                    })
+                    .collect::<Vec<Key>>()
+            },
             modifiers: val.modifiers.into(),
             raw_scroll_delta: Vec2 {
                 x: val.raw_scroll_delta.x as f64,
