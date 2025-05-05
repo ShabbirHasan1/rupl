@@ -72,7 +72,7 @@ impl Graph {
     pub fn set_screen(&mut self, width: f64, height: f64, offset: bool) {
         self.screen = if self.draw_side && offset {
             if height < width {
-                Vec2::new(height * 3.0/2.0, height)
+                Vec2::new(height * 3.0 / 2.0, height)
             } else {
                 Vec2::new(width, width)
             }
@@ -80,7 +80,7 @@ impl Graph {
             Vec2::new(width, height)
         };
         self.draw_offset = if self.draw_side && offset && height < width {
-            Pos::new((width - height * 3.0/2.0) as f32, 0.0)
+            Pos::new((width - height * 3.0 / 2.0) as f32, 0.0)
         } else {
             Pos::new(0.0, 0.0)
         };
@@ -512,18 +512,24 @@ impl Graph {
     fn keybinds_side(&mut self, i: &InputState) -> bool {
         let mut stop_keybinds = false;
         if let Some(mpos) = i.pointer_pos {
-            let mpos = Vec2 {
-                x: mpos.x,
-                y: mpos.y,
-            } - self.draw_offset.to_vec();
+            let x = mpos.x;
+            let mpos = Vec2 { x, y: mpos.y } - self.draw_offset.to_vec();
             if mpos.x < 0.0 {
                 stop_keybinds = true;
+                if i.pointer_just_down {
+                    self.text_box.0 = (x as f32 / self.font_width)
+                        .round()
+                        .min(self.get_name(self.text_box.1 as usize).len() as f32);
+                }
                 if self.mouse_position != Some(mpos) {
                     let delta = self.font_size * 1.875;
-                    self.text_box.1 = (mpos.y as f32 / delta)
+                    let new = (mpos.y as f32 / delta)
                         .floor()
                         .min(self.get_name_len() as f32);
-                    self.text_box.0 = self.get_name(self.text_box.1 as usize).len() as f32;
+                    if new != self.text_box.1 && !i.pointer_just_down {
+                        self.text_box.0 = self.get_name(new as usize).len() as f32;
+                    }
+                    self.text_box.1 = new;
                 }
             }
         }
