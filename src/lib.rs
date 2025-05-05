@@ -458,12 +458,16 @@ impl Graph {
                 }
             }
         }
-        #[cfg(feature = "skia")]
-        painter.finish(self.draw_side);
-        #[cfg(feature = "tiny-skia")]
-        painter.draw();
-        #[cfg(feature = "egui")]
-        painter.save();
+        let draw = self.draw_side;
+        let finish = |painter: &mut Painter| {
+            #[cfg(feature = "skia")]
+            painter.finish(draw);
+            #[cfg(feature = "tiny-skia")]
+            painter.draw();
+            #[cfg(feature = "egui")]
+            painter.save();
+        };
+        finish(painter);
         if !self.is_3d {
             self.write_coord(painter);
         } else {
@@ -472,17 +476,12 @@ impl Graph {
         if self.graph_mode != GraphMode::DomainColoring {
             self.write_label(painter)
         }
-        if self.draw_side {
+        if draw {
             self.set_screen(width, height, false);
             self.write_side(painter);
             self.set_screen(width, height, true);
-            #[cfg(feature = "skia")]
-            painter.finish(self.draw_side);
-            #[cfg(feature = "tiny-skia")]
-            painter.draw();
-            #[cfg(feature = "egui")]
-            painter.save();
         }
+        finish(painter);
     }
     fn write_side(&mut self, painter: &mut Painter) {
         painter.clear_offset(self.screen, &self.background_color);
@@ -539,7 +538,15 @@ impl Graph {
         for key in &i.keys_pressed {
             match key.into() {
                 KeyStr::Character(a) => {
-                    self.modify_name(self.text_box.1 as usize, self.text_box.0 as usize, a);
+                    self.modify_name(
+                        self.text_box.1 as usize,
+                        self.text_box.0 as usize,
+                        if i.modifiers.shift {
+                            a.to_ascii_uppercase()
+                        } else {
+                            a
+                        },
+                    );
                     self.text_box.0 += 1.0;
                     self.name_modified = true;
                 }
@@ -610,7 +617,7 @@ impl Graph {
             self.names.push(Name {
                 vars: Vec::new(),
                 name: char,
-                show: Show::Real, //TODO
+                show: Show::None,
             })
         } else {
             for name in self.names.iter_mut() {
@@ -728,6 +735,7 @@ impl Graph {
                             &self.alt_colors[i % self.alt_colors.len()],
                         );
                     }
+                    Show::None => {}
                 }
             }
             pos.y += self.font_size;
@@ -1811,6 +1819,7 @@ impl Graph {
                 Show::Complex => Show::Real,
                 Show::Real => Show::Imag,
                 Show::Imag => Show::Complex,
+                Show::None => Show::None,
             }
         }
         let order = match (self.is_complex, self.is_3d_data) {

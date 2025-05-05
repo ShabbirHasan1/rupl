@@ -75,6 +75,7 @@ pub enum Show {
     Real,
     Imag,
     Complex,
+    None,
 }
 impl Show {
     pub fn real(&self) -> bool {
