@@ -72,7 +72,7 @@ impl Graph {
     pub fn set_screen(&mut self, width: f64, height: f64, offset: bool) {
         self.screen = if self.draw_side && offset {
             if height < width {
-                Vec2::new(height, height)
+                Vec2::new(height * 3.0/2.0, height)
             } else {
                 Vec2::new(width, width)
             }
@@ -80,7 +80,7 @@ impl Graph {
             Vec2::new(width, height)
         };
         self.draw_offset = if self.draw_side && offset && height < width {
-            Pos::new((width - height) as f32, 0.0)
+            Pos::new((width - height * 3.0/2.0) as f32, 0.0)
         } else {
             Pos::new(0.0, 0.0)
         };
