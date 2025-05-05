@@ -106,6 +106,19 @@ impl Graph {
         self.is_3d = is_3d(&self.data);
         self.is_3d_data = self.is_3d;
     }
+    ///sets if the next set of data is expected to be 3d or not
+    pub fn set_is_3d(&mut self, new: bool) {
+        self.is_3d_data = new;
+        match self.graph_mode {
+            GraphMode::Normal => self.is_3d = new,
+            GraphMode::Slice => self.graph_mode = GraphMode::Normal,
+            GraphMode::DomainColoring => self.graph_mode = GraphMode::Normal,
+            GraphMode::Flatten => self.is_3d = new,
+            GraphMode::Depth => {}
+            GraphMode::Polar => self.is_3d = new,
+            GraphMode::SlicePolar => self.graph_mode = GraphMode::Normal,
+        }
+    }
     ///sets the current graph_mode and reprocesses is_3d
     pub fn set_mode(&mut self, mode: GraphMode) {
         match mode {
@@ -130,16 +143,19 @@ impl Graph {
             self.prec
         }
     }
-    ///if keybinds does something that requires more data to be generated,
-    ///will return a corrosponding UpdateResult asking for more data,
-    ///meant to be ran before update()
-    pub fn update_res(&mut self) -> UpdateResult {
-        let name = if self.name_modified {
+    ///run before update_res to support switching if a plot is 2d or 3d
+    pub fn update_res_name(&mut self) -> Option<Vec<Name>> {
+        if self.name_modified {
             Some(self.names.clone())
         } else {
             None
-        };
-        let bound = if self.recalculate || self.name_modified {
+        }
+    }
+    ///if keybinds does something that requires more data to be generated,
+    ///will return a corrosponding UpdateResult asking for more data,
+    ///meant to be ran before update()
+    pub fn update_res(&mut self) -> Option<Bound> {
+        if self.recalculate || self.name_modified {
             self.recalculate = false;
             self.name_modified = false;
             let prec = self.prec();
@@ -271,8 +287,7 @@ impl Graph {
             }
         } else {
             None
-        };
-        UpdateResult { name, bound }
+        }
     }
     #[cfg(not(feature = "tiny-skia"))]
     fn max(&self) -> usize {

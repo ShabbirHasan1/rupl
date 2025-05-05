@@ -64,10 +64,6 @@ pub enum Prec {
     ///the amount of x/y data is requested for domain coloring
     Dimension(usize, usize),
 }
-pub struct UpdateResult {
-    pub name: Option<Vec<Name>>,
-    pub bound: Option<Bound>,
-}
 pub enum Bound {
     ///a 2d data set is requested
     Width(f64, f64, Prec),
