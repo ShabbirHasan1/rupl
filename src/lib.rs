@@ -36,14 +36,15 @@ impl Graph {
         end: f64,
     ) -> Self {
         let is_3d = is_3d(&data);
+        let bound = Vec2::new(start, end);
         Self {
             is_3d,
-            is_3d_data: is_3d,
             names,
             data,
-            bound: Vec2::new(start, end),
             is_complex,
-            var: Vec2::new(start, end),
+            is_3d_data: is_3d,
+            bound,
+            var: bound,
             ..Default::default()
         }
     }
@@ -68,8 +69,8 @@ impl Graph {
         self.recalculate = true;
     }
     ///sets screen dimensions
-    pub fn set_screen(&mut self, width: f64, height: f64) {
-        self.screen = if self.draw_side {
+    pub fn set_screen(&mut self, width: f64, height: f64, offset: bool) {
+        self.screen = if self.draw_side && offset {
             if height < width {
                 Vec2::new(height, height)
             } else {
@@ -78,7 +79,7 @@ impl Graph {
         } else {
             Vec2::new(width, height)
         };
-        self.draw_offset = if self.draw_side && height < width {
+        self.draw_offset = if self.draw_side && offset && height < width {
             Pos::new((width - height) as f32, 0.0)
         } else {
             Pos::new(0.0, 0.0)
@@ -255,7 +256,7 @@ impl Graph {
                 if self.graph_mode == GraphMode::Flatten || self.graph_mode == GraphMode::Polar {
                     UpdateResult::Width(self.var.x, self.var.y, Prec::Mult(prec))
                 } else {
-                    let c = self.to_coord(Pos::new(0.0, 0.0));
+                    let c = self.to_coord(Pos::new(0.0,0.0));
                     let cf = self.to_coord(self.screen.to_pos());
                     UpdateResult::Width(c.0, cf.0, Prec::Mult(prec))
                 }
@@ -302,7 +303,7 @@ impl Graph {
         T: std::ops::DerefMut<Target = [u32]>,
     {
         self.font_width();
-        self.set_screen(width as f64, height as f64);
+        self.set_screen(width as f64, height as f64, true);
         let mut painter = Painter::new(
             width,
             height,
@@ -315,14 +316,14 @@ impl Graph {
             self.draw_offset,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
-        self.update_inner(&mut painter, plot);
+        self.update_inner(&mut painter, plot, width as f64, height as f64);
         painter.save(buffer);
     }
     #[cfg(feature = "skia")]
     ///get png data
     pub fn get_png(&mut self, width: u32, height: u32) -> ui::Data {
         self.font_width();
-        self.set_screen(width as f64, height as f64);
+        self.set_screen(width as f64, height as f64, true);
         let mut painter = Painter::new(
             width,
             height,
@@ -335,7 +336,7 @@ impl Graph {
             self.draw_offset,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
-        self.update_inner(&mut painter, plot);
+        self.update_inner(&mut painter, plot, width as f64, height as f64);
         painter.save_img(&self.image_format)
     }
     #[cfg(feature = "tiny-skia")]
@@ -375,7 +376,7 @@ impl Graph {
         self.update_inner(&mut painter, plot);
         painter.save_png()
     }
-    fn update_inner<F>(&mut self, painter: &mut Painter, plot: F)
+    fn update_inner<F>(&mut self, painter: &mut Painter, plot: F, width: f64, height: f64)
     where
         F: Fn(&mut Painter, &mut Graph) -> Option<Vec<(f32, Draw, Color)>>,
     {
@@ -448,7 +449,9 @@ impl Graph {
         #[cfg(feature = "egui")]
         painter.save();
         if self.draw_side {
+            self.set_screen(width, height, false);
             self.write_side(painter);
+            self.set_screen(width, height, true);
             #[cfg(feature = "skia")]
             painter.finish(self.draw_side);
             #[cfg(feature = "tiny-skia")]
@@ -457,8 +460,22 @@ impl Graph {
             painter.save();
         }
     }
-    fn write_side(&self, painter: &mut Painter) {
-        painter.clear_offset(self.screen, &self.background_color)
+    fn write_side(&mut self, painter: &mut Painter) {
+        painter.clear_offset(self.screen, &self.background_color);
+        let offset = std::mem::replace(&mut painter.offset, Pos::new(0.0, 0.0));
+        painter.vline(offset.x, self.screen.y as f32, &self.axis_color);
+        let delta = self.font_size * 1.875;
+        for i in 1..self.screen.y as usize / delta as usize {
+            painter.hline(offset.x, i as f32 * delta, &self.axis_color)
+        }
+        for (i, n) in self.names.iter().enumerate() {
+            painter.text(
+                Pos::new(0.0, i as f32 * delta + delta / 2.0),
+                Align::LeftCenter,
+                &n.name,
+                &self.text_color,
+            )
+        }
     }
     fn write_label(&self, painter: &mut Painter) {
         let mut pos = Pos::new(self.screen.x as f32 - 48.0, 0.0);
@@ -1638,6 +1655,9 @@ impl Graph {
             if let Some(pt) = order.iter().position(|c| *c == self.graph_mode) {
                 self.set_mode(order[(pt as isize - 1).rem_euclid(order.len() as isize) as usize])
             }
+        }
+        if i.keys_pressed(self.keybinds.side) {
+            self.draw_side = !self.draw_side;
         }
         if i.keys_pressed(self.keybinds.reset) {
             self.offset3d = Vec3::splat(0.0);

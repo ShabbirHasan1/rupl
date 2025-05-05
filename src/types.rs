@@ -410,6 +410,8 @@ pub struct Keybinds {
     pub mode_down: Option<Keys>,
     ///resets most settings to default
     pub reset: Option<Keys>,
+    ///opens up the side menu
+    pub side: Option<Keys>,
 }
 impl Default for Keybinds {
     fn default() -> Self {
@@ -485,6 +487,7 @@ impl Default for Keybinds {
                 Modifiers::default().shift(),
             )),
             reset: Some(Keys::new(Key::T)),
+            side: Some(Keys::new(Key::Escape)),
         }
     }
 }

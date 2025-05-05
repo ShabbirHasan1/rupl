@@ -4,7 +4,7 @@ pub(crate) struct Painter<'a> {
     painter: &'a egui::Painter,
     line: Line,
     line_width: f32,
-    offset: Pos,
+    pub offset: Pos,
 }
 #[cfg(feature = "egui")]
 impl<'a> Painter<'a> {
@@ -130,7 +130,7 @@ pub(crate) struct Painter {
     fast: bool,
     anti_alias: bool,
     line_width: f32,
-    offset: Pos,
+    pub offset: Pos,
 }
 #[cfg(feature = "skia")]
 impl Painter {
@@ -393,7 +393,7 @@ pub(crate) struct Painter {
     fast: bool,
     anti_alias: bool,
     line_width: f32,
-    offset: Pos,
+    pub offset: Pos,
 }
 #[cfg(feature = "tiny-skia")]
 impl Painter {
