@@ -134,29 +134,35 @@ impl Graph {
     ///will return a corrosponding UpdateResult asking for more data,
     ///meant to be ran before update()
     pub fn update_res(&mut self) -> UpdateResult {
-        if self.recalculate {
+        let name = if self.name_modified {
+            Some(self.names.clone())
+        } else {
+            None
+        };
+        let bound = if self.recalculate || self.name_modified {
             self.recalculate = false;
+            self.name_modified = false;
             let prec = self.prec();
             if self.is_3d_data {
                 match self.graph_mode {
-                    GraphMode::Normal => UpdateResult::Width3D(
+                    GraphMode::Normal => Some(Bound::Width3D(
                         self.bound.x + self.offset3d.x,
                         self.bound.x - self.offset3d.y,
                         self.bound.y + self.offset3d.x,
                         self.bound.y - self.offset3d.y,
                         Prec::Mult(self.prec),
-                    ),
-                    GraphMode::Polar => UpdateResult::Width3D(
+                    )),
+                    GraphMode::Polar => Some(Bound::Width3D(
                         self.bound.x + self.offset3d.x,
                         self.bound.x - self.offset3d.y,
                         self.bound.y + self.offset3d.x,
                         self.bound.y - self.offset3d.y,
                         Prec::Mult(self.prec),
-                    ),
+                    )),
                     GraphMode::DomainColoring => {
                         let c = self.to_coord(Pos::new(0.0, 0.0));
                         let cf = self.to_coord(self.screen.to_pos());
-                        UpdateResult::Width3D(
+                        Some(Bound::Width3D(
                             c.0,
                             c.1,
                             cf.0,
@@ -165,107 +171,108 @@ impl Graph {
                                 (self.screen.x * prec * self.mult) as usize,
                                 (self.screen.y * prec * self.mult) as usize,
                             ),
-                        )
+                        ))
                     }
                     GraphMode::Slice => {
                         let c = self.to_coord(Pos::new(0.0, 0.0));
                         let cf = self.to_coord(self.screen.to_pos());
                         if self.view_x {
-                            UpdateResult::Width3D(
+                            Some(Bound::Width3D(
                                 c.0,
                                 self.bound.x,
                                 cf.0,
                                 self.bound.y,
                                 Prec::Slice(prec),
-                            )
+                            ))
                         } else {
-                            UpdateResult::Width3D(
+                            Some(Bound::Width3D(
                                 self.bound.x,
                                 c.0,
                                 self.bound.y,
                                 cf.0,
                                 Prec::Slice(prec),
-                            )
+                            ))
                         }
                     }
                     GraphMode::Flatten => {
                         if self.view_x {
-                            UpdateResult::Width3D(
+                            Some(Bound::Width3D(
                                 self.var.x,
                                 self.bound.x,
                                 self.var.y,
                                 self.bound.y,
                                 Prec::Slice(self.prec),
-                            )
+                            ))
                         } else {
-                            UpdateResult::Width3D(
+                            Some(Bound::Width3D(
                                 self.bound.x,
                                 self.var.x,
                                 self.bound.y,
                                 self.var.y,
                                 Prec::Slice(self.prec),
-                            )
+                            ))
                         }
                     }
                     GraphMode::Depth => {
                         if self.view_x {
-                            UpdateResult::Width3D(
+                            Some(Bound::Width3D(
                                 self.bound.x - self.offset3d.z,
                                 self.bound.x,
                                 self.bound.y - self.offset3d.z,
                                 self.bound.y,
                                 Prec::Slice(self.prec),
-                            )
+                            ))
                         } else {
-                            UpdateResult::Width3D(
+                            Some(Bound::Width3D(
                                 self.bound.x,
                                 self.bound.x - self.offset3d.z,
                                 self.bound.y,
                                 self.bound.y - self.offset3d.z,
                                 Prec::Slice(self.prec),
-                            )
+                            ))
                         }
                     }
                     GraphMode::SlicePolar => {
                         if self.view_x {
-                            UpdateResult::Width3D(
+                            Some(Bound::Width3D(
                                 self.var.x,
                                 self.bound.x,
                                 self.var.y,
                                 self.bound.y,
                                 Prec::Slice(self.prec),
-                            )
+                            ))
                         } else {
-                            UpdateResult::Width3D(
+                            Some(Bound::Width3D(
                                 self.bound.x,
                                 self.var.x,
                                 self.bound.y,
                                 self.var.y,
                                 Prec::Slice(self.prec),
-                            )
+                            ))
                         }
                     }
                 }
             } else if self.graph_mode == GraphMode::Depth {
-                UpdateResult::Width(
+                Some(Bound::Width(
                     self.bound.x - self.offset3d.z,
                     self.bound.y - self.offset3d.z,
                     Prec::Mult(self.prec),
-                )
+                ))
             } else if !self.is_3d {
                 if self.graph_mode == GraphMode::Flatten || self.graph_mode == GraphMode::Polar {
-                    UpdateResult::Width(self.var.x, self.var.y, Prec::Mult(prec))
+                    Some(Bound::Width(self.var.x, self.var.y, Prec::Mult(prec)))
                 } else {
-                    let c = self.to_coord(Pos::new(0.0,0.0));
+                    let c = self.to_coord(Pos::new(0.0, 0.0));
                     let cf = self.to_coord(self.screen.to_pos());
-                    UpdateResult::Width(c.0, cf.0, Prec::Mult(prec))
+                    Some(Bound::Width(c.0, cf.0, Prec::Mult(prec)))
                 }
             } else {
-                UpdateResult::None
+                None
             }
         } else {
-            UpdateResult::None
-        }
+            None
+        };
+        UpdateResult { name, bound }
     }
     #[cfg(not(feature = "tiny-skia"))]
     fn max(&self) -> usize {
@@ -285,7 +292,8 @@ impl Graph {
     pub fn update(&mut self, ctx: &egui::Context, ui: &egui::Ui) {
         self.font_width(ctx);
         let rect = ctx.available_rect();
-        self.set_screen(rect.width() as f64, rect.height() as f64);
+        let (width, height) = (rect.width() as f64, rect.height() as f64);
+        self.set_screen(width, height, true);
         let mut painter = Painter::new(
             ui,
             self.fast_3d(),
@@ -294,7 +302,7 @@ impl Graph {
             self.draw_offset,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter, ui);
-        self.update_inner(&mut painter, plot);
+        self.update_inner(&mut painter, plot, width, height);
     }
     #[cfg(feature = "skia")]
     ///repaints the screen
@@ -345,7 +353,7 @@ impl Graph {
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
-        self.set_screen(width as f64, height as f64);
+        self.set_screen(width as f64, height as f64, true);
         let mut painter = Painter::new(
             width,
             height,
@@ -356,13 +364,13 @@ impl Graph {
             self.draw_offset,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
-        self.update_inner(&mut painter, plot);
+        self.update_inner(&mut painter, plot, width as f64, height as f64);
         painter.save(buffer);
     }
     #[cfg(feature = "tiny-skia")]
     ///get png data
     pub fn get_png(&mut self, width: u32, height: u32) -> Vec<u8> {
-        self.set_screen(width as f64, height as f64);
+        self.set_screen(width as f64, height as f64, true);
         let mut painter = Painter::new(
             width,
             height,
@@ -373,7 +381,7 @@ impl Graph {
             self.draw_offset,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
-        self.update_inner(&mut painter, plot);
+        self.update_inner(&mut painter, plot, width as f64, height as f64);
         painter.save_png()
     }
     fn update_inner<F>(&mut self, painter: &mut Painter, plot: F, width: f64, height: f64)
@@ -434,6 +442,12 @@ impl Graph {
                 }
             }
         }
+        #[cfg(feature = "skia")]
+        painter.finish(self.draw_side);
+        #[cfg(feature = "tiny-skia")]
+        painter.draw();
+        #[cfg(feature = "egui")]
+        painter.save();
         if !self.is_3d {
             self.write_coord(painter);
         } else {
@@ -442,12 +456,6 @@ impl Graph {
         if self.graph_mode != GraphMode::DomainColoring {
             self.write_label(painter)
         }
-        #[cfg(feature = "skia")]
-        painter.finish(self.draw_side);
-        #[cfg(feature = "tiny-skia")]
-        painter.draw();
-        #[cfg(feature = "egui")]
-        painter.save();
         if self.draw_side {
             self.set_screen(width, height, false);
             self.write_side(painter);
@@ -465,21 +473,174 @@ impl Graph {
         let offset = std::mem::replace(&mut painter.offset, Pos::new(0.0, 0.0));
         painter.vline(offset.x, self.screen.y as f32, &self.axis_color);
         let delta = self.font_size * 1.875;
-        for i in 1..self.screen.y as usize / delta as usize {
+        for i in 0..=self.screen.y as usize / delta as usize {
             painter.hline(offset.x, i as f32 * delta, &self.axis_color)
         }
         for (i, n) in self.names.iter().enumerate() {
-            painter.text(
+            self.text(
                 Pos::new(0.0, i as f32 * delta + delta / 2.0),
                 Align::LeftCenter,
                 &n.name,
                 &self.text_color,
+                painter,
             )
         }
+        let x = self.text_box.0 * self.font_width;
+        let y = self.text_box.1 * delta;
+        painter.line_segment(
+            [Pos::new(x, y), Pos::new(x, y + delta)],
+            1.0,
+            &self.text_color,
+        );
+    }
+    fn keybinds_side(&mut self, i: &InputState) -> bool {
+        let mut stop_keybinds = false;
+        if let Some(mpos) = i.pointer_pos {
+            let mpos = Vec2 {
+                x: mpos.x,
+                y: mpos.y,
+            } - self.draw_offset.to_vec();
+            if mpos.x < 0.0 {
+                stop_keybinds = true;
+                if self.mouse_position != Some(mpos) {
+                    let delta = self.font_size * 1.875;
+                    self.text_box.1 = (mpos.y as f32 / delta)
+                        .floor()
+                        .min(self.get_name_len() as f32);
+                    self.text_box.0 = self.get_name(self.text_box.1 as usize).len() as f32;
+                }
+            }
+        }
+        if !stop_keybinds {
+            return false;
+        }
+        for key in &i.keys_pressed {
+            match key.into() {
+                KeyStr::Character(a) => {
+                    self.modify_name(self.text_box.1 as usize, self.text_box.0 as usize, a);
+                    self.text_box.0 += 1.0;
+                    self.name_modified = true;
+                }
+                KeyStr::Named(key) => match key {
+                    NamedKey::ArrowDown => {
+                        self.text_box.1 = (self.text_box.1 + 1.0).min(self.get_name_len() as f32);
+                        self.text_box.0 = self
+                            .text_box
+                            .0
+                            .min(self.get_name(self.text_box.1 as usize).len() as f32)
+                    }
+                    NamedKey::ArrowLeft => self.text_box.0 = (self.text_box.0 - 1.0).max(0.0),
+                    NamedKey::ArrowRight => {
+                        self.text_box.0 = (self.text_box.0 + 1.0)
+                            .min(self.get_name(self.text_box.1 as usize).len() as f32)
+                    }
+                    NamedKey::ArrowUp => {
+                        self.text_box.1 = (self.text_box.1 - 1.0).max(0.0);
+                        self.text_box.0 = self
+                            .text_box
+                            .0
+                            .min(self.get_name(self.text_box.1 as usize).len() as f32)
+                    }
+                    NamedKey::Escape => {}
+                    NamedKey::Tab => {}
+                    NamedKey::Backspace => {
+                        if self.text_box.0 != 0.0 {
+                            self.remove_char(
+                                self.text_box.1 as usize,
+                                self.text_box.0 as usize - 1,
+                            );
+                            self.text_box.0 -= 1.0;
+                            self.name_modified = true;
+                        }
+                    }
+                    NamedKey::Enter => {}
+                    NamedKey::Space => {}
+                    NamedKey::Insert => {}
+                    NamedKey::Delete => {}
+                    NamedKey::Home => {}
+                    NamedKey::End => {}
+                    NamedKey::PageUp => {}
+                    NamedKey::PageDown => {}
+                    NamedKey::Copy => {}
+                    NamedKey::Cut => {}
+                    NamedKey::Paste => {}
+                    _ => {}
+                },
+            }
+        }
+        true
+    }
+    fn get_name(&self, mut i: usize) -> String {
+        for name in &self.names {
+            if i < name.vars.len() {
+                return name.vars[i].clone();
+            }
+            i -= name.vars.len();
+            if i == 0 {
+                return name.name.clone();
+            }
+            i -= 1;
+        }
+        String::new()
+    }
+    fn modify_name(&mut self, mut i: usize, j: usize, char: String) {
+        if i == self.names.len() {
+            self.names.push(Name {
+                vars: Vec::new(),
+                name: char,
+                show: Show::Real, //TODO
+            })
+        } else {
+            for name in self.names.iter_mut() {
+                if i < name.vars.len() {
+                    name.vars[i].insert_str(j, &char);
+                    return;
+                }
+                i -= name.vars.len();
+                if i == 0 {
+                    name.name.insert_str(j, &char);
+                    return;
+                }
+                i -= 1;
+            }
+        }
+    }
+    fn remove_char(&mut self, mut i: usize, j: usize) {
+        let mut k = None;
+        for (l, name) in self.names.iter_mut().enumerate() {
+            if i < name.vars.len() {
+                if name.vars[i].len() == 1 {
+                    name.vars.remove(i);
+                } else {
+                    name.vars[i].remove(j);
+                }
+                return;
+            }
+            i -= name.vars.len();
+            if i == 0 {
+                if name.name.len() == 1 && name.vars.is_empty() {
+                    k = Some(l)
+                } else {
+                    name.name.remove(j);
+                }
+                break;
+            }
+            i -= 1;
+        }
+        if let Some(k) = k {
+            self.names.remove(k);
+        }
+    }
+    fn get_name_len(&self) -> usize {
+        let mut i = 0;
+        for name in &self.names {
+            i += 1 + name.vars.len()
+        }
+        i
     }
     fn write_label(&self, painter: &mut Painter) {
         let mut pos = Pos::new(self.screen.x as f32 - 48.0, 0.0);
-        for (i, Name { name, show }) in self.names.iter().enumerate() {
+        for (i, Name { name, show, .. }) in self.names.iter().enumerate() {
             if !name.is_empty() {
                 let y = (pos.y + 3.0 * self.font_size / 4.0).round();
                 match show {
@@ -1226,6 +1387,11 @@ impl Graph {
         self.keybinds_inner(i)
     }
     fn keybinds_inner(&mut self, i: &InputState) {
+        let ret = if self.draw_side {
+            self.keybinds_side(i)
+        } else {
+            false
+        };
         if let Some(mpos) = i.pointer_pos {
             let mpos = Vec2 {
                 x: mpos.x,
@@ -1239,6 +1405,9 @@ impl Graph {
             } else {
                 self.mouse_position = Some(mpos)
             }
+        }
+        if ret {
+            return;
         }
         match &i.multi {
             Some(multi) => {
