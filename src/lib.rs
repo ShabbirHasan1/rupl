@@ -510,8 +510,8 @@ impl Graph {
             text(&n.name, i);
             i += 1;
         }
-        let x = self.text_box.0 * self.font_width;
-        let y = self.text_box.1 * delta;
+        let x = self.text_box.x * self.font_width;
+        let y = self.text_box.y * delta;
         painter.line_segment(
             [Pos::new(x, y), Pos::new(x, y + delta)],
             1.0,
@@ -526,19 +526,19 @@ impl Graph {
             if mpos.x < 0.0 {
                 stop_keybinds = true;
                 if i.pointer_just_down {
-                    self.text_box.0 = (x as f32 / self.font_width)
+                    self.text_box.x = (x as f32 / self.font_width)
                         .round()
-                        .min(self.get_name(self.text_box.1 as usize).len() as f32);
+                        .min(self.get_name(self.text_box.y as usize).len() as f32);
                 }
                 if self.mouse_position != Some(mpos) {
                     let delta = self.font_size * 1.875;
                     let new = (mpos.y as f32 / delta)
                         .floor()
                         .min(self.get_name_len() as f32);
-                    if new != self.text_box.1 && !i.pointer_just_down {
-                        self.text_box.0 = self.get_name(new as usize).len() as f32;
+                    if new != self.text_box.y && !i.pointer_just_down {
+                        self.text_box.x = self.get_name(new as usize).len() as f32;
                     }
-                    self.text_box.1 = new;
+                    self.text_box.y = new;
                 }
             }
         }
@@ -549,46 +549,48 @@ impl Graph {
             match key.into() {
                 KeyStr::Character(a) if !i.modifiers.ctrl => {
                     self.modify_name(
-                        self.text_box.1 as usize,
-                        self.text_box.0 as usize,
+                        self.text_box.y as usize,
+                        self.text_box.x as usize,
                         if i.modifiers.shift {
                             a.to_ascii_uppercase()
                         } else {
                             a
                         },
                     );
-                    self.text_box.0 += 1.0;
+                    self.text_box.x += 1.0;
                     self.name_modified = true;
                 }
                 KeyStr::Named(key) => match key {
                     NamedKey::ArrowDown => {
-                        self.text_box.1 = (self.text_box.1 + 1.0).min(self.get_name_len() as f32);
-                        self.text_box.0 = self
+                        self.text_box.y = (self.text_box.y + 1.0).min(self.get_name_len() as f32);
+                        self.text_box.x = self
                             .text_box
-                            .0
-                            .min(self.get_name(self.text_box.1 as usize).len() as f32)
+                            .x
+                            .min(self.get_name(self.text_box.y as usize).len() as f32)
                     }
-                    NamedKey::ArrowLeft => self.text_box.0 = (self.text_box.0 - 1.0).max(0.0),
+                    NamedKey::ArrowLeft => {
+                        self.text_box.x = (self.text_box.x - 1.0).max(0.0);
+                    }
                     NamedKey::ArrowRight => {
-                        self.text_box.0 = (self.text_box.0 + 1.0)
-                            .min(self.get_name(self.text_box.1 as usize).len() as f32)
+                        self.text_box.x = (self.text_box.x + 1.0)
+                            .min(self.get_name(self.text_box.y as usize).len() as f32)
                     }
                     NamedKey::ArrowUp => {
-                        self.text_box.1 = (self.text_box.1 - 1.0).max(0.0);
-                        self.text_box.0 = self
+                        self.text_box.y = (self.text_box.y - 1.0).max(0.0);
+                        self.text_box.x = self
                             .text_box
-                            .0
-                            .min(self.get_name(self.text_box.1 as usize).len() as f32)
+                            .x
+                            .min(self.get_name(self.text_box.y as usize).len() as f32)
                     }
                     NamedKey::Escape => {}
                     NamedKey::Tab => {}
                     NamedKey::Backspace => {
-                        if self.text_box.0 != 0.0 {
+                        if self.text_box.x != 0.0 {
                             self.remove_char(
-                                self.text_box.1 as usize,
-                                self.text_box.0 as usize - 1,
+                                self.text_box.y as usize,
+                                self.text_box.x as usize - 1,
                             );
-                            self.text_box.0 -= 1.0;
+                            self.text_box.x -= 1.0;
                             self.name_modified = true;
                         }
                     }

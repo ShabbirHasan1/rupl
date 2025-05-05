@@ -231,7 +231,7 @@ pub struct Graph {
     pub(crate) sin_phi: f64,
     pub(crate) cos_theta: f64,
     pub(crate) sin_theta: f64,
-    pub(crate) text_box: (f32, f32),
+    pub(crate) text_box: Pos,
     ///if we should draw the functions in a modifiable way on the left or bottom side
     pub draw_side: bool,
     ///current keybinds
@@ -269,7 +269,7 @@ impl Default for Graph {
             angle: Vec2::splat(PI / 6.0),
             slice: 0,
             mult: 1.0,
-            text_box: (0.0, 0.0),
+            text_box: Pos::new(0.0, 0.0),
             line_major: 8,
             line_minor: 4,
             is_complex: false,
