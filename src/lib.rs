@@ -70,9 +70,10 @@ impl Graph {
     }
     ///sets screen dimensions
     pub fn set_screen(&mut self, width: f64, height: f64, offset: bool) {
+        let new = (height * 3.0 / 2.0).min(width - 128.0);
         self.screen = if self.draw_side && offset {
             if height < width {
-                Vec2::new(height * 3.0 / 2.0, height)
+                Vec2::new(new, height)
             } else {
                 Vec2::new(width, width)
             }
@@ -80,7 +81,7 @@ impl Graph {
             Vec2::new(width, height)
         };
         self.draw_offset = if self.draw_side && offset && height < width {
-            Pos::new((width - height * 3.0 / 2.0) as f32, 0.0)
+            Pos::new((width - new) as f32, 0.0)
         } else {
             Pos::new(0.0, 0.0)
         };
@@ -491,14 +492,23 @@ impl Graph {
         for i in 0..=self.screen.y as usize / delta as usize {
             painter.hline(offset.x, i as f32 * delta, &self.axis_color)
         }
-        for (i, n) in self.names.iter().enumerate() {
+        let mut i = 0;
+        let mut text = |s: &str, i: usize| {
             self.text(
                 Pos::new(0.0, i as f32 * delta + delta / 2.0),
                 Align::LeftCenter,
-                &n.name,
+                s,
                 &self.text_color,
                 painter,
             )
+        };
+        for n in self.names.iter() {
+            for v in n.vars.iter() {
+                text(v, i);
+                i += 1;
+            }
+            text(&n.name, i);
+            i += 1;
         }
         let x = self.text_box.0 * self.font_width;
         let y = self.text_box.1 * delta;
@@ -613,7 +623,7 @@ impl Graph {
         String::new()
     }
     fn modify_name(&mut self, mut i: usize, j: usize, char: String) {
-        if i == self.names.len() {
+        if i == self.get_name_len() {
             self.names.push(Name {
                 vars: Vec::new(),
                 name: char,
