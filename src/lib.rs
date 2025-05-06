@@ -75,7 +75,7 @@ impl Graph {
             if height < width {
                 Vec2::new(new, height)
             } else {
-                Vec2::new(width, width) //TODO
+                Vec2::new(width, width)
             }
         } else {
             Vec2::new(width, height)
@@ -479,18 +479,42 @@ impl Graph {
         }
         if draw {
             self.set_screen(width, height, false);
+            if painter.offset.x == painter.offset.y && painter.offset.x == 0.0 {
+                painter.clear_below(self.screen, &self.background_color)
+            } else {
+                painter.clear_offset(self.screen, &self.background_color);
+            }
             self.write_side(painter);
             self.set_screen(width, height, true);
         }
         finish(painter);
     }
     fn write_side(&mut self, painter: &mut Painter) {
-        painter.clear_offset(self.screen, &self.background_color);
         let offset = std::mem::replace(&mut painter.offset, Pos::new(0.0, 0.0));
-        painter.vline(offset.x, self.screen.y as f32, &self.axis_color);
+        let is_portrait = offset.x == offset.y && offset.x == 0.0;
+        if is_portrait {
+            painter.offset = Pos::new(0.0, self.screen.x as f32);
+            painter.hline(self.screen.x as f32, 0.0, &self.axis_color);
+        } else {
+            painter.vline(offset.x, self.screen.y as f32, &self.axis_color);
+        }
         let delta = self.font_size * 1.875;
-        for i in 0..=self.screen.y as usize / delta as usize {
-            painter.hline(offset.x, i as f32 * delta, &self.axis_color)
+        for i in 0..=if is_portrait {
+            self.screen.y - self.screen.x
+        } else {
+            self.screen.y
+        } as usize
+            / delta as usize
+        {
+            painter.hline(
+                if is_portrait {
+                    self.screen.x as f32
+                } else {
+                    offset.x
+                },
+                i as f32 * delta,
+                &self.axis_color,
+            )
         }
         let mut i = 0;
         let mut text = |s: &str, i: usize| {
@@ -517,13 +541,21 @@ impl Graph {
             1.0,
             &self.text_color,
         );
+        if is_portrait {
+            painter.offset = Pos::new(0.0, 0.0)
+        };
     }
     fn keybinds_side(&mut self, i: &InputState) -> bool {
         let mut stop_keybinds = false;
         if let Some(mpos) = i.pointer_pos {
             let x = mpos.x;
+            let is_portrait = self.draw_offset.x == self.draw_offset.y && self.draw_offset.x == 0.0;
             let mpos = Vec2 { x, y: mpos.y } - self.draw_offset.to_vec();
-            if mpos.x < 0.0 {
+            if if is_portrait {
+                mpos.y > self.screen.x
+            } else {
+                mpos.x < 0.0
+            } {
                 stop_keybinds = true;
                 if i.pointer_just_down {
                     self.text_box.x = (x as f32 / self.font_width)
@@ -532,7 +564,12 @@ impl Graph {
                 }
                 if self.mouse_position != Some(mpos) {
                     let delta = self.font_size * 1.875;
-                    let new = (mpos.y as f32 / delta)
+                    let new = (if is_portrait {
+                        mpos.y - self.screen.x
+                    } else {
+                        mpos.y
+                    } as f32
+                        / delta)
                         .floor()
                         .min(self.get_name_len() as f32);
                     if new != self.text_box.y && !i.pointer_just_down {

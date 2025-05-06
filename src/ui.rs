@@ -52,6 +52,16 @@ impl<'a> Painter<'a> {
             background.to_col(),
         );
     }
+    pub(crate) fn clear_below(&mut self, screen: Vec2, background: &Color) {
+        self.painter.rect_filled(
+            egui::Rect::from_points(&[
+                egui::Pos2::new(0.0, self.screen.x as f32),
+                egui::Pos2::new(self.screen.x as f32, screen.y as f32),
+            ]),
+            0.0,
+            background.to_col(),
+        );
+    }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], width: f32, p2: &Color) {
         let p0 = p0.map(|p| {
             self.offset
@@ -240,6 +250,14 @@ impl Painter {
         paint.set_style(skia_safe::PaintStyle::Fill);
         self.canvas.canvas().draw_rect(
             skia_safe::Rect::from_ltrb(0.0, 0.0, self.offset.x, screen.y as f32),
+            &paint,
+        );
+    }
+    pub(crate) fn clear_below(&mut self, screen: Vec2, background: &Color) {
+        let mut paint = make_paint(1.0, background, false, true);
+        paint.set_style(skia_safe::PaintStyle::Fill);
+        self.canvas.canvas().draw_rect(
+            skia_safe::Rect::from_ltrb(0.0, screen.x as f32, screen.x as f32, screen.y as f32),
             &paint,
         );
     }
@@ -508,6 +526,20 @@ impl Painter {
     pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
         self.canvas.fill_rect(
             tiny_skia::Rect::from_ltrb(0.0, 0.0, self.offset.x, screen.y as f32).unwrap(),
+            &make_paint(&background, false),
+            tiny_skia::Transform::default(),
+            None,
+        );
+    }
+    pub(crate) fn clear_below(&mut self, screen: Vec2, background: &Color) {
+        self.canvas.fill_rect(
+            tiny_skia::Rect::from_ltrb(
+                0.0,
+                self.screen.x as f32,
+                self.screen.x as f32,
+                screen.y as f32,
+            )
+            .unwrap(),
             &make_paint(&background, false),
             tiny_skia::Transform::default(),
             None,
