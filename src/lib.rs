@@ -111,13 +111,12 @@ impl Graph {
     pub fn set_is_3d(&mut self, new: bool) {
         self.is_3d_data = new;
         match self.graph_mode {
-            GraphMode::Normal => self.is_3d = new,
-            GraphMode::Slice => self.graph_mode = GraphMode::Normal,
-            GraphMode::DomainColoring => self.graph_mode = GraphMode::Normal,
-            GraphMode::Flatten => self.is_3d = new,
+            GraphMode::Normal | GraphMode::Flatten | GraphMode::Polar => self.is_3d = new,
+            GraphMode::Slice | GraphMode::DomainColoring | GraphMode::SlicePolar if !new => {
+                self.graph_mode = GraphMode::Normal
+            }
             GraphMode::Depth => {}
-            GraphMode::Polar => self.is_3d = new,
-            GraphMode::SlicePolar => self.graph_mode = GraphMode::Normal,
+            _ => {}
         }
     }
     ///sets the current graph_mode and reprocesses is_3d

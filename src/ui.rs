@@ -533,13 +533,8 @@ impl Painter {
     }
     pub(crate) fn clear_below(&mut self, screen: Vec2, background: &Color) {
         self.canvas.fill_rect(
-            tiny_skia::Rect::from_ltrb(
-                0.0,
-                screen.x as f32,
-                screen.x as f32,
-                screen.y as f32,
-            )
-            .unwrap(),
+            tiny_skia::Rect::from_ltrb(0.0, screen.x as f32, screen.x as f32, screen.y as f32)
+                .unwrap(),
             &make_paint(&background, false),
             tiny_skia::Transform::default(),
             None,
