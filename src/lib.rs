@@ -1909,6 +1909,11 @@ impl Graph {
             self.draw_side = !self.draw_side;
             self.recalculate = true;
         }
+        if i.keys_pressed(self.keybinds.fast) {
+            self.fast_3d = !self.fast_3d;
+            self.reduced_move = !self.reduced_move;
+            self.recalculate = true;
+        }
         if i.keys_pressed(self.keybinds.reset) {
             self.offset3d = Vec3::splat(0.0);
             self.offset = Vec2::splat(0.0);

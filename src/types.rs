@@ -416,8 +416,10 @@ pub struct Keybinds {
     pub mode_down: Option<Keys>,
     ///resets most settings to default
     pub reset: Option<Keys>,
-    ///opens up the side menu
+    ///toggles up the side menu
     pub side: Option<Keys>,
+    ///toggles using faster logic in 2d/3d
+    pub fast: Option<Keys>,
 }
 impl Default for Keybinds {
     fn default() -> Self {
@@ -494,6 +496,7 @@ impl Default for Keybinds {
             )),
             reset: Some(Keys::new(Key::T)),
             side: Some(Keys::new(Key::Escape)),
+            fast: Some(Keys::new(Key::F)),
         }
     }
 }
@@ -1155,7 +1158,7 @@ impl From<Key> for egui::Key {
             Key::F33 => egui::Key::F33,
             Key::F34 => egui::Key::F34,
             Key::F35 => egui::Key::F35,
-            _ => egui::Key::F35, //TODO
+            _ => egui::Key::F35,
         }
     }
 }
