@@ -55,8 +55,8 @@ impl<'a> Painter<'a> {
     pub(crate) fn clear_below(&mut self, screen: Vec2, background: &Color) {
         self.painter.rect_filled(
             egui::Rect::from_points(&[
-                egui::Pos2::new(0.0, self.screen.x as f32),
-                egui::Pos2::new(self.screen.x as f32, screen.y as f32),
+                egui::Pos2::new(0.0, screen.x as f32),
+                egui::Pos2::new(screen.x as f32, screen.y as f32),
             ]),
             0.0,
             background.to_col(),
@@ -535,8 +535,8 @@ impl Painter {
         self.canvas.fill_rect(
             tiny_skia::Rect::from_ltrb(
                 0.0,
-                self.screen.x as f32,
-                self.screen.x as f32,
+                screen.x as f32,
+                screen.x as f32,
                 screen.y as f32,
             )
             .unwrap(),
