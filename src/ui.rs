@@ -296,19 +296,37 @@ impl Painter {
         );
     }
     pub(crate) fn image(&mut self, p0: &Image, pos: Vec2) {
-        let mut paint = skia_safe::Paint::default();
-        paint.set_anti_alias(self.anti_alias);
-        self.canvas.canvas().draw_image_rect(
-            p0,
-            None,
-            skia_safe::Rect::new(
-                self.offset.x,
-                self.offset.y,
-                self.offset.x + pos.x as f32,
-                self.offset.y + pos.y as f32,
-            ),
-            &paint,
-        );
+        if self.anti_alias {
+            let mut paint = skia_safe::Paint::default();
+            paint.set_anti_alias(self.anti_alias);
+            self.canvas.canvas().draw_image_rect_with_sampling_options(
+                p0,
+                None,
+                skia_safe::Rect::new(
+                    self.offset.x,
+                    self.offset.y,
+                    self.offset.x + pos.x as f32,
+                    self.offset.y + pos.y as f32,
+                ),
+                skia_safe::SamplingOptions::new(
+                    skia_safe::FilterMode::Linear,
+                    skia_safe::MipmapMode::Linear,
+                ),
+                &paint,
+            );
+        } else {
+            self.canvas.canvas().draw_image_rect(
+                p0,
+                None,
+                skia_safe::Rect::new(
+                    self.offset.x,
+                    self.offset.y,
+                    self.offset.x + pos.x as f32,
+                    self.offset.y + pos.y as f32,
+                ),
+                &skia_safe::Paint::default(),
+            );
+        }
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p3: &Color) {
         if p1.is_finite() {
@@ -540,14 +558,20 @@ impl Painter {
             None,
         );
     }
-    pub(crate) fn image(&mut self, p0: &Image, _pos: Vec2) {
-        //TODO
+    pub(crate) fn image(&mut self, p0: &Image, pos: Vec2) {
+        let mut paint = tiny_skia::PixmapPaint::default();
+        if self.anti_alias {
+            paint.quality = tiny_skia::FilterQuality::Bicubic
+        }
         self.canvas.draw_pixmap(
             0,
             0,
             p0.0.as_ref(),
-            &tiny_skia::PixmapPaint::default(),
-            tiny_skia::Transform::default(),
+            &paint,
+            tiny_skia::Transform::from_scale(
+                pos.x as f32 / p0.0.width() as f32,
+                pos.y as f32 / p0.0.height() as f32,
+            ),
             None,
         );
     }

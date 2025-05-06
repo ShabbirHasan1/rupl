@@ -2473,7 +2473,7 @@ impl Graph {
                             for z in data {
                                 rgb.extend(self.get_color(z));
                                 #[cfg(any(feature = "skia", feature = "tiny-skia"))]
-                                rgb.push(0)
+                                rgb.push(255)
                             }
                             tex(&mut self.cache, lenx, leny, rgb);
                         }
