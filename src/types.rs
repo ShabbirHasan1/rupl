@@ -1056,6 +1056,8 @@ pub enum Key {
     Dollar,
     Cent,
     Tilde,
+    Mult,
+    Undefined,
 }
 #[cfg(feature = "egui")]
 impl From<Key> for egui::Key {
@@ -1362,6 +1364,7 @@ impl From<Key> for winit::keyboard::Key {
             Key::X => winit::keyboard::Key::Character("x".into()),
             Key::Y => winit::keyboard::Key::Character("y".into()),
             Key::Z => winit::keyboard::Key::Character("z".into()),
+            Key::Mult => winit::keyboard::Key::Character("*".into()),
             Key::Caret => winit::keyboard::Key::Character("^".into()),
             Key::OpenParentheses => winit::keyboard::Key::Character("(".into()),
             Key::CloseParentheses => winit::keyboard::Key::Character(")".into()),
@@ -1410,6 +1413,7 @@ impl From<Key> for winit::keyboard::Key {
             Key::F33 => winit::keyboard::Key::Named(winit::keyboard::NamedKey::F33),
             Key::F34 => winit::keyboard::Key::Named(winit::keyboard::NamedKey::F34),
             Key::F35 => winit::keyboard::Key::Named(winit::keyboard::NamedKey::F35),
+            Key::Undefined => winit::keyboard::Key::Named(winit::keyboard::NamedKey::F35),
         }
     }
 }
@@ -1504,7 +1508,8 @@ impl From<winit::keyboard::Key> for Key {
                     "$" => Key::Dollar,
                     "¢" => Key::Cent,
                     "~" => Key::Tilde,
-                    _ => Key::F35,
+                    "*" => Key::Mult,
+                    _ => Key::Undefined,
                 }
             }
             winit::keyboard::Key::Named(winit::keyboard::NamedKey::F1) => Key::F1,
@@ -1542,7 +1547,7 @@ impl From<winit::keyboard::Key> for Key {
             winit::keyboard::Key::Named(winit::keyboard::NamedKey::F33) => Key::F33,
             winit::keyboard::Key::Named(winit::keyboard::NamedKey::F34) => Key::F34,
             winit::keyboard::Key::Named(winit::keyboard::NamedKey::F35) => Key::F35,
-            _ => Key::F35,
+            _ => Key::Undefined,
         }
     }
 }
@@ -1715,6 +1720,7 @@ impl From<&Key> for KeyStr {
             Key::X => KeyStr::Character("x".into()),
             Key::Y => KeyStr::Character("y".into()),
             Key::Z => KeyStr::Character("z".into()),
+            Key::Mult => KeyStr::Character("*".into()),
             Key::Caret => KeyStr::Character("^".into()),
             Key::OpenParentheses => KeyStr::Character("(".into()),
             Key::CloseParentheses => KeyStr::Character(")".into()),
@@ -1728,6 +1734,7 @@ impl From<&Key> for KeyStr {
             Key::Dollar => KeyStr::Character("$".into()),
             Key::Cent => KeyStr::Character("¢".into()),
             Key::Tilde => KeyStr::Character("~".into()),
+            Key::Undefined => KeyStr::Named(NamedKey::F35),
         }
     }
 }
