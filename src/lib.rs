@@ -1907,6 +1907,7 @@ impl Graph {
         }
         if i.keys_pressed(self.keybinds.side) {
             self.draw_side = !self.draw_side;
+            self.recalculate = true;
         }
         if i.keys_pressed(self.keybinds.reset) {
             self.offset3d = Vec3::splat(0.0);
