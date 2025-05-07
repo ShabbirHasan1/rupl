@@ -84,7 +84,7 @@ impl Graph {
     }
     ///sets screen dimensions
     pub fn set_screen(&mut self, width: f64, height: f64, offset: bool) {
-        let new = (height * 3.0 / 2.0).min(width - 128.0);
+        let new = (height * 3.0 / 2.0).min(width - 256.0);
         self.screen = if self.draw_side && offset {
             if height < width {
                 Vec2::new(new, height)
@@ -530,27 +530,35 @@ impl Graph {
             )
         }
         let mut i = 0;
-        let mut text = |s: &str, i: usize| {
+        let mut text = |s: &str, i: usize, color: Color| {
+            painter.line_segment(
+                [
+                    Pos::new(1.0, i as f32 * delta),
+                    Pos::new(1.0, (i + 1) as f32 * delta),
+                ],
+                4.0,
+                &color,
+            );
             self.text(
-                Pos::new(0.0, i as f32 * delta + delta / 2.0),
+                Pos::new(4.0, i as f32 * delta + delta / 2.0),
                 Align::LeftCenter,
                 s,
                 &self.text_color,
                 painter,
             )
         };
-        for n in self.names.iter() {
+        for (j, n) in self.names.iter().enumerate() {
             for v in n.vars.iter() {
-                text(v, i);
+                text(v, i, self.axis_color);
                 i += 1;
             }
-            text(&n.name, i);
+            text(&n.name, i, self.main_colors[j % self.main_colors.len()]);
             i += 1;
         }
         let x = self.text_box.x * self.font_width;
         let y = self.text_box.y * delta;
         painter.line_segment(
-            [Pos::new(x, y), Pos::new(x, y + delta)],
+            [Pos::new(x + 4.0, y), Pos::new(x + 4.0, y + delta)],
             1.0,
             &self.text_color,
         );
