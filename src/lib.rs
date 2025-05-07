@@ -530,15 +530,38 @@ impl Graph {
             )
         }
         let mut i = 0;
-        let mut text = |s: &str, i: usize, color: Color| {
-            painter.line_segment(
-                [
-                    Pos::new(1.0, i as f32 * delta),
-                    Pos::new(1.0, (i + 1) as f32 * delta),
-                ],
-                4.0,
-                &color,
-            );
+        let mut text = |s: &str, i: usize, color: (Option<Color>, Option<Color>)| {
+            match color {
+                (Some(a), Some(b)) => {
+                    painter.line_segment(
+                        [
+                            Pos::new(1.5, i as f32 * delta + 0.5),
+                            Pos::new(1.5, (i as f32 + 0.5) * delta),
+                        ],
+                        4.0,
+                        &a,
+                    );
+                    painter.line_segment(
+                        [
+                            Pos::new(1.5, (i as f32 + 0.5) * delta),
+                            Pos::new(1.5, (i + 1) as f32 * delta),
+                        ],
+                        4.0,
+                        &b,
+                    );
+                }
+                (Some(color), None) | (None, Some(color)) => {
+                    painter.line_segment(
+                        [
+                            Pos::new(1.5, i as f32 * delta + 0.5),
+                            Pos::new(1.5, (i + 1) as f32 * delta),
+                        ],
+                        4.0,
+                        &color,
+                    );
+                }
+                (None, None) => {}
+            }
             self.text(
                 Pos::new(4.0, i as f32 * delta + delta / 2.0),
                 Align::LeftCenter,
@@ -549,10 +572,20 @@ impl Graph {
         };
         for (j, n) in self.names.iter().enumerate() {
             for v in n.vars.iter() {
-                text(v, i, self.axis_color);
+                text(v, i, (Some(self.axis_color), None));
                 i += 1;
             }
-            text(&n.name, i, self.main_colors[j % self.main_colors.len()]);
+            let real = if n.show.real() {
+                Some(self.main_colors[j % self.main_colors.len()])
+            } else {
+                None
+            };
+            let imag = if n.show.imag() {
+                Some(self.alt_colors[j % self.alt_colors.len()])
+            } else {
+                None
+            };
+            text(&n.name, i, (real, imag));
             i += 1;
         }
         let x = self.text_box.x * self.font_width;
