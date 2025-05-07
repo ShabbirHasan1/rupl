@@ -57,6 +57,20 @@ impl Graph {
         self.font = skia_safe::Font::new(typeface, self.font_size);
         self.font_width = 0.0;
     }
+    //use dark mode default colors
+    pub fn set_dark_mode(&mut self) {
+        self.axis_color = Color::splat(255);
+        self.axis_color_light = Color::splat(35);
+        self.text_color = Color::splat(255);
+        self.background_color = Color::splat(0);
+    }
+    //use light mode default colors
+    pub fn set_light_mode(&mut self) {
+        self.axis_color = Color::splat(0);
+        self.axis_color_light = Color::splat(220);
+        self.text_color = Color::splat(0);
+        self.background_color = Color::splat(255);
+    }
     ///sets font size
     pub fn set_font_size(&mut self, size: f32) {
         self.font_size = size;
@@ -556,11 +570,6 @@ impl Graph {
                 mpos.x < 0.0
             } {
                 stop_keybinds = true;
-                if i.pointer_just_down {
-                    self.text_box.x = (x as f32 / self.font_width)
-                        .round()
-                        .min(self.get_name(self.text_box.y as usize).len() as f32);
-                }
                 if self.mouse_position != Some(mpos) {
                     let delta = self.font_size * 1.875;
                     let new = (if is_portrait {
@@ -571,10 +580,12 @@ impl Graph {
                         / delta)
                         .floor()
                         .min(self.get_name_len() as f32);
-                    if new != self.text_box.y && !i.pointer_just_down {
-                        self.text_box.x = self.get_name(new as usize).len() as f32;
-                    }
                     self.text_box.y = new;
+                }
+                if i.pointer_just_down {
+                    self.text_box.x = (x as f32 / self.font_width)
+                        .round()
+                        .min(self.get_name(self.text_box.y as usize).len() as f32);
                 }
             }
         }
@@ -582,28 +593,37 @@ impl Graph {
             return false;
         }
         for key in &i.keys_pressed {
+            let down = |g: &mut Graph| {
+                g.text_box.y = (g.text_box.y + 1.0).min(g.get_name_len() as f32);
+                g.text_box.x = g
+                    .text_box
+                    .x
+                    .min(g.get_name(g.text_box.y as usize).len() as f32)
+            };
+            let up = |g: &mut Graph| {
+                g.text_box.y = (g.text_box.y - 1.0).max(0.0);
+                g.text_box.x = g
+                    .text_box
+                    .x
+                    .min(g.get_name(g.text_box.y as usize).len() as f32)
+            };
+            let modify = |g: &mut Graph, c: String| {
+                g.modify_name(
+                    g.text_box.y as usize,
+                    g.text_box.x as usize,
+                    if i.modifiers.shift {
+                        c.to_ascii_uppercase()
+                    } else {
+                        c
+                    },
+                );
+                g.text_box.x += 1.0;
+                g.name_modified = true;
+            };
             match key.into() {
-                KeyStr::Character(a) if !i.modifiers.ctrl => {
-                    self.modify_name(
-                        self.text_box.y as usize,
-                        self.text_box.x as usize,
-                        if i.modifiers.shift {
-                            a.to_ascii_uppercase()
-                        } else {
-                            a
-                        },
-                    );
-                    self.text_box.x += 1.0;
-                    self.name_modified = true;
-                }
+                KeyStr::Character(a) if !i.modifiers.ctrl => modify(self, a),
                 KeyStr::Named(key) => match key {
-                    NamedKey::ArrowDown => {
-                        self.text_box.y = (self.text_box.y + 1.0).min(self.get_name_len() as f32);
-                        self.text_box.x = self
-                            .text_box
-                            .x
-                            .min(self.get_name(self.text_box.y as usize).len() as f32)
-                    }
+                    NamedKey::ArrowDown => down(self),
                     NamedKey::ArrowLeft => {
                         self.text_box.x = (self.text_box.x - 1.0).max(0.0);
                     }
@@ -611,15 +631,18 @@ impl Graph {
                         self.text_box.x = (self.text_box.x + 1.0)
                             .min(self.get_name(self.text_box.y as usize).len() as f32)
                     }
-                    NamedKey::ArrowUp => {
-                        self.text_box.y = (self.text_box.y - 1.0).max(0.0);
-                        self.text_box.x = self
-                            .text_box
-                            .x
-                            .min(self.get_name(self.text_box.y as usize).len() as f32)
+                    NamedKey::ArrowUp => up(self),
+                    NamedKey::Escape => {
+                        self.draw_side = false;
+                        self.recalculate = true;
                     }
-                    NamedKey::Escape => {}
-                    NamedKey::Tab => {}
+                    NamedKey::Tab => {
+                        if i.modifiers.shift && i.modifiers.ctrl {
+                            up(self)
+                        } else {
+                            down(self)
+                        }
+                    }
                     NamedKey::Backspace => {
                         if self.text_box.x != 0.0 {
                             self.remove_char(
@@ -630,14 +653,26 @@ impl Graph {
                             self.name_modified = true;
                         }
                     }
-                    NamedKey::Enter => {}
-                    NamedKey::Space => {}
+                    NamedKey::Enter => down(self),
+                    NamedKey::Space => modify(self, " ".to_string()),
                     NamedKey::Insert => {}
                     NamedKey::Delete => {}
-                    NamedKey::Home => {}
-                    NamedKey::End => {}
-                    NamedKey::PageUp => {}
-                    NamedKey::PageDown => {}
+                    NamedKey::Home => {
+                        self.text_box.y = 0.0;
+                        self.text_box.x = 0.0;
+                    }
+                    NamedKey::End => {
+                        self.text_box.y = self.get_name_len() as f32;
+                        self.text_box.x = self.get_name(self.text_box.y as usize).len() as f32;
+                    }
+                    NamedKey::PageUp => {
+                        self.text_box.y = 0.0;
+                        self.text_box.x = 0.0;
+                    }
+                    NamedKey::PageDown => {
+                        self.text_box.y = self.get_name_len() as f32;
+                        self.text_box.x = self.get_name(self.text_box.y as usize).len() as f32;
+                    }
                     NamedKey::Copy => {}
                     NamedKey::Cut => {}
                     NamedKey::Paste => {}
