@@ -487,9 +487,7 @@ impl Graph {
         } else {
             self.write_angle(painter);
         }
-        if self.graph_mode != GraphMode::DomainColoring {
-            self.write_label(painter)
-        }
+        self.write_label(painter);
         if draw {
             self.set_screen(width, height, false);
             if painter.offset.x == painter.offset.y && painter.offset.x == 0.0 {
@@ -837,8 +835,9 @@ impl Graph {
         for (i, Name { name, show, .. }) in self.names.iter().enumerate() {
             if !name.is_empty() {
                 let y = (pos.y + 3.0 * self.font_size / 4.0).round();
-                match show {
-                    Show::Real => {
+                match self.graph_mode {
+                    GraphMode::DomainColoring => {}
+                    GraphMode::Flatten | GraphMode::Depth => {
                         self.text(pos, Align::RightTop, name, &self.text_color, painter);
                         painter.line_segment(
                             [
@@ -849,58 +848,74 @@ impl Graph {
                             &self.main_colors[i % self.main_colors.len()],
                         );
                     }
-                    Show::Imag => {
-                        self.text(
-                            pos,
-                            Align::RightTop,
-                            &format!("im:{}", name),
-                            &self.text_color,
-                            painter,
-                        );
-                        painter.line_segment(
-                            [
-                                Pos::new(pos.x + 4.0, y),
-                                Pos::new(self.screen.x as f32 - 4.0, y),
-                            ],
-                            3.0,
-                            &self.alt_colors[i % self.alt_colors.len()],
-                        );
-                    }
-                    Show::Complex => {
-                        self.text(
-                            pos,
-                            Align::RightTop,
-                            &format!("re:{}", name),
-                            &self.text_color,
-                            painter,
-                        );
-                        painter.line_segment(
-                            [
-                                Pos::new(pos.x + 4.0, y),
-                                Pos::new(self.screen.x as f32 - 4.0, y),
-                            ],
-                            3.0,
-                            &self.main_colors[i % self.main_colors.len()],
-                        );
-                        pos.y += self.font_size;
-                        let y = y + self.font_size;
-                        self.text(
-                            pos,
-                            Align::RightTop,
-                            &format!("im:{}", name),
-                            &self.text_color,
-                            painter,
-                        );
-                        painter.line_segment(
-                            [
-                                Pos::new(pos.x + 4.0, y),
-                                Pos::new(self.screen.x as f32 - 4.0, y),
-                            ],
-                            3.0,
-                            &self.alt_colors[i % self.alt_colors.len()],
-                        );
-                    }
-                    Show::None => {}
+                    GraphMode::SlicePolar
+                    | GraphMode::Polar
+                    | GraphMode::Normal
+                    | GraphMode::Slice => match show {
+                        Show::Real => {
+                            self.text(pos, Align::RightTop, name, &self.text_color, painter);
+                            painter.line_segment(
+                                [
+                                    Pos::new(pos.x + 4.0, y),
+                                    Pos::new(self.screen.x as f32 - 4.0, y),
+                                ],
+                                3.0,
+                                &self.main_colors[i % self.main_colors.len()],
+                            );
+                        }
+                        Show::Imag => {
+                            self.text(
+                                pos,
+                                Align::RightTop,
+                                &format!("im:{}", name),
+                                &self.text_color,
+                                painter,
+                            );
+                            painter.line_segment(
+                                [
+                                    Pos::new(pos.x + 4.0, y),
+                                    Pos::new(self.screen.x as f32 - 4.0, y),
+                                ],
+                                3.0,
+                                &self.alt_colors[i % self.alt_colors.len()],
+                            );
+                        }
+                        Show::Complex => {
+                            self.text(
+                                pos,
+                                Align::RightTop,
+                                &format!("re:{}", name),
+                                &self.text_color,
+                                painter,
+                            );
+                            painter.line_segment(
+                                [
+                                    Pos::new(pos.x + 4.0, y),
+                                    Pos::new(self.screen.x as f32 - 4.0, y),
+                                ],
+                                3.0,
+                                &self.main_colors[i % self.main_colors.len()],
+                            );
+                            pos.y += self.font_size;
+                            let y = y + self.font_size;
+                            self.text(
+                                pos,
+                                Align::RightTop,
+                                &format!("im:{}", name),
+                                &self.text_color,
+                                painter,
+                            );
+                            painter.line_segment(
+                                [
+                                    Pos::new(pos.x + 4.0, y),
+                                    Pos::new(self.screen.x as f32 - 4.0, y),
+                                ],
+                                3.0,
+                                &self.alt_colors[i % self.alt_colors.len()],
+                            );
+                        }
+                        Show::None => {}
+                    },
                 }
             }
             pos.y += self.font_size;
