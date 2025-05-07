@@ -2121,7 +2121,7 @@ impl Graph {
                     GraphType::Width3D(d, _, _, _, _) => d.len(),
                 })
                 .sum::<usize>()
-                * if self.is_complex && matches!(self.show, Show::Complex) {
+                * if self.is_complex && matches!(self.show, Show::Complex) && !self.only_real {
                     2
                 } else {
                     1
@@ -2159,7 +2159,7 @@ impl Graph {
                             } else {
                                 None
                             };
-                            b = if !self.show.imag() {
+                            b = if !self.show.imag() || self.only_real {
                                 None
                             } else if let Some(z) = z {
                                 self.draw_point(
@@ -2193,7 +2193,7 @@ impl Graph {
                             } else {
                                 None
                             };
-                            b = if !self.show.imag() {
+                            b = if !self.show.imag() || self.only_real {
                                 None
                             } else if let Some(z) = z {
                                 self.draw_point(
@@ -2264,7 +2264,7 @@ impl Graph {
                             } else {
                                 None
                             };
-                            b = if !self.show.imag() {
+                            b = if !self.show.imag() || self.only_real {
                                 None
                             } else if let Some(z) = z {
                                 self.draw_point(
@@ -2296,7 +2296,7 @@ impl Graph {
                             } else {
                                 None
                             };
-                            b = if !self.show.imag() {
+                            b = if !self.show.imag() || self.only_real {
                                 None
                             } else if let Some(z) = z {
                                 self.draw_point(
@@ -2381,7 +2381,7 @@ impl Graph {
                             if i == len - 1 {
                                 last = std::mem::take(&mut cur);
                             }
-                            let p = if !self.show.imag() {
+                            let p = if !self.show.imag() || self.only_real {
                                 None
                             } else if let Some(w) = w {
                                 self.draw_point_3d(
@@ -2438,7 +2438,7 @@ impl Graph {
                             if i == len - 1 {
                                 last = std::mem::take(&mut cur);
                             }
-                            let p = if !self.show.imag() {
+                            let p = if !self.show.imag() || self.only_real {
                                 None
                             } else if let Some(w) = w {
                                 self.draw_point_3d(
@@ -2488,7 +2488,7 @@ impl Graph {
                             } else {
                                 None
                             };
-                            b = if !self.show.imag() {
+                            b = if !self.show.imag() || self.only_real {
                                 None
                             } else if let Some(z) = z {
                                 self.draw_point(
@@ -2535,7 +2535,7 @@ impl Graph {
                             } else {
                                 None
                             };
-                            b = if !self.show.imag() {
+                            b = if !self.show.imag() || self.only_real {
                                 None
                             } else if let Some(z) = z {
                                 self.draw_point(
@@ -2646,7 +2646,7 @@ impl Graph {
                             } else {
                                 None
                             };
-                            lasti = if !self.show.imag() {
+                            lasti = if !self.show.imag() || self.only_real {
                                 None
                             } else if let Some(w) = w {
                                 self.draw_point_3d(
@@ -2687,7 +2687,7 @@ impl Graph {
                             } else {
                                 None
                             };
-                            lasti = if !self.show.imag() {
+                            lasti = if !self.show.imag() || self.only_real {
                                 None
                             } else if let Some(w) = w {
                                 self.draw_point_3d(

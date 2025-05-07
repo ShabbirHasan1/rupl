@@ -232,6 +232,8 @@ pub struct Graph {
     pub(crate) cos_theta: f64,
     pub(crate) sin_theta: f64,
     pub(crate) text_box: Pos,
+    ///do not show anything if it contains an imaginary part
+    pub only_real: bool,
     ///if we should draw the functions in a modifiable way on the left or bottom side
     pub draw_side: bool,
     ///current keybinds
@@ -327,6 +329,7 @@ impl Default for Graph {
             sin_phi: 0.0,
             cos_theta: 0.0,
             sin_theta: 0.0,
+            only_real: false,
             keybinds: Keybinds::default(),
         }
     }
