@@ -570,7 +570,7 @@ impl Graph {
                 mpos.x < 0.0
             } {
                 stop_keybinds = true;
-                if self.mouse_position != Some(mpos) {
+                if i.pointer_just_down {
                     let delta = self.font_size * 1.875;
                     let new = (if is_portrait {
                         mpos.y - self.screen.x
@@ -581,8 +581,6 @@ impl Graph {
                         .floor()
                         .min(self.get_name_len() as f32);
                     self.text_box.y = new;
-                }
-                if i.pointer_just_down {
                     self.text_box.x = (x as f32 / self.font_width)
                         .round()
                         .min(self.get_name(self.text_box.y as usize).len() as f32);
@@ -653,7 +651,15 @@ impl Graph {
                             self.name_modified = true;
                         }
                     }
-                    NamedKey::Enter => down(self),
+                    NamedKey::Enter => {
+                        if i.modifiers.ctrl {
+                            self.insert_name(self.text_box.y as usize, true);
+                            self.text_box.x = 0.0;
+                        } else {
+                            down(self);
+                            self.insert_name(self.text_box.y as usize, false)
+                        }
+                    }
                     NamedKey::Space => modify(self, " ".to_string()),
                     NamedKey::Insert => {}
                     NamedKey::Delete => {}
@@ -712,6 +718,40 @@ impl Graph {
                 i -= name.vars.len();
                 if i == 0 {
                     name.name.insert_str(j, &char);
+                    return;
+                }
+                i -= 1;
+            }
+        }
+    }
+    fn insert_name(&mut self, j: usize, var: bool) {
+        if j == self.get_name_len() {
+            self.names.push(Name {
+                vars: if var { vec![String::new()] } else { Vec::new() },
+                name: String::new(),
+                show: Show::None,
+            })
+        } else {
+            let mut i = j;
+            for name in self.names.iter_mut() {
+                if i < name.vars.len() {
+                    name.vars.insert(if var { i } else { i + 1 }, String::new());
+                    return;
+                }
+                i -= name.vars.len();
+                if i == 0 {
+                    if var {
+                        name.vars.push(String::new())
+                    } else {
+                        self.names.insert(
+                            i,
+                            Name {
+                                vars: Vec::new(),
+                                name: String::new(),
+                                show: Show::None,
+                            },
+                        );
+                    }
                     return;
                 }
                 i -= 1;
