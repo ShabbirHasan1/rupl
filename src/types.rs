@@ -559,12 +559,12 @@ impl InputState {
 impl From<&egui::InputState> for InputState {
     fn from(val: &egui::InputState) -> Self {
         let pointer = if val.pointer.primary_down() {
-            Some(val.pointer.primary_clicked())
+            Some(val.pointer.primary_pressed())
         } else {
             None
         };
         let pointer_right = if val.pointer.secondary_down() {
-            Some(val.pointer.secondary_clicked())
+            Some(val.pointer.secondary_pressed())
         } else {
             None
         };

@@ -20,6 +20,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO fast3d multithread
 //TODO consider collecting data aggregately
 //TODO dragable point
+//TODO does storing Painter help perforamnce in skia?
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
