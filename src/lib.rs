@@ -515,7 +515,7 @@ impl Graph {
         } else {
             painter.vline(offset.x, self.screen.y as f32, &self.axis_color);
         }
-        let delta = self.font_size * 1.875;
+        let delta = self.font_size * self.side_height;
         for i in 0..=if is_portrait {
             self.screen.y - self.screen.x
         } else {
@@ -581,12 +581,12 @@ impl Graph {
                 i += 1;
             }
             if !matches!(n.show, Show::None) && !n.name.is_empty() {
-                let real = if n.show.real() {
+                let real = if n.show.real() && !self.blacklist_graphs.contains(&k) {
                     Some(self.main_colors[k % self.main_colors.len()])
                 } else {
                     None
                 };
-                let imag = if n.show.imag() {
+                let imag = if n.show.imag() && !self.blacklist_graphs.contains(&k) {
                     Some(self.alt_colors[k % self.alt_colors.len()])
                 } else {
                     None
@@ -610,10 +610,10 @@ impl Graph {
     fn keybinds_side(&mut self, i: &InputState) -> bool {
         let mut stop_keybinds = false;
         if let Some(mpos) = i.pointer_pos {
-            let x = mpos.x;
+            let x = mpos.x - 4.0;
             let is_portrait = self.draw_offset.x == self.draw_offset.y && self.draw_offset.x == 0.0;
             let mpos = Vec2 { x, y: mpos.y } - self.draw_offset.to_vec();
-            let delta = self.font_size * 1.875;
+            let delta = self.font_size * self.side_height;
             let new = (if is_portrait {
                 mpos.y - self.screen.x
             } else {
@@ -656,6 +656,15 @@ impl Graph {
                 self.last_right_interact = Some(mpos)
             } else {
                 self.last_right_interact = None
+            }
+            if x < 0.0 && i.pointer.unwrap_or(false) {
+                if let Some(new) = self.get_name_place(new as usize) {
+                    if let Some(n) = self.blacklist_graphs.iter().position(|&n| n == new) {
+                        self.blacklist_graphs.remove(n);
+                    } else {
+                        self.blacklist_graphs.push(new)
+                    }
+                }
             }
         }
         if !stop_keybinds {
@@ -776,6 +785,19 @@ impl Graph {
             i -= 1;
         }
         String::new()
+    }
+    fn get_name_place(&self, mut i: usize) -> Option<usize> {
+        for (k, name) in self.names.iter().enumerate() {
+            if i < name.vars.len() {
+                return None;
+            }
+            i -= name.vars.len();
+            if i == 0 {
+                return Some(k);
+            }
+            i -= 1;
+        }
+        None
     }
     fn modify_name(&mut self, mut i: usize, j: usize, char: String) {
         if i == self.get_name_len() {

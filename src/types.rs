@@ -239,6 +239,8 @@ pub struct Graph {
     pub draw_side: bool,
     ///current keybinds
     pub keybinds: Keybinds,
+    ///side bar height per line
+    pub side_height: f32,
 }
 impl Default for Graph {
     fn default() -> Self {
@@ -325,6 +327,7 @@ impl Default for Graph {
             disable_coord: false,
             graph_mode: GraphMode::Normal,
             prec: 1.0,
+            side_height: 1.875,
             recalculate: false,
             ruler_pos: None,
             cos_phi: 0.0,
