@@ -518,10 +518,10 @@ pub struct InputState {
     pub raw_scroll_delta: Vec2,
     ///where the pointer is currently
     pub pointer_pos: Option<Vec2>,
-    ///is the pointer down now
-    pub pointer_down: bool,
-    ///is the pointer down this frame
-    pub pointer_just_down: bool,
+    ///some if pointer is down, true if this frame pointer was pressed
+    pub pointer: Option<bool>,
+    ///some if pointer is down, true if this frame pointer was pressed
+    pub pointer_right: Option<bool>,
     ///Some if multiple touch inputs have been detected
     pub multi: Option<Multi>,
 }
@@ -532,8 +532,8 @@ impl Default for InputState {
             modifiers: Modifiers::default(),
             raw_scroll_delta: Vec2::splat(0.0),
             pointer_pos: None,
-            pointer_down: false,
-            pointer_just_down: false,
+            pointer: None,
+            pointer_right: None,
             multi: None,
         }
     }
@@ -544,13 +544,28 @@ impl InputState {
     pub fn reset(&mut self) {
         self.raw_scroll_delta = Vec2::splat(0.0);
         self.keys_pressed = Vec::new();
-        self.pointer_just_down = false;
+        if self.pointer.is_some() {
+            self.pointer = Some(false);
+        }
+        if self.pointer_right.is_some() {
+            self.pointer_right = Some(false);
+        }
         self.multi = None;
     }
 }
 #[cfg(feature = "egui")]
 impl From<&egui::InputState> for InputState {
     fn from(val: &egui::InputState) -> Self {
+        let pointer = if val.pointer.primary_down() {
+            Some(val.pointer.primary_clicked())
+        } else {
+            None
+        };
+        let pointer_right = if val.pointer.secondary_down() {
+            Some(val.pointer.secondary_clicked())
+        } else {
+            None
+        };
         InputState {
             keys_pressed: {
                 val.events
@@ -578,8 +593,8 @@ impl From<&egui::InputState> for InputState {
                 .pointer
                 .latest_pos()
                 .map(|a| Vec2::new(a.x as f64, a.y as f64)),
-            pointer_down: val.pointer.primary_down(),
-            pointer_just_down: val.pointer.press_start_time().unwrap_or(0.0) == val.time,
+            pointer,
+            pointer_right,
             multi: val.multi_touch().map(|i| Multi {
                 translation_delta: Vec2::new(
                     i.translation_delta.x as f64,

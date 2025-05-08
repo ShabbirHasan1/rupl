@@ -613,7 +613,7 @@ impl Graph {
                 mpos.x < 0.0
             } {
                 stop_keybinds = true;
-                if i.pointer_just_down {
+                if i.pointer.unwrap_or(false) {
                     let delta = self.font_size * 1.875;
                     let new = (if is_portrait {
                         mpos.y - self.screen.x
@@ -1694,8 +1694,8 @@ impl Graph {
                     self.mouse_held = true;
                 }
             }
-            _ if i.pointer_down => {
-                if !i.pointer_just_down {
+            _ if i.pointer.is_some() => {
+                if !i.pointer.unwrap_or(false) {
                     if let (Some(interact), Some(last)) = (i.pointer_pos, self.last_interact) {
                         let delta = interact - last;
                         if self.is_3d {
