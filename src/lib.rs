@@ -1229,7 +1229,7 @@ impl Graph {
             for j in nx.max(1)..=mx {
                 if j % 4 != 0 {
                     let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
-                    painter.circle(o, x - o.x, &self.axis_color_light);
+                    painter.circle(o, x - o.x, &self.axis_color_light, 1.0);
                 }
             }
             let minor = minor / self.line_minor as f64;
@@ -1239,7 +1239,7 @@ impl Graph {
                 .floor() as isize;
             for j in nx.max(1)..=mx {
                 let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
-                painter.circle(o, x - o.x, &self.axis_color);
+                painter.circle(o, x - o.x, &self.axis_color, 1.0);
             }
             painter.vline(o.x, self.screen.y as f32, &self.axis_color);
             painter.hline(self.screen.x as f32, o.y, &self.axis_color);
@@ -2895,7 +2895,28 @@ impl Graph {
                             }
                         }
                     }
-                    GraphMode::Polar | GraphMode::SlicePolar => {}
+                    GraphMode::Polar | GraphMode::SlicePolar => {
+                        if !self.is_3d {
+                            let (y, z) = c.to_options();
+                            let s = self.to_screen(0.0, 0.0);
+                            if let Some(r) = y {
+                                painter.circle(
+                                    s,
+                                    self.to_screen(r.abs(), 0.0).x - s.x,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    self.line_width,
+                                )
+                            }
+                            if let Some(r) = z {
+                                painter.circle(
+                                    s,
+                                    self.to_screen(r.abs(), 0.0).x - s.x,
+                                    &self.alt_colors[k % self.alt_colors.len()],
+                                    self.line_width,
+                                )
+                            }
+                        }
+                    }
                     GraphMode::DomainColoring | GraphMode::Depth | GraphMode::Flatten => {}
                 },
             }

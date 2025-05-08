@@ -35,11 +35,11 @@ impl<'a> Painter<'a> {
             offset,
         }
     }
-    pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color) {
+    pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color, p3: f32) {
         self.painter.circle_stroke(
             (self.offset + p0).to_pos2(),
             r,
-            egui::Stroke::new(1.0, p2.to_col()),
+            egui::Stroke::new(p3, p2.to_col()),
         );
     }
     pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
@@ -230,11 +230,11 @@ impl Painter {
     pub fn clear_pts(&mut self) {
         self.points.clear()
     }
-    pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color) {
+    pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color, p3: f32) {
         self.canvas.canvas().draw_circle(
             (self.offset + p0).to_pos2(),
             r,
-            &make_paint(1.0, p2, true, false),
+            &make_paint(p3, p2, true, false),
         );
     }
     pub(crate) fn finish(&mut self, clear: bool) {
@@ -504,14 +504,17 @@ impl Painter {
     pub fn draw(&mut self) {
         std::mem::replace(&mut self.line, Line::None).draw(&mut self.canvas, self.anti_alias);
     }
-    pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color) {
+    pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color, width: f32) {
         let mut path = tiny_skia::PathBuilder::new();
         path.push_circle(self.offset.x + p0.x, self.offset.y + p0.y, r);
         let path = path.finish().unwrap();
         self.canvas.stroke_path(
             &path,
             &make_paint(p2, true),
-            &tiny_skia::Stroke::default(),
+            &tiny_skia::Stroke {
+                width,
+                ..Default::default()
+            },
             tiny_skia::Transform::default(),
             None,
         );
