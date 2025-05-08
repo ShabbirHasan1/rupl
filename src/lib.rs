@@ -568,23 +568,27 @@ impl Graph {
                 painter,
             )
         };
-        for (j, n) in self.names.iter().enumerate() {
+        let mut k = 0;
+        for n in self.names.iter() {
             for v in n.vars.iter() {
                 text(v, i, (Some(self.axis_color), None));
                 i += 1;
             }
             let real = if n.show.real() {
-                Some(self.main_colors[j % self.main_colors.len()])
+                Some(self.main_colors[k % self.main_colors.len()])
             } else {
                 None
             };
             let imag = if n.show.imag() {
-                Some(self.alt_colors[j % self.alt_colors.len()])
+                Some(self.alt_colors[k % self.alt_colors.len()])
             } else {
                 None
             };
             text(&n.name, i, (real, imag));
             i += 1;
+            if !matches!(n.show, Show::None) && !n.name.is_empty() {
+                k += 1;
+            }
         }
         let x = self.text_box.x * self.font_width;
         let y = self.text_box.y * delta;
@@ -688,16 +692,18 @@ impl Graph {
                             );
                             self.text_box.x -= 1.0;
                             self.name_modified = true;
+                        } else if self.get_name(self.text_box.y as usize).is_empty() {
+                            self.remove_name(self.text_box.y as usize)
                         }
                     }
                     NamedKey::Enter => {
                         if i.modifiers.ctrl {
                             self.insert_name(self.text_box.y as usize, true);
-                            self.text_box.x = 0.0;
                         } else {
                             down(self);
-                            self.insert_name(self.text_box.y as usize, false)
+                            self.insert_name(self.text_box.y as usize, false);
                         }
+                        self.text_box.x = 0.0;
                     }
                     NamedKey::Space => modify(self, " ".to_string()),
                     NamedKey::Insert => {}
@@ -763,6 +769,22 @@ impl Graph {
             }
         }
     }
+    fn remove_name(&mut self, mut i: usize) {
+        if i != self.get_name_len() {
+            for (k, name) in self.names.iter_mut().enumerate() {
+                if i < name.vars.len() {
+                    name.vars.remove(i);
+                    return;
+                }
+                i -= name.vars.len();
+                if i == 0 {
+                    self.names.remove(k);
+                    return;
+                }
+                i -= 1;
+            }
+        }
+    }
     fn insert_name(&mut self, j: usize, var: bool) {
         if j == self.get_name_len() {
             self.names.push(Name {
@@ -772,7 +794,7 @@ impl Graph {
             })
         } else {
             let mut i = j;
-            for name in self.names.iter_mut() {
+            for (k, name) in self.names.iter_mut().enumerate() {
                 if i < name.vars.len() {
                     name.vars.insert(if var { i } else { i + 1 }, String::new());
                     return;
@@ -783,7 +805,7 @@ impl Graph {
                         name.vars.push(String::new())
                     } else {
                         self.names.insert(
-                            i,
+                            k,
                             Name {
                                 vars: Vec::new(),
                                 name: String::new(),
@@ -832,7 +854,9 @@ impl Graph {
     }
     fn write_label(&self, painter: &mut Painter) {
         let mut pos = Pos::new(self.screen.x as f32 - 48.0, 0.0);
-        for (i, Name { name, show, .. }) in self.names.iter().enumerate() {
+        for (i, Name { name, show, .. }) in
+            self.names.iter().filter(|n| !n.name.is_empty()).enumerate()
+        {
             if !name.is_empty() {
                 let y = (pos.y + 3.0 * self.font_size / 4.0).round();
                 match self.graph_mode {
