@@ -642,16 +642,23 @@ impl Graph {
             }
             if i.pointer_right.is_some() {
                 if let Some(last) = self.last_right_interact {
-                    let s = self
-                        .get_name(new as usize)
-                        .split('=')
-                        .map(|a| a.to_string())
-                        .collect::<Vec<String>>();
-                    if s.len() == 2 && s[0].chars().all(|c| c.is_alphabetic()) {
-                        if let Ok(f) = s[1].parse::<f64>() {
-                            let delta = ((mpos.x - last.x) / 32.0).exp();
-                            self.replace_name(new as usize, format!("{}={}", s[0], f * delta));
-                            self.name_modified = true;
+                    let delta = ((mpos.x - last.x) / 32.0).exp();
+                    let name = self.get_name(new as usize);
+                    let mut body = |s: String| {
+                        self.replace_name(new as usize, s);
+                        self.name_modified = true;
+                    };
+                    if let Ok(f) = name.parse::<f64>() {
+                        body((f * delta).to_string())
+                    } else {
+                        let s = name
+                            .split('=')
+                            .map(|a| a.to_string())
+                            .collect::<Vec<String>>();
+                        if s.len() == 2 && s[0].chars().all(|c| c.is_alphabetic()) {
+                            if let Ok(f) = s[1].parse::<f64>() {
+                                body(format!("{}={}", s[0], f * delta))
+                            }
                         }
                     }
                 }
