@@ -607,6 +607,15 @@ impl Graph {
             let x = mpos.x;
             let is_portrait = self.draw_offset.x == self.draw_offset.y && self.draw_offset.x == 0.0;
             let mpos = Vec2 { x, y: mpos.y } - self.draw_offset.to_vec();
+            let delta = self.font_size * 1.875;
+            let new = (if is_portrait {
+                mpos.y - self.screen.x
+            } else {
+                mpos.y
+            } as f32
+                / delta)
+                .floor()
+                .min(self.get_name_len() as f32);
             if if is_portrait {
                 mpos.y > self.screen.x
             } else {
@@ -614,20 +623,33 @@ impl Graph {
             } {
                 stop_keybinds = true;
                 if i.pointer.unwrap_or(false) {
-                    let delta = self.font_size * 1.875;
-                    let new = (if is_portrait {
-                        mpos.y - self.screen.x
-                    } else {
-                        mpos.y
-                    } as f32
-                        / delta)
-                        .floor()
-                        .min(self.get_name_len() as f32);
                     self.text_box.y = new;
                     self.text_box.x = (x as f32 / self.font_width)
                         .round()
                         .min(self.get_name(self.text_box.y as usize).len() as f32);
                 }
+            }
+            if i.pointer_right.is_some() {
+                if let Some(last) = self.last_right_interact {
+                    let s = self
+                        .get_name(new as usize)
+                        .split('=')
+                        .map(|a| a.to_string())
+                        .collect::<Vec<String>>();
+                    if s.len() == 2 && s[0].chars().all(|c| c.is_alphabetic()) {
+                        if let Ok(f) = s[1].parse::<f64>() {
+                            let delta = (mpos.x - last.x) / 64.0;
+                            self.replace_name(
+                                new as usize,
+                                format!("{}={}", s[0], f * (1.0 + delta)),
+                            );
+                            self.name_modified = true;
+                        }
+                    }
+                }
+                self.last_right_interact = Some(mpos)
+            } else {
+                self.last_right_interact = None
             }
         }
         if !stop_keybinds {
@@ -769,6 +791,20 @@ impl Graph {
                 }
                 i -= 1;
             }
+        }
+    }
+    fn replace_name(&mut self, mut i: usize, new: String) {
+        for name in self.names.iter_mut() {
+            if i < name.vars.len() {
+                name.vars[i] = new;
+                return;
+            }
+            i -= name.vars.len();
+            if i == 0 {
+                name.name = new;
+                return;
+            }
+            i -= 1;
         }
     }
     fn remove_name(&mut self, mut i: usize) {

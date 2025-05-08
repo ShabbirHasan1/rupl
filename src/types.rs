@@ -212,6 +212,7 @@ pub struct Graph {
     ///what angle type will be displayed
     pub angle_type: Angle,
     pub(crate) last_interact: Option<Vec2>,
+    pub(crate) last_right_interact: Option<Vec2>,
     pub(crate) recalculate: bool,
     pub(crate) name_modified: bool,
     ///current line style
@@ -296,6 +297,7 @@ impl Default for Graph {
             domain_alternate: true,
             var: Vec2::new(-2.0, 2.0),
             last_interact: None,
+            last_right_interact: None,
             main_colors: vec![
                 Color::new(255, 85, 85),
                 Color::new(85, 85, 255),
