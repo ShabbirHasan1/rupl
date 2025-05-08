@@ -574,21 +574,21 @@ impl Graph {
                 text(v, i, (Some(self.axis_color), None));
                 i += 1;
             }
-            let real = if n.show.real() {
-                Some(self.main_colors[k % self.main_colors.len()])
-            } else {
-                None
-            };
-            let imag = if n.show.imag() {
-                Some(self.alt_colors[k % self.alt_colors.len()])
-            } else {
-                None
-            };
-            text(&n.name, i, (real, imag));
-            i += 1;
             if !matches!(n.show, Show::None) && !n.name.is_empty() {
+                let real = if n.show.real() {
+                    Some(self.main_colors[k % self.main_colors.len()])
+                } else {
+                    None
+                };
+                let imag = if n.show.imag() {
+                    Some(self.alt_colors[k % self.alt_colors.len()])
+                } else {
+                    None
+                };
+                text(&n.name, i, (real, imag));
                 k += 1;
             }
+            i += 1;
         }
         let x = self.text_box.x * self.font_width;
         let y = self.text_box.y * delta;
@@ -693,7 +693,9 @@ impl Graph {
                             self.text_box.x -= 1.0;
                             self.name_modified = true;
                         } else if self.get_name(self.text_box.y as usize).is_empty() {
-                            self.remove_name(self.text_box.y as usize)
+                            self.remove_name(self.text_box.y as usize);
+                            self.text_box.y = (self.text_box.y - 1.0).max(0.0);
+                            self.text_box.x = self.get_name(self.text_box.y as usize).len() as f32
                         }
                     }
                     NamedKey::Enter => {
@@ -820,8 +822,7 @@ impl Graph {
         }
     }
     fn remove_char(&mut self, mut i: usize, j: usize) {
-        let mut k = None;
-        for (l, name) in self.names.iter_mut().enumerate() {
+        for name in self.names.iter_mut() {
             if i < name.vars.len() {
                 if name.vars[i].len() == 1 {
                     name.vars.remove(i);
@@ -832,17 +833,10 @@ impl Graph {
             }
             i -= name.vars.len();
             if i == 0 {
-                if name.name.len() == 1 && name.vars.is_empty() {
-                    k = Some(l)
-                } else {
-                    name.name.remove(j);
-                }
+                name.name.remove(j);
                 break;
             }
             i -= 1;
-        }
-        if let Some(k) = k {
-            self.names.remove(k);
         }
     }
     fn get_name_len(&self) -> usize {
