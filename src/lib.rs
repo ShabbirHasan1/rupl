@@ -2,6 +2,7 @@ pub mod types;
 mod ui;
 use crate::types::*;
 use crate::ui::Painter;
+#[cfg(feature = "rayon")]
 use rayon::slice::ParallelSliceMut;
 use std::f64::consts::{PI, TAU};
 fn is_3d(data: &[GraphType]) -> bool {
@@ -18,6 +19,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO only recalculate when needed
 //TODO fast3d multithread
 //TODO consider collecting data aggregately
+//TODO dragable point
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -443,7 +445,10 @@ impl Graph {
             #[cfg(feature = "skia")]
             let mut is_line: Option<bool> = None;
             if let Some(mut buffer) = buffer {
+                #[cfg(feature = "rayon")]
                 buffer.par_sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
+                #[cfg(not(feature = "rayon"))]
+                buffer.sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
                 for (_, a, c) in buffer {
                     match a {
                         Draw::Line(a, b, width) => {
