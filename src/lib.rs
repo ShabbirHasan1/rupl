@@ -87,7 +87,7 @@ impl Graph {
     }
     ///sets screen dimensions
     pub fn set_screen(&mut self, width: f64, height: f64, offset: bool) {
-        let new = (height * 3.0 / 2.0).min(width - 256.0);
+        let new = (height * self.target_side_ratio).min(width - self.min_side_width);
         self.screen = if self.draw_side && offset {
             if height < width {
                 Vec2::new(new, height)

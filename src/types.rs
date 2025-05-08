@@ -245,6 +245,10 @@ pub struct Graph {
     pub keybinds: Keybinds,
     ///side bar height per line
     pub side_height: f32,
+    ///in horizontal view, minimum witdth side bar will be in pixels
+    pub min_side_width: f64,
+    ///in horizontal view, minimum ratio of the main screen will be targeted
+    pub target_side_ratio: f64,
 }
 impl Default for Graph {
     fn default() -> Self {
@@ -340,6 +344,8 @@ impl Default for Graph {
             sin_theta: 0.0,
             only_real: false,
             keybinds: Keybinds::default(),
+            target_side_ratio: 3.0 / 2.0,
+            min_side_width: 256.0,
         }
     }
 }
