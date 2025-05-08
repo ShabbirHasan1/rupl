@@ -40,8 +40,10 @@ pub enum GraphType {
     ///each complex number is mapped to the first element in the tuple on the x axis
     ///and the second element in the tuple on the y axis
     Coord3D(Vec<(f64, f64, Complex)>),
-    ///a constant value
-    Constant(Complex),
+    ///a constant value, in 2d second value determines weather its on the x or y axis
+    Constant(Complex, bool),
+    ///a point, 2d only
+    Point(Vec2),
 }
 #[derive(Clone)]
 pub struct Name {

@@ -320,7 +320,8 @@ impl Graph {
                 GraphType::Coord3D(d) => d.len(),
                 GraphType::Width(d, _, _) => d.len(),
                 GraphType::Width3D(d, _, _, _, _) => d.len(),
-                GraphType::Constant(_) => 1,
+                GraphType::Constant(_, _) => 1,
+                GraphType::Point(_) => 1,
             })
             .max()
             .unwrap_or(0)
@@ -2211,7 +2212,8 @@ impl Graph {
                     GraphType::Coord3D(d) => d.len(),
                     GraphType::Width(_, _, _) => 0,
                     GraphType::Width3D(d, _, _, _, _) => d.len(),
-                    GraphType::Constant(_) => 0,
+                    GraphType::Constant(_, _) => 0,
+                    GraphType::Point(_) => 0,
                 })
                 .sum::<usize>()
                 * if self.is_complex && matches!(self.show, Show::Complex) && !self.only_real {
@@ -2799,7 +2801,7 @@ impl Graph {
                         }
                     }
                 },
-                GraphType::Constant(c) => match self.graph_mode {
+                GraphType::Constant(c, on_x) => match self.graph_mode {
                     GraphMode::Normal | GraphMode::Slice => {
                         let len = 17;
                         if self.is_3d {
@@ -2860,38 +2862,72 @@ impl Graph {
                                 }
                             }
                         } else {
-                            let start = self.to_coord(Pos::new(0.0, 0.0)).0;
-                            let end = self.to_coord(Pos::new(self.screen.x as f32, 0.0)).0;
-                            for i in 0..len {
-                                let x = (i as f64 / (len - 1) as f64 - 0.5) * (end - start)
-                                    + (start + end) * 0.5;
-                                let (y, z) = c.to_options();
-                                a = if !self.show.real() {
-                                    None
-                                } else if let Some(y) = y {
-                                    self.draw_point(
-                                        painter,
-                                        x,
-                                        y,
-                                        &self.main_colors[k % self.main_colors.len()],
-                                        a,
-                                    )
-                                } else {
-                                    None
-                                };
-                                b = if !self.show.imag() || self.only_real {
-                                    None
-                                } else if let Some(z) = z {
-                                    self.draw_point(
-                                        painter,
-                                        x,
-                                        z,
-                                        &self.alt_colors[k % self.alt_colors.len()],
-                                        b,
-                                    )
-                                } else {
-                                    None
-                                };
+                            let start = self.to_coord(Pos::new(0.0, 0.0));
+                            let end = self.to_coord(self.screen.to_pos());
+                            if *on_x {
+                                for i in 0..len {
+                                    let x = (i as f64 / (len - 1) as f64 - 0.5) * (end.0 - start.0)
+                                        + (start.0 + end.0) * 0.5;
+                                    let (y, z) = c.to_options();
+                                    a = if !self.show.real() {
+                                        None
+                                    } else if let Some(y) = y {
+                                        self.draw_point(
+                                            painter,
+                                            x,
+                                            y,
+                                            &self.main_colors[k % self.main_colors.len()],
+                                            a,
+                                        )
+                                    } else {
+                                        None
+                                    };
+                                    b = if !self.show.imag() || self.only_real {
+                                        None
+                                    } else if let Some(z) = z {
+                                        self.draw_point(
+                                            painter,
+                                            x,
+                                            z,
+                                            &self.alt_colors[k % self.alt_colors.len()],
+                                            b,
+                                        )
+                                    } else {
+                                        None
+                                    };
+                                }
+                            } else {
+                                for i in 0..len {
+                                    let x = (i as f64 / (len - 1) as f64 - 0.5) * (end.1 - start.1)
+                                        + (start.1 + end.1) * 0.5;
+                                    let (y, z) = c.to_options();
+                                    a = if !self.show.real() {
+                                        None
+                                    } else if let Some(y) = y {
+                                        self.draw_point(
+                                            painter,
+                                            y,
+                                            x,
+                                            &self.main_colors[k % self.main_colors.len()],
+                                            a,
+                                        )
+                                    } else {
+                                        None
+                                    };
+                                    b = if !self.show.imag() || self.only_real {
+                                        None
+                                    } else if let Some(z) = z {
+                                        self.draw_point(
+                                            painter,
+                                            z,
+                                            x,
+                                            &self.alt_colors[k % self.alt_colors.len()],
+                                            b,
+                                        )
+                                    } else {
+                                        None
+                                    };
+                                }
                             }
                         }
                     }
@@ -2918,6 +2954,28 @@ impl Graph {
                         }
                     }
                     GraphMode::DomainColoring | GraphMode::Depth | GraphMode::Flatten => {}
+                },
+                GraphType::Point(p) => match self.graph_mode {
+                    GraphMode::Normal | GraphMode::Slice => {
+                        if !self.is_3d {
+                            painter.rect_filled(
+                                self.to_screen(p.x, p.y),
+                                &self.main_colors[k % self.main_colors.len()],
+                            )
+                        }
+                    }
+                    GraphMode::Polar | GraphMode::SlicePolar => {
+                        if !self.is_3d {
+                            let r = p.y.hypot(p.x);
+                            let t = p.y.atan2(p.x);
+                            let (s, c) = t.sin_cos();
+                            painter.rect_filled(
+                                self.to_screen(r * c, r * s),
+                                &self.main_colors[k % self.main_colors.len()],
+                            )
+                        }
+                    }
+                    GraphMode::DomainColoring | GraphMode::Flatten | GraphMode::Depth => {}
                 },
             }
         }
