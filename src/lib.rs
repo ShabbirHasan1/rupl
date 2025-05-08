@@ -320,6 +320,7 @@ impl Graph {
                 GraphType::Coord3D(d) => d.len(),
                 GraphType::Width(d, _, _) => d.len(),
                 GraphType::Width3D(d, _, _, _, _) => d.len(),
+                GraphType::Constant(_) => 1,
             })
             .max()
             .unwrap_or(0)
@@ -2206,6 +2207,7 @@ impl Graph {
                     GraphType::Coord3D(d) => d.len(),
                     GraphType::Width(_, _, _) => 0,
                     GraphType::Width3D(d, _, _, _, _) => d.len(),
+                    GraphType::Constant(_) => 0,
                 })
                 .sum::<usize>()
                 * if self.is_complex && matches!(self.show, Show::Complex) && !self.only_real {
@@ -2792,6 +2794,105 @@ impl Graph {
                             };
                         }
                     }
+                },
+                GraphType::Constant(c) => match self.graph_mode {
+                    GraphMode::Normal | GraphMode::Slice => {
+                        if self.is_3d {
+                            let len = 32;
+                            let mut last = Vec::new();
+                            let mut cur = Vec::new();
+                            let mut lasti = Vec::new();
+                            let mut curi = Vec::new();
+                            let start_x = self.bound.x + self.offset3d.x;
+                            let start_y = self.bound.x - self.offset3d.y;
+                            let end_x = self.bound.y + self.offset3d.x;
+                            let end_y = self.bound.y - self.offset3d.y;
+                            for i in 0..32 * 32 {
+                                let (i, j) = (i % len, i / len);
+                                let x = (i as f64 / (len - 1) as f64 - 0.5) * (end_x - start_x)
+                                    + (start_x + end_x) * 0.5;
+                                let y = (j as f64 / (len - 1) as f64 - 0.5) * (end_y - start_y)
+                                    + (start_y + end_y) * 0.5;
+                                let (z, w) = c.to_options();
+                                let p = if !self.show.real() {
+                                    None
+                                } else if let Some(z) = z {
+                                    self.draw_point_3d(
+                                        x,
+                                        y,
+                                        z,
+                                        &self.main_colors[k % self.main_colors.len()],
+                                        if i == 0 { None } else { cur[i - 1] },
+                                        if j == 0 { None } else { last[i] },
+                                        &mut buffer,
+                                        painter,
+                                    )
+                                } else {
+                                    None
+                                };
+                                cur.push(p);
+                                if i == len - 1 {
+                                    last = std::mem::take(&mut cur);
+                                }
+                                let p = if !self.show.imag() || self.only_real {
+                                    None
+                                } else if let Some(w) = w {
+                                    self.draw_point_3d(
+                                        x,
+                                        y,
+                                        w,
+                                        &self.alt_colors[k % self.alt_colors.len()],
+                                        if i == 0 { None } else { curi[i - 1] },
+                                        if j == 0 { None } else { lasti[i] },
+                                        &mut buffer,
+                                        painter,
+                                    )
+                                } else {
+                                    None
+                                };
+                                curi.push(p);
+                                if i == len - 1 {
+                                    lasti = std::mem::take(&mut curi);
+                                }
+                            }
+                        } else {
+                            let start = self.to_coord(Pos::new(0.0, 0.0)).0;
+                            let end = self.to_coord(Pos::new(self.screen.x as f32, 0.0)).0;
+                            for i in 0..32 {
+                                let x = (i as f64 / (32 - 1) as f64 - 0.5) * (end - start)
+                                    + (start + end) * 0.5;
+                                let (y, z) = c.to_options();
+                                a = if !self.show.real() {
+                                    None
+                                } else if let Some(y) = y {
+                                    self.draw_point(
+                                        painter,
+                                        x,
+                                        y,
+                                        &self.main_colors[k % self.main_colors.len()],
+                                        a,
+                                    )
+                                } else {
+                                    None
+                                };
+                                b = if !self.show.imag() || self.only_real {
+                                    None
+                                } else if let Some(z) = z {
+                                    self.draw_point(
+                                        painter,
+                                        x,
+                                        z,
+                                        &self.alt_colors[k % self.alt_colors.len()],
+                                        b,
+                                    )
+                                } else {
+                                    None
+                                };
+                            }
+                        }
+                    }
+                    GraphMode::Polar | GraphMode::SlicePolar => {}
+                    GraphMode::DomainColoring | GraphMode::Depth | GraphMode::Flatten => {}
                 },
             }
         }
