@@ -585,7 +585,7 @@ impl Graph {
                 text(v, i, (Some(self.axis_color), None));
                 i += 1;
             }
-            if !matches!(n.show, Show::None) && !n.name.is_empty() {
+            if !n.name.is_empty() {
                 let real = if n.show.real() && !self.blacklist_graphs.contains(&k) {
                     Some(self.main_colors[k % self.main_colors.len()])
                 } else {
