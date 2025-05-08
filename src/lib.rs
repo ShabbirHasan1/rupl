@@ -649,11 +649,8 @@ impl Graph {
                         .collect::<Vec<String>>();
                     if s.len() == 2 && s[0].chars().all(|c| c.is_alphabetic()) {
                         if let Ok(f) = s[1].parse::<f64>() {
-                            let delta = (mpos.x - last.x) / 64.0;
-                            self.replace_name(
-                                new as usize,
-                                format!("{}={}", s[0], f * (1.0 + delta)),
-                            );
+                            let delta = ((mpos.x - last.x) / 32.0).exp();
+                            self.replace_name(new as usize, format!("{}={}", s[0], f * delta));
                             self.name_modified = true;
                         }
                     }
