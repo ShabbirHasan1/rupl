@@ -20,6 +20,7 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO fast3d multithread
 //TODO consider collecting data aggregately
 //TODO does storing Painter help perforamnce in skia?
+//TODO 3d points and manipulation
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -813,38 +814,42 @@ impl Graph {
     }
     fn get_points(&self) -> Vec<(usize, String, Pos)> {
         let mut pts = Vec::new();
-        let mut i = 0;
         macro_rules! register {
-            ($o: tt) => {
+            ($o: tt, $i: tt) => {
                 let o = $o;
                 let v = o.clone();
                 if !v.contains('=') {
+                    $i += 1;
                     continue;
                 }
                 let sp: Vec<&str> = v.split('=').collect();
                 if sp.len() != 2 {
+                    $i += 1;
                     continue;
                 }
                 let mut v = sp.last().unwrap().to_string();
                 if v.len() >= 5 && v.pop().unwrap() == '}' && v.remove(0) == '{' {
                     let s: Vec<&str> = v.split(',').collect();
                     if s.len() != 2 {
+                        $i += 1;
                         continue;
                     }
                     let (Ok(a), Ok(b)) = (s[0].parse::<f64>(), s[1].parse::<f64>()) else {
+                        $i += 1;
                         continue;
                     };
-                    pts.push((i, sp.first().unwrap().to_string(), self.to_screen(a, b)));
+                    pts.push(($i, sp.first().unwrap().to_string(), self.to_screen(a, b)));
                 }
             };
         }
+        let mut i = 0;
         for name in &self.names {
             for o in &name.vars {
-                register!(o);
+                register!(o, i);
                 i += 1;
             }
             let o = &name.name;
-            register!(o);
+            register!(o, i);
             i += 1;
         }
         pts
@@ -924,6 +929,7 @@ impl Graph {
     }
     fn remove_name(&mut self, mut i: usize) {
         if i != self.get_name_len() {
+            let l = self.names.len();
             for (k, name) in self.names.iter_mut().enumerate() {
                 if i < name.vars.len() {
                     name.vars.remove(i);
@@ -932,6 +938,10 @@ impl Graph {
                 i -= name.vars.len();
                 if i == 0 {
                     if name.vars.is_empty() {
+                        self.names.remove(k);
+                    } else if l > k {
+                        let v = self.names[k].vars.clone();
+                        self.names[k + 1].vars.splice(0..0, v);
                         self.names.remove(k);
                     }
                     return;
@@ -1786,8 +1796,8 @@ impl Graph {
             } else {
                 self.mouse_position = Some(mpos)
             }
-            if i.pointer_right.is_some() && mpos.x > 0.0 {
-                if i.pointer_right.unwrap() {
+            if i.pointer_right.is_some() {
+                if i.pointer_right.unwrap() && mpos.x > 0.0 {
                     let pts: Vec<(usize, String, Pos)> = self
                         .get_points()
                         .into_iter()
@@ -1813,6 +1823,7 @@ impl Graph {
                         self.side_drag = Some(min.0);
                         self.name_modified = true;
                     }
+                    //TODO bit weird sometimes
                 } else if let Some(i) = self.side_drag {
                     let s = self.to_coord(mpos.to_pos());
                     let v = self
@@ -1823,6 +1834,8 @@ impl Graph {
                         .unwrap();
                     self.replace_name(i, format!("{}={{{},{}}}", v, s.0, s.1));
                     self.name_modified = true;
+                } else {
+                    self.side_drag = None
                 }
             } else {
                 self.side_drag = None
