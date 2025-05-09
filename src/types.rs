@@ -27,6 +27,7 @@ pub enum GraphMode {
     SlicePolar,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub enum GraphType {
     ///2d data set where the first element in the vector maps to the first float on the x axis,
     ///and the last element in the vector maps to the last float on the x axis, with even spacing
@@ -96,12 +97,14 @@ impl Show {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy)]
 pub enum Lines {
     Points,
     LinesPoints,
     Lines,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy)]
 pub enum DepthColor {
     ///colors based off of how far on the z axis the value is
     Vertical,
@@ -120,13 +123,14 @@ impl AsRef<skia_safe::Image> for Image {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy)]
 pub enum Angle {
     Radian,
     Degree,
     Gradian,
 }
 impl Angle {
-    pub(crate) fn to_val(&self, t: f64) -> f64 {
+    pub(crate) fn to_val(self, t: f64) -> f64 {
         match self {
             Angle::Radian => t,
             Angle::Degree => 180.0 * t / PI,
@@ -139,6 +143,7 @@ pub(crate) struct Image(pub tiny_skia::Pixmap);
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Graph {
     ///current data sets
+    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
     pub data: Vec<GraphType>,
     ///current data sets names for labeling, ordered by data
     pub names: Vec<Name>,
@@ -369,6 +374,89 @@ impl Default for Graph {
             keybinds: Keybinds::default(),
             target_side_ratio: 3.0 / 2.0,
             min_side_width: 256.0,
+        }
+    }
+}
+impl Clone for Graph {
+    fn clone(&self) -> Self {
+        Self {
+            data: Vec::new(),
+            names: self.names.clone(),
+            cache: None,
+            #[cfg(feature = "skia")]
+            font: None,
+            font_size: self.font_size,
+            font_width: self.font_width,
+            line_width: self.line_width,
+            #[cfg(feature = "skia")]
+            image_format: self.image_format,
+            fast_3d: self.fast_3d,
+            fast_3d_move: self.fast_3d_move,
+            reduced_move: self.reduced_move,
+            bound: self.bound,
+            is_complex: self.is_complex,
+            offset3d: self.offset3d,
+            offset: self.offset,
+            angle: self.angle,
+            ignore_bounds: self.ignore_bounds,
+            zoom: self.zoom,
+            slice: self.slice,
+            var: self.var,
+            log_scale: self.log_scale,
+            box_size: self.box_size,
+            domain_alternate: self.domain_alternate,
+            screen: self.screen,
+            screen_offset: self.screen_offset,
+            delta: self.delta,
+            show: self.show,
+            anti_alias: self.anti_alias,
+            color_depth: self.color_depth,
+            show_box: self.show_box,
+            main_colors: self.main_colors.clone(),
+            alt_colors: self.alt_colors.clone(),
+            axis_color: self.axis_color,
+            blacklist_graphs: self.blacklist_graphs.clone(),
+            axis_color_light: self.axis_color_light,
+            background_color: self.background_color,
+            text_color: self.text_color,
+            mouse_position: self.mouse_position,
+            mouse_moved: self.mouse_moved,
+            disable_lines: self.disable_lines,
+            disable_axis: self.disable_axis,
+            disable_coord: self.disable_coord,
+            view_x: self.view_x,
+            graph_mode: self.graph_mode,
+            is_3d: self.is_3d,
+            is_3d_data: self.is_3d_data,
+            angle_type: self.angle_type,
+            last_interact: self.last_interact,
+            last_right_interact: self.last_right_interact,
+            recalculate: self.recalculate,
+            name_modified: self.name_modified,
+            lines: self.lines,
+            ruler_pos: self.ruler_pos,
+            prec: self.prec,
+            mouse_held: self.mouse_held,
+            mult: self.mult,
+            line_major: self.line_major,
+            line_minor: self.line_minor,
+            draw_offset: self.draw_offset,
+            cos_phi: self.cos_phi,
+            sin_phi: self.sin_phi,
+            cos_theta: self.cos_theta,
+            sin_theta: self.sin_theta,
+            text_box: self.text_box,
+            side_slider: self.side_slider,
+            side_drag: self.side_drag,
+            last_multi: self.last_multi,
+            side_bar_width: self.side_bar_width,
+            only_real: self.only_real,
+            draw_side: self.draw_side,
+            keybinds: self.keybinds,
+            side_height: self.side_height,
+            min_side_width: self.min_side_width,
+            min_screen_width: self.min_screen_width,
+            target_side_ratio: self.target_side_ratio,
         }
     }
 }

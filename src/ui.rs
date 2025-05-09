@@ -624,6 +624,7 @@ impl Data {
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg(feature = "skia")]
+#[derive(Clone, Copy)]
 pub enum ImageFormat {
     Bmp,
     Gif,
