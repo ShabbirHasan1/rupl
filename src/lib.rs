@@ -636,7 +636,11 @@ impl Graph {
                 .floor()
                 .min(self.get_name_len() as f32);
             if i.pointer.unwrap_or(false) {
-                if mpos.x > 0.0 {
+                if if is_portrait {
+                    mpos.y < self.screen.x
+                } else {
+                    mpos.x > 0.0
+                } {
                     self.text_box = None
                 } else if self.text_box.is_none() {
                     self.text_box = Some(Pos::new(0.0, 0.0))
@@ -644,7 +648,7 @@ impl Graph {
             }
             if self.text_box.is_some() {
                 stop_keybinds = true;
-                if i.pointer.unwrap_or(false) {
+                if i.pointer.unwrap_or(false) && new >= 0.0 {
                     self.text_box = Some(Pos::new(
                         (x as f32 / self.font_width)
                             .round()
