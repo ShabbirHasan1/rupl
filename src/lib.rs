@@ -57,7 +57,7 @@ impl Graph {
         let typeface = skia_safe::FontMgr::default()
             .new_from_data(bytes, None)
             .unwrap();
-        self.font = skia_safe::Font::new(typeface, self.font_size);
+        self.font = Some(skia_safe::Font::new(typeface, self.font_size));
         self.font_width = 0.0;
     }
     //use dark mode default colors
@@ -1470,7 +1470,9 @@ impl Graph {
     #[cfg(feature = "skia")]
     fn font_width(&mut self) {
         if self.font_width == 0.0 {
-            self.font_width = self.font.measure_str(" ", None).0;
+            if let Some(font) = &self.font {
+                self.font_width = font.measure_str(" ", None).0;
+            }
         }
     }
     #[cfg(feature = "egui")]

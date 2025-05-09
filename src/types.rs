@@ -1,7 +1,10 @@
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 #[derive(PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GraphMode {
     ///given a 3d data set maps in 3d, given a 2d data set maps in 2d
     Normal,
@@ -23,6 +26,7 @@ pub enum GraphMode {
     ///takes a slice of a 3d function and applys polar logic
     SlicePolar,
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GraphType {
     ///2d data set where the first element in the vector maps to the first float on the x axis,
     ///and the last element in the vector maps to the last float on the x axis, with even spacing
@@ -45,6 +49,7 @@ pub enum GraphType {
     ///a point, 2d only
     Point(Vec2),
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 pub struct Name {
     pub vars: Vec<String>,
@@ -74,6 +79,7 @@ pub enum Bound {
     ///a 3d data set is requested
     Width3D(f64, f64, f64, f64, Prec),
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy)]
 pub enum Show {
     Real,
@@ -89,11 +95,13 @@ impl Show {
         matches!(self, Self::Complex | Self::Imag)
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Lines {
     Points,
     LinesPoints,
     Lines,
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum DepthColor {
     ///colors based off of how far on the z axis the value is
     Vertical,
@@ -111,6 +119,7 @@ impl AsRef<skia_safe::Image> for Image {
         &self.0
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Angle {
     Radian,
     Degree,
@@ -127,14 +136,17 @@ impl Angle {
 }
 #[cfg(feature = "tiny-skia")]
 pub(crate) struct Image(pub tiny_skia::Pixmap);
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Graph {
     ///current data sets
     pub data: Vec<GraphType>,
     ///current data sets names for labeling, ordered by data
     pub names: Vec<Name>,
+    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
     pub(crate) cache: Option<Image>,
     #[cfg(feature = "skia")]
-    pub(crate) font: skia_safe::Font,
+    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    pub(crate) font: Option<skia_safe::Font>,
     pub(crate) font_size: f32,
     pub(crate) font_width: f32,
     ///width of function lines
@@ -264,7 +276,7 @@ impl Default for Graph {
             .unwrap();
         let font_size = 18.0;
         #[cfg(feature = "skia")]
-        let font = skia_safe::Font::new(typeface, font_size);
+        let font = Some(skia_safe::Font::new(typeface, font_size));
         Self {
             is_3d: false,
             is_3d_data: false,
@@ -360,6 +372,7 @@ impl Default for Graph {
         }
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, PartialEq)]
 pub struct Keybinds {
     ///moves left on the x axis in 2d, rotates left in 3d
@@ -643,6 +656,7 @@ impl InputState {
         }
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, PartialEq)]
 pub struct Keys {
     ///None is equivalent to a set of false Modifiers
@@ -663,6 +677,7 @@ impl Keys {
         }
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, PartialEq, Default)]
 pub struct Modifiers {
     pub alt: bool,
@@ -720,6 +735,7 @@ impl Modifiers {
         self
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Color {
     pub r: u8,
@@ -751,6 +767,7 @@ impl Color {
         tiny_skia::Color::from_rgba8(self.r, self.g, self.b, 255)
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, PartialEq)]
 pub struct Pos {
     pub x: f32,
@@ -781,6 +798,7 @@ impl Pos {
         skia_safe::Point::new(self.x, self.y)
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone)]
 pub enum Complex {
     Real(f64),
@@ -796,6 +814,7 @@ impl Complex {
         }
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, PartialEq)]
 pub struct Vec2 {
     pub x: f64,
@@ -859,6 +878,7 @@ impl MulAssign<f64> for Vec2 {
         self.y *= rhs;
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone)]
 pub struct Vec3 {
     pub x: f64,
@@ -978,6 +998,7 @@ impl From<Align> for skia_safe::utils::text_utils::Align {
         }
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, PartialEq)]
 pub enum Key {
     ArrowDown,

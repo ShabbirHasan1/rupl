@@ -1,4 +1,6 @@
 use crate::types::{Color, Image, Pos, Vec2};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "egui")]
 pub(crate) struct Painter<'a> {
     painter: &'a egui::Painter,
@@ -135,7 +137,7 @@ impl<'a> Painter<'a> {
 pub(crate) struct Painter {
     canvas: skia_safe::Surface,
     line: Line,
-    font: skia_safe::Font,
+    font: Option<skia_safe::Font>,
     points: Point,
     fast: bool,
     anti_alias: bool,
@@ -149,7 +151,7 @@ impl Painter {
         width: u32,
         height: u32,
         background: Color,
-        font: skia_safe::Font,
+        font: Option<skia_safe::Font>,
         fast: bool,
         size: usize,
         anti_alias: bool,
@@ -347,11 +349,12 @@ impl Painter {
         }
     }
     pub(crate) fn text(&mut self, p0: Pos, p1: crate::types::Align, p2: &str, p4: &Color) {
+        let Some(font) = &self.font else { return };
         let mut pos = (self.offset + p0).to_pos2();
         let paint = make_paint(1.0, p4, false, false);
         let strs = p2.split('\n').collect::<Vec<&str>>();
         let mut body = |s: &str| {
-            let rect = self.font.measure_str(s, Some(&paint)).1;
+            let rect = font.measure_str(s, Some(&paint)).1;
             let (width, height) = (rect.width(), rect.height());
             if !s.is_empty() {
                 let mut pos = pos;
@@ -377,7 +380,7 @@ impl Painter {
                     | crate::types::Align::LeftTop
                     | crate::types::Align::RightTop => pos.y += height,
                 }
-                self.canvas.canvas().draw_str(s, pos, &self.font, &paint);
+                self.canvas.canvas().draw_str(s, pos, font, &paint);
             }
             match p1 {
                 crate::types::Align::CenterTop
@@ -619,6 +622,7 @@ impl Data {
         self.data.as_bytes()
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg(feature = "skia")]
 pub enum ImageFormat {
     Bmp,
