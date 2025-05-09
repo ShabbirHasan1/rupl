@@ -87,12 +87,11 @@ impl Graph {
     }
     ///sets screen dimensions
     pub fn set_screen(&mut self, width: f64, height: f64, offset: bool) {
-        let new = (height * self.target_side_ratio).min(
-            width
-                - self
-                    .min_side_width
-                    .max((self.get_longest() as f32 * self.font_width) as f64 + 4.0),
-        );
+        let fw =
+            ((self.get_longest() as f32 * self.font_width) as f64 + 4.0).max(self.side_bar_width);
+        let new = (height * self.target_side_ratio)
+            .min(width - self.min_side_width.max(fw))
+            .max(self.min_screen_width);
         self.screen = if self.draw_side && offset {
             if height < width {
                 Vec2::new(new, height)
@@ -102,6 +101,7 @@ impl Graph {
         } else {
             Vec2::new(width, height)
         };
+        self.side_bar_width = fw;
         self.draw_offset = if self.draw_side && offset && height < width {
             Pos::new((width - new) as f32, 0.0)
         } else {
@@ -607,13 +607,15 @@ impl Graph {
             }
             i += 1;
         }
-        let x = self.text_box.x * self.font_width;
-        let y = self.text_box.y * delta;
-        painter.line_segment(
-            [Pos::new(x + 4.0, y), Pos::new(x + 4.0, y + delta)],
-            1.0,
-            &self.text_color,
-        );
+        if let Some(text_box) = self.text_box {
+            let x = text_box.x * self.font_width;
+            let y = text_box.y * delta;
+            painter.line_segment(
+                [Pos::new(x + 4.0, y), Pos::new(x + 4.0, y + delta)],
+                1.0,
+                &self.text_color,
+            );
+        }
         if is_portrait {
             painter.offset = Pos::new(0.0, 0.0)
         };
@@ -633,23 +635,28 @@ impl Graph {
                 / delta)
                 .floor()
                 .min(self.get_name_len() as f32);
-            if if is_portrait {
-                mpos.y > self.screen.x
-            } else {
-                mpos.x < 0.0
-            } {
+            if i.pointer.unwrap_or(false) {
+                if mpos.x > 0.0 {
+                    self.text_box = None
+                } else if self.text_box.is_none() {
+                    self.text_box = Some(Pos::new(0.0, 0.0))
+                }
+            }
+            if self.text_box.is_some() {
                 stop_keybinds = true;
                 if i.pointer.unwrap_or(false) {
-                    self.text_box.y = new;
-                    self.text_box.x = (x as f32 / self.font_width)
-                        .round()
-                        .min(self.get_name(self.text_box.y as usize).len() as f32);
+                    self.text_box = Some(Pos::new(
+                        (x as f32 / self.font_width)
+                            .round()
+                            .min(self.get_name(new as usize).len() as f32),
+                        new,
+                    ));
                 }
             }
             if i.pointer_right.is_some() {
                 if let Some(last) = self.last_right_interact {
                     if let Some(new) = self.side_slider {
-                        let delta = ((mpos.x - last.x) / 32.0).exp();
+                        let delta = 2.0f64.powf((mpos.x - last.x) / 32.0);
                         let name = self.get_name(new);
                         let mut body = |s: String| {
                             self.side_slider = Some(new);
@@ -701,101 +708,94 @@ impl Graph {
         if !stop_keybinds {
             return false;
         }
+        let Some(mut text_box) = self.text_box else {
+            unreachable!()
+        };
         for key in &i.keys_pressed {
-            let down = |g: &mut Graph| {
-                g.text_box.y = (g.text_box.y + 1.0).min(g.get_name_len() as f32);
-                g.text_box.x = g
-                    .text_box
-                    .x
-                    .min(g.get_name(g.text_box.y as usize).len() as f32)
+            let down = |g: &Graph, text_box: &mut Pos| {
+                text_box.y = (text_box.y + 1.0).min(g.get_name_len() as f32);
+                text_box.x = text_box.x.min(g.get_name(text_box.y as usize).len() as f32)
             };
-            let up = |g: &mut Graph| {
-                g.text_box.y = (g.text_box.y - 1.0).max(0.0);
-                g.text_box.x = g
-                    .text_box
-                    .x
-                    .min(g.get_name(g.text_box.y as usize).len() as f32)
+            let up = |g: &Graph, text_box: &mut Pos| {
+                text_box.y = (text_box.y - 1.0).max(0.0);
+                text_box.x = text_box.x.min(g.get_name(text_box.y as usize).len() as f32)
             };
-            let modify = |g: &mut Graph, c: String| {
+            let modify = |g: &mut Graph, text_box: &mut Pos, c: String| {
                 g.modify_name(
-                    g.text_box.y as usize,
-                    g.text_box.x as usize,
+                    text_box.y as usize,
+                    text_box.x as usize,
                     if i.modifiers.shift {
                         c.to_ascii_uppercase()
                     } else {
                         c
                     },
                 );
-                g.text_box.x += 1.0;
+                text_box.x += 1.0;
                 g.name_modified = true;
             };
             match key.into() {
-                KeyStr::Character(a) if !i.modifiers.ctrl => modify(self, a),
+                KeyStr::Character(a) if !i.modifiers.ctrl => modify(self, &mut text_box, a),
                 KeyStr::Named(key) => match key {
-                    NamedKey::ArrowDown => down(self),
+                    NamedKey::ArrowDown => down(self, &mut text_box),
                     NamedKey::ArrowLeft => {
-                        self.text_box.x = (self.text_box.x - 1.0).max(0.0);
+                        text_box.x = (text_box.x - 1.0).max(0.0);
                     }
                     NamedKey::ArrowRight => {
-                        self.text_box.x = (self.text_box.x + 1.0)
-                            .min(self.get_name(self.text_box.y as usize).len() as f32)
+                        text_box.x =
+                            (text_box.x + 1.0).min(self.get_name(text_box.y as usize).len() as f32)
                     }
-                    NamedKey::ArrowUp => up(self),
+                    NamedKey::ArrowUp => up(self, &mut text_box),
                     NamedKey::Escape => {
                         self.draw_side = false;
                         self.recalculate = true;
                     }
                     NamedKey::Tab => {
                         if i.modifiers.shift && i.modifiers.ctrl {
-                            up(self)
+                            up(self, &mut text_box)
                         } else {
-                            down(self)
+                            down(self, &mut text_box)
                         }
                     }
                     NamedKey::Backspace => {
-                        if self.text_box.x != 0.0 {
-                            self.remove_char(
-                                self.text_box.y as usize,
-                                self.text_box.x as usize - 1,
-                            );
-                            self.text_box.x -= 1.0;
+                        if text_box.x != 0.0 {
+                            self.remove_char(text_box.y as usize, text_box.x as usize - 1);
+                            text_box.x -= 1.0;
                             self.name_modified = true;
-                        } else if self.get_name(self.text_box.y as usize).is_empty() {
-                            self.remove_name(self.text_box.y as usize);
-                            if self.text_box.y > 0.0 {
-                                self.text_box.y = (self.text_box.y - 1.0).max(0.0);
-                                self.text_box.x =
-                                    self.get_name(self.text_box.y as usize).len() as f32
+                        } else if self.get_name(text_box.y as usize).is_empty() {
+                            self.remove_name(text_box.y as usize);
+                            if text_box.y > 0.0 {
+                                text_box.y = (text_box.y - 1.0).max(0.0);
+                                text_box.x = self.get_name(text_box.y as usize).len() as f32
                             }
                         }
                     }
                     NamedKey::Enter => {
                         if i.modifiers.ctrl {
-                            self.insert_name(self.text_box.y as usize, true);
+                            self.insert_name(text_box.y as usize, true);
                         } else {
-                            down(self);
-                            self.insert_name(self.text_box.y as usize, false);
+                            down(self, &mut text_box);
+                            self.insert_name(text_box.y as usize, false);
                         }
-                        self.text_box.x = 0.0;
+                        text_box.x = 0.0;
                     }
-                    NamedKey::Space => modify(self, " ".to_string()),
+                    NamedKey::Space => modify(self, &mut text_box, " ".to_string()),
                     NamedKey::Insert => {}
                     NamedKey::Delete => {}
                     NamedKey::Home => {
-                        self.text_box.y = 0.0;
-                        self.text_box.x = 0.0;
+                        text_box.y = 0.0;
+                        text_box.x = 0.0;
                     }
                     NamedKey::End => {
-                        self.text_box.y = self.get_name_len() as f32;
-                        self.text_box.x = self.get_name(self.text_box.y as usize).len() as f32;
+                        text_box.y = self.get_name_len() as f32;
+                        text_box.x = self.get_name(text_box.y as usize).len() as f32;
                     }
                     NamedKey::PageUp => {
-                        self.text_box.y = 0.0;
-                        self.text_box.x = 0.0;
+                        text_box.y = 0.0;
+                        text_box.x = 0.0;
                     }
                     NamedKey::PageDown => {
-                        self.text_box.y = self.get_name_len() as f32;
-                        self.text_box.x = self.get_name(self.text_box.y as usize).len() as f32;
+                        text_box.y = self.get_name_len() as f32;
+                        text_box.x = self.get_name(text_box.y as usize).len() as f32;
                     }
                     NamedKey::Copy => {}
                     NamedKey::Cut => {}
@@ -805,6 +805,7 @@ impl Graph {
                 _ => {}
             }
         }
+        self.text_box = Some(text_box);
         true
     }
     fn get_points(&self) -> Vec<(usize, String, Pos)> {
@@ -2251,6 +2252,7 @@ impl Graph {
         }
         if i.keys_pressed(self.keybinds.side) {
             self.draw_side = !self.draw_side;
+            self.text_box = self.draw_side.then_some(Pos::new(0.0, 0.0));
             self.recalculate = true;
         }
         if i.keys_pressed(self.keybinds.fast) {

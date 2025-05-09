@@ -236,10 +236,11 @@ pub struct Graph {
     pub(crate) sin_phi: f64,
     pub(crate) cos_theta: f64,
     pub(crate) sin_theta: f64,
-    pub(crate) text_box: Pos,
+    pub(crate) text_box: Option<Pos>,
     pub(crate) side_slider: Option<usize>,
     pub(crate) side_drag: Option<usize>,
     pub(crate) last_multi: bool,
+    pub(crate) side_bar_width: f64,
     ///do not show anything if it contains an imaginary part
     pub only_real: bool,
     ///if we should draw the functions in a modifiable way on the left or bottom side
@@ -248,8 +249,10 @@ pub struct Graph {
     pub keybinds: Keybinds,
     ///side bar height per line
     pub side_height: f32,
-    ///in horizontal view, minimum witdth side bar will be in pixels
+    ///in horizontal view, minimum width side bar will be in pixels
     pub min_side_width: f64,
+    ///in horizontal view, maximum width main graph will be in pixels in side bar view
+    pub min_screen_width: f64,
     ///in horizontal view, minimum ratio of the main screen will be targeted
     pub target_side_ratio: f64,
 }
@@ -285,7 +288,7 @@ impl Default for Graph {
             angle: Vec2::splat(PI / 6.0),
             slice: 0,
             mult: 1.0,
-            text_box: Pos::new(0.0, 0.0),
+            text_box: None,
             line_major: 8,
             line_minor: 4,
             is_complex: false,
@@ -311,6 +314,7 @@ impl Default for Graph {
             var: Vec2::new(-2.0, 2.0),
             last_interact: None,
             last_right_interact: None,
+            min_screen_width: 256.0,
             main_colors: vec![
                 Color::new(255, 85, 85),
                 Color::new(85, 85, 255),
@@ -341,6 +345,7 @@ impl Default for Graph {
             graph_mode: GraphMode::Normal,
             last_multi: false,
             prec: 1.0,
+            side_bar_width: 0.0,
             side_height: 1.875,
             recalculate: false,
             ruler_pos: None,
