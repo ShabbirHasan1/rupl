@@ -239,6 +239,7 @@ pub struct Graph {
     pub(crate) text_box: Pos,
     pub(crate) side_slider: Option<usize>,
     pub(crate) side_drag: Option<usize>,
+    pub(crate) last_multi: bool,
     ///do not show anything if it contains an imaginary part
     pub only_real: bool,
     ///if we should draw the functions in a modifiable way on the left or bottom side
@@ -338,6 +339,7 @@ impl Default for Graph {
             side_slider: None,
             side_drag: None,
             graph_mode: GraphMode::Normal,
+            last_multi: false,
             prec: 1.0,
             side_height: 1.875,
             recalculate: false,

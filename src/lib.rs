@@ -19,8 +19,8 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO only recalculate when needed
 //TODO fast3d multithread
 //TODO consider collecting data aggregately
-//TODO dragable point
 //TODO does storing Painter help perforamnce in skia?
+//TODO dragable point in polar
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -762,8 +762,11 @@ impl Graph {
                             self.name_modified = true;
                         } else if self.get_name(self.text_box.y as usize).is_empty() {
                             self.remove_name(self.text_box.y as usize);
-                            self.text_box.y = (self.text_box.y - 1.0).max(0.0);
-                            self.text_box.x = self.get_name(self.text_box.y as usize).len() as f32
+                            if self.text_box.y > 0.0 {
+                                self.text_box.y = (self.text_box.y - 1.0).max(0.0);
+                                self.text_box.x =
+                                    self.get_name(self.text_box.y as usize).len() as f32
+                            }
                         }
                     }
                     NamedKey::Enter => {
@@ -924,7 +927,9 @@ impl Graph {
                 }
                 i -= name.vars.len();
                 if i == 0 {
-                    self.names.remove(k);
+                    if name.vars.is_empty() {
+                        self.names.remove(k);
+                    }
                     return;
                 }
                 i -= 1;
@@ -941,11 +946,11 @@ impl Graph {
         } else {
             let mut i = j;
             for (k, name) in self.names.iter_mut().enumerate() {
-                if i < name.vars.len() {
-                    name.vars.insert(if var { i } else { i + 1 }, String::new());
+                if i <= name.vars.len() && (i > 0 || var) {
+                    name.vars.insert(i, String::new());
                     return;
                 }
-                i -= name.vars.len();
+                i = i.saturating_sub(name.vars.len());
                 if i == 0 {
                     if var {
                         name.vars.push(String::new())
@@ -1824,6 +1829,7 @@ impl Graph {
         }
         match &i.multi {
             Some(multi) => {
+                self.last_multi = true;
                 match multi.zoom_delta.total_cmp(&1.0) {
                     std::cmp::Ordering::Greater => {
                         if self.is_3d {
@@ -1880,7 +1886,7 @@ impl Graph {
                 }
             }
             _ if i.pointer.is_some() => {
-                if !i.pointer.unwrap_or(false) {
+                if !i.pointer.unwrap_or(false) && !self.last_multi {
                     if let (Some(interact), Some(last)) = (i.pointer_pos, self.last_interact) {
                         let delta = interact - last;
                         if self.is_3d {
@@ -1894,12 +1900,16 @@ impl Graph {
                         }
                     }
                 }
+                self.last_multi = false;
             }
             _ if self.mouse_held => {
+                self.last_multi = false;
                 self.mouse_held = false;
                 self.recalculate = true;
             }
-            _ => {}
+            _ => {
+                self.last_multi = false;
+            }
         }
         self.last_interact = i.pointer_pos;
         let (a, b, c) = (
