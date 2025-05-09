@@ -866,10 +866,10 @@ pub struct Vec3 {
     pub z: f64,
 }
 impl Vec3 {
-    pub(crate) fn splat(v: f64) -> Self {
+    pub fn splat(v: f64) -> Self {
         Self { x: v, y: v, z: v }
     }
-    pub(crate) fn new(x: f64, y: f64, z: f64) -> Self {
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
     }
 }
