@@ -20,7 +20,6 @@ fn is_3d(data: &[GraphType]) -> bool {
 //TODO fast3d multithread
 //TODO consider collecting data aggregately
 //TODO does storing Painter help perforamnce in skia?
-//TODO dragable point in polar
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -3082,21 +3081,13 @@ impl Graph {
                     GraphMode::DomainColoring | GraphMode::Depth | GraphMode::Flatten => {}
                 },
                 GraphType::Point(p) => match self.graph_mode {
-                    GraphMode::Normal | GraphMode::Slice => {
+                    GraphMode::Polar
+                    | GraphMode::SlicePolar
+                    | GraphMode::Normal
+                    | GraphMode::Slice => {
                         if !self.is_3d {
                             painter.rect_filled(
                                 self.to_screen(p.x, p.y),
-                                &self.main_colors[k % self.main_colors.len()],
-                            )
-                        }
-                    }
-                    GraphMode::Polar | GraphMode::SlicePolar => {
-                        if !self.is_3d {
-                            let r = p.y.hypot(p.x);
-                            let t = p.y.atan2(p.x);
-                            let (s, c) = t.sin_cos();
-                            painter.rect_filled(
-                                self.to_screen(r * c, r * s),
                                 &self.main_colors[k % self.main_colors.len()],
                             )
                         }
