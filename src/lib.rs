@@ -1804,7 +1804,7 @@ impl Graph {
                         .filter(|p| {
                             let dx = p.2.x - mpos.x as f32;
                             let dy = p.2.y - mpos.y as f32;
-                            dx * dx + dy * dy <= 16.0 * 16.0
+                            dx * dx + dy * dy <= 32.0 * 32.0
                         })
                         .collect();
                     if !pts.is_empty() {
@@ -1823,7 +1823,6 @@ impl Graph {
                         self.side_drag = Some(min.0);
                         self.name_modified = true;
                     }
-                    //TODO bit weird sometimes
                 } else if let Some(i) = self.side_drag {
                     let s = self.to_coord(mpos.to_pos());
                     let v = self
