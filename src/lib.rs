@@ -87,7 +87,12 @@ impl Graph {
     }
     ///sets screen dimensions
     pub fn set_screen(&mut self, width: f64, height: f64, offset: bool) {
-        let new = (height * self.target_side_ratio).min(width - self.min_side_width);
+        let new = (height * self.target_side_ratio).min(
+            width
+                - self
+                    .min_side_width
+                    .max((self.get_longest() as f32 * self.font_width) as f64 + 4.0),
+        );
         self.screen = if self.draw_side && offset {
             if height < width {
                 Vec2::new(new, height)
@@ -643,28 +648,43 @@ impl Graph {
             }
             if i.pointer_right.is_some() {
                 if let Some(last) = self.last_right_interact {
-                    let delta = ((mpos.x - last.x) / 32.0).exp();
-                    let name = self.get_name(new as usize);
-                    let mut body = |s: String| {
-                        self.replace_name(new as usize, s);
-                        self.name_modified = true;
-                    };
-                    if let Ok(f) = name.parse::<f64>() {
-                        body((f * delta).to_string())
-                    } else {
-                        let s = name
-                            .split('=')
-                            .map(|a| a.to_string())
-                            .collect::<Vec<String>>();
-                        if s.len() == 2 && s[0].chars().all(|c| c.is_alphabetic()) {
-                            if let Ok(f) = s[1].parse::<f64>() {
-                                body(format!("{}={}", s[0], f * delta))
+                    if let Some(new) = self.side_slider {
+                        let delta = ((mpos.x - last.x) / 32.0).exp();
+                        let name = self.get_name(new);
+                        let mut body = |s: String| {
+                            self.side_slider = Some(new);
+                            self.replace_name(new, s);
+                            self.name_modified = true;
+                        };
+                        if let Ok(f) = name.parse::<f64>() {
+                            body((f * delta).to_string())
+                        } else {
+                            let s = name
+                                .split('=')
+                                .map(|a| a.to_string())
+                                .collect::<Vec<String>>();
+                            if s.len() <= 2
+                                && !s.is_empty()
+                                && s[0].chars().all(|c| c.is_alphabetic())
+                            {
+                                if let Ok(f) = if s.len() == 2 {
+                                    s[1].parse::<f64>()
+                                } else {
+                                    s[0].parse::<f64>()
+                                } {
+                                    body(format!("{}={}", s[0], f * delta))
+                                }
                             }
                         }
                     }
+                } else if i.pointer_right.unwrap() && mpos.x < 0.0 {
+                    self.side_slider = Some(new as usize);
+                } else {
+                    self.side_slider = None
                 }
                 self.last_right_interact = Some(mpos)
             } else {
+                self.side_slider = None;
                 self.last_right_interact = None
             }
             if x < 0.0 && i.pointer.unwrap_or(false) {
@@ -784,6 +804,44 @@ impl Graph {
         }
         true
     }
+    fn get_points(&self) -> Vec<(usize, String, Pos)> {
+        let mut pts = Vec::new();
+        let mut i = 0;
+        macro_rules! register {
+            ($o: tt) => {
+                let o = $o;
+                let v = o.clone();
+                if !v.contains('=') {
+                    continue;
+                }
+                let sp: Vec<&str> = v.split('=').collect();
+                if sp.len() != 2 {
+                    continue;
+                }
+                let mut v = sp.last().unwrap().to_string();
+                if v.len() >= 5 && v.pop().unwrap() == '}' && v.remove(0) == '{' {
+                    let s: Vec<&str> = v.split(',').collect();
+                    if s.len() != 2 {
+                        continue;
+                    }
+                    let (Ok(a), Ok(b)) = (s[0].parse::<f64>(), s[1].parse::<f64>()) else {
+                        continue;
+                    };
+                    pts.push((i, sp.first().unwrap().to_string(), self.to_screen(a, b)));
+                }
+            };
+        }
+        for name in &self.names {
+            for o in &name.vars {
+                register!(o);
+                i += 1;
+            }
+            let o = &name.name;
+            register!(o);
+            i += 1;
+        }
+        pts
+    }
     fn get_name(&self, mut i: usize) -> String {
         for name in &self.names {
             if i < name.vars.len() {
@@ -796,6 +854,17 @@ impl Graph {
             i -= 1;
         }
         String::new()
+    }
+    fn get_longest(&self) -> usize {
+        self.names
+            .iter()
+            .map(|n| {
+                n.name
+                    .len()
+                    .max(n.vars.iter().map(|v| v.len()).max().unwrap_or_default())
+            })
+            .max()
+            .unwrap_or_default()
     }
     fn get_name_place(&self, mut i: usize) -> Option<usize> {
         for (k, name) in self.names.iter().enumerate() {
@@ -1707,6 +1776,47 @@ impl Graph {
                 }
             } else {
                 self.mouse_position = Some(mpos)
+            }
+            if i.pointer_right.is_some() && mpos.x > 0.0 {
+                if i.pointer_right.unwrap() {
+                    let pts: Vec<(usize, String, Pos)> = self
+                        .get_points()
+                        .into_iter()
+                        .filter(|p| {
+                            let dx = p.2.x - mpos.x as f32;
+                            let dy = p.2.y - mpos.y as f32;
+                            dx * dx + dy * dy <= 16.0 * 16.0
+                        })
+                        .collect();
+                    if !pts.is_empty() {
+                        let mut min: (usize, String, Pos) = pts[0].clone();
+                        if pts.len() > 1 {
+                            for p in pts {
+                                if p.2.y * p.2.y + p.2.x * p.2.x
+                                    < min.2.x * min.2.x + min.2.y * min.2.y
+                                {
+                                    min = p
+                                }
+                            }
+                        }
+                        let s = self.to_coord(mpos.to_pos());
+                        self.replace_name(min.0, format!("{}={{{},{}}}", min.1, s.0, s.1));
+                        self.side_drag = Some(min.0);
+                        self.name_modified = true;
+                    }
+                } else if let Some(i) = self.side_drag {
+                    let s = self.to_coord(mpos.to_pos());
+                    let v = self
+                        .get_name(i)
+                        .split('=')
+                        .next()
+                        .map(|s| s.to_string())
+                        .unwrap();
+                    self.replace_name(i, format!("{}={{{},{}}}", v, s.0, s.1));
+                    self.name_modified = true;
+                }
+            } else {
+                self.side_drag = None
             }
         }
         if ret {

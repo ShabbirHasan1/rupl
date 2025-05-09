@@ -237,6 +237,8 @@ pub struct Graph {
     pub(crate) cos_theta: f64,
     pub(crate) sin_theta: f64,
     pub(crate) text_box: Pos,
+    pub(crate) side_slider: Option<usize>,
+    pub(crate) side_drag: Option<usize>,
     ///do not show anything if it contains an imaginary part
     pub only_real: bool,
     ///if we should draw the functions in a modifiable way on the left or bottom side
@@ -333,6 +335,8 @@ impl Default for Graph {
             disable_lines: false,
             disable_axis: false,
             disable_coord: false,
+            side_slider: None,
+            side_drag: None,
             graph_mode: GraphMode::Normal,
             prec: 1.0,
             side_height: 1.875,
