@@ -533,7 +533,7 @@ impl Graph {
             )
         }
         let mut i = 0;
-        let mut text = |s: &str, i: usize, color: (Option<Color>, Option<Color>)| {
+        let mut text = |s: String, i: usize, color: (Option<Color>, Option<Color>)| {
             match color {
                 (Some(a), Some(b)) => {
                     painter.line_segment(
@@ -565,18 +565,17 @@ impl Graph {
                 }
                 (None, None) => {}
             }
-            self.text(
+            self.text_color(
                 Pos::new(4.0, i as f32 * delta + delta / 2.0),
                 Align::LeftCenter,
                 s,
-                &self.text_color,
                 painter,
             )
         };
         let mut k = 0;
         for n in self.names.iter() {
             for v in n.vars.iter() {
-                text(v, i, (Some(self.axis_color), None));
+                text(v.clone(), i, (Some(self.axis_color), None));
                 i += 1;
             }
             if !n.name.is_empty() {
@@ -590,7 +589,7 @@ impl Graph {
                 } else {
                     None
                 };
-                text(&n.name, i, (real, imag));
+                text(n.name.clone(), i, (real, imag));
                 k += 1;
             }
             i += 1;
@@ -927,7 +926,7 @@ impl Graph {
                 if i == 0 {
                     if name.vars.is_empty() {
                         self.names.remove(k);
-                    } else if l > k {
+                    } else if l > k + 1 {
                         let v = self.names[k].vars.clone();
                         self.names[k + 1].vars.splice(0..0, v);
                         self.names.remove(k);
@@ -1009,7 +1008,7 @@ impl Graph {
             match self.graph_mode {
                 GraphMode::DomainColoring => {}
                 GraphMode::Flatten | GraphMode::Depth => {
-                    self.text(pos, Align::RightTop, name, &self.text_color, painter);
+                    self.text_color(pos, Align::RightTop, name.clone(), painter);
                     painter.line_segment(
                         [
                             Pos::new(pos.x + 4.0, y),
@@ -1022,7 +1021,7 @@ impl Graph {
                 GraphMode::SlicePolar | GraphMode::Polar | GraphMode::Normal | GraphMode::Slice => {
                     match show {
                         Show::Real => {
-                            self.text(pos, Align::RightTop, name, &self.text_color, painter);
+                            self.text_color(pos, Align::RightTop, name.clone(), painter);
                             painter.line_segment(
                                 [
                                     Pos::new(pos.x + 4.0, y),
@@ -1033,13 +1032,7 @@ impl Graph {
                             );
                         }
                         Show::Imag => {
-                            self.text(
-                                pos,
-                                Align::RightTop,
-                                &format!("im:{}", name),
-                                &self.text_color,
-                                painter,
-                            );
+                            self.text_color(pos, Align::RightTop, format!("im:{name}"), painter);
                             painter.line_segment(
                                 [
                                     Pos::new(pos.x + 4.0, y),
@@ -1050,13 +1043,7 @@ impl Graph {
                             );
                         }
                         Show::Complex => {
-                            self.text(
-                                pos,
-                                Align::RightTop,
-                                &format!("re:{}", name),
-                                &self.text_color,
-                                painter,
-                            );
+                            self.text_color(pos, Align::RightTop, format!("re:{name}"), painter);
                             painter.line_segment(
                                 [
                                     Pos::new(pos.x + 4.0, y),
@@ -1067,13 +1054,7 @@ impl Graph {
                             );
                             pos.y += self.font_size;
                             let y = y + self.font_size;
-                            self.text(
-                                pos,
-                                Align::RightTop,
-                                &format!("im:{}", name),
-                                &self.text_color,
-                                painter,
-                            );
+                            self.text_color(pos, Align::RightTop, format!("im:{name}"), painter);
                             painter.line_segment(
                                 [
                                     Pos::new(pos.x + 4.0, y),
@@ -1162,15 +1143,32 @@ impl Graph {
         }
     }
     #[cfg(feature = "skia")]
-    fn text(&self, pos: Pos, align: Align, text: &str, col: &Color, painter: &mut Painter) {
-        painter.text(pos, align, text, col);
+    fn text(&self, pos: Pos, align: Align, text: &str, col: &Color, painter: &mut Painter) -> f32 {
+        painter.text(pos, align, text, col)
+    }
+    fn text_color(&self, mut pos: Pos, align: Align, text: String, painter: &mut Painter) {
+        match align {
+            Align::LeftCenter | Align::LeftBottom | Align::LeftTop => {
+                for (c, s) in self.color_string(text) {
+                    pos.x += self.text(pos, align, &s, &c, painter);
+                }
+            }
+            Align::RightCenter | Align::RightBottom | Align::RightTop => {
+                for (c, s) in self.color_string(text).iter().rev() {
+                    pos.x -= self.text(pos, align, s, c, painter);
+                }
+            }
+            _ => unreachable!(),
+        }
     }
     #[cfg(feature = "egui")]
-    fn text(&self, pos: Pos, align: Align, text: &str, col: &Color, painter: &mut Painter) {
-        painter.text(pos, align, text, col, self.font_size);
+    fn text(&self, pos: Pos, align: Align, text: &str, col: &Color, painter: &mut Painter) -> f32 {
+        painter.text(pos, align, text, col, self.font_size)
     }
     #[cfg(feature = "tiny-skia")]
-    fn text(&self, _: Pos, _: Align, _: &str, _: &Color, _: &mut Painter) {}
+    fn text(&self, _: Pos, _: Align, _: &str, _: &Color, _: &mut Painter) -> f32 {
+        0.0
+    }
     fn write_angle(&self, painter: &mut Painter) {
         if !self.disable_coord {
             self.text(
@@ -3143,6 +3141,118 @@ impl Graph {
                 DepthColor::None => *color,
             },
             None => *color,
+        }
+    }
+    fn color_string(&self, input: String) -> Vec<(Color, String)> {
+        if self.bracket_color.is_empty() {
+            vec![(self.text_color, input)]
+        } else {
+            let input = input.chars().collect::<Vec<char>>();
+            let mut vec = Vec::new();
+            let mut count: isize = (input
+                .iter()
+                .filter(|a| matches!(a, ')' | '}' | ']'))
+                .count() as isize
+                - input
+                    .iter()
+                    .filter(|a| matches!(a, '(' | '{' | '['))
+                    .count() as isize)
+                .max(0);
+            let mut output = String::new();
+            //let mut abs: Vec<(usize, isize)> = Vec::new();
+            let mut i = 0;
+            let mut color = self.text_color;
+            while i < input.len() {
+                let c = input[i];
+                match c {
+                    /*'|' => {
+                        if !abs.is_empty()
+                            && abs[0].1 == count
+                            && input[abs[0].0 + 1..i]
+                                .iter()
+                                .filter(|c| !c.is_ascii_whitespace())
+                                .count()
+                                != 0
+                            && match input[..i].iter().rev().position(|c| !c.is_alphabetic()) {
+                                Some(n) => {
+                                    let s = input[i - n..i].iter().collect::<String>();
+                                    let sb = &(s.clone() + "(");
+                                    !(functions().contains(s.as_str())
+                                        || vars
+                                            .iter()
+                                            .any(|c| c.name.iter().collect::<String>().starts_with(sb)))
+                                }
+                                _ => true,
+                            }
+                        {
+                            count -= 1;
+                            abs.remove(0);
+                            output.push_str(&format!(
+                                "{}|{}",
+                                colors.brackets[count as usize % colors.brackets.len()],
+                                colors.text
+                            ))
+                        } else if i + 1 == input.len()
+                            || input[i + 1] != '|'
+                            || i == 0
+                            || input[0..=i - 1]
+                                .iter()
+                                .rev()
+                                .filter(|c| !c.is_ascii_whitespace())
+                                .take(1)
+                                .all(|c| matches!(c, '(' | '{' | '[' | '|'))
+                        {
+                            output.push_str(&format!(
+                                "{}|{}",
+                                colors.brackets[count as usize % colors.brackets.len()],
+                                colors.text
+                            ));
+                            count += 1;
+                            abs.insert(0, (i, count));
+                        } else {
+                            i += 1;
+                            output.push_str("||")
+                        }
+                    }*/
+                    '(' | '{' | '[' => {
+                        let col = self.bracket_color[count as usize % self.bracket_color.len()];
+                        if color != col {
+                            if !output.is_empty() {
+                                vec.push((color, std::mem::take(&mut output)));
+                            }
+                            color = col;
+                        }
+                        vec.push((col, c.to_string()));
+                        count += 1
+                    }
+                    ')' | '}' | ']' => {
+                        count -= 1;
+                        let col = self.bracket_color[count as usize % self.bracket_color.len()];
+                        if color != col {
+                            if !output.is_empty() {
+                                vec.push((color, std::mem::take(&mut output)));
+                            }
+                            color = col;
+                        }
+                        vec.push((col, c.to_string()))
+                    }
+                    '@' => {}
+                    _ => {
+                        if color != self.text_color {
+                            if !output.is_empty() {
+                                vec.push((color, std::mem::take(&mut output)));
+                            }
+                            color = self.text_color;
+                        }
+                        output.push(c)
+                    }
+                }
+                i += 1;
+            }
+            if !output.is_empty() {
+                vec.push((color, std::mem::take(&mut output)));
+            }
+            vec
         }
     }
 }

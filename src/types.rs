@@ -272,6 +272,8 @@ pub struct Graph {
     pub min_screen_width: f64,
     ///in horizontal view, minimum ratio of the main screen will be targeted
     pub target_side_ratio: f64,
+    /// bracket color based on depth of brackets
+    pub bracket_color: Vec<Color>,
 }
 impl Default for Graph {
     fn default() -> Self {
@@ -366,6 +368,14 @@ impl Default for Graph {
             side_height: 1.875,
             recalculate: false,
             ruler_pos: None,
+            bracket_color: vec![
+                Color::new(255, 85, 85),
+                //Color::new(85, 255, 85),
+                //Color::new(255, 255, 85),
+                Color::new(85, 85, 255),
+                Color::new(255, 85, 255),
+                //Color::new(85, 255, 255),
+            ],
             cos_phi: 0.0,
             sin_phi: 0.0,
             cos_theta: 0.0,
@@ -438,6 +448,7 @@ impl Clone for Graph {
             prec: self.prec,
             mouse_held: self.mouse_held,
             mult: self.mult,
+            bracket_color: self.bracket_color.clone(),
             line_major: self.line_major,
             line_minor: self.line_minor,
             draw_offset: self.draw_offset,

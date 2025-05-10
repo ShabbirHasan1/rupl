@@ -1,5 +1,5 @@
 use crate::types::{Color, Image, Pos, Vec2};
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", feature = "skia"))]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "egui")]
 pub(crate) struct Painter<'a> {
@@ -123,14 +123,16 @@ impl<'a> Painter<'a> {
         p2: &str,
         p4: &Color,
         font_size: f32,
-    ) {
-        self.painter.text(
-            (p0 + self.offset).to_pos2(),
-            p1.into(),
-            p2,
-            egui::FontId::monospace(font_size),
-            p4.to_col(),
-        );
+    ) -> f32 {
+        self.painter
+            .text(
+                (p0 + self.offset).to_pos2(),
+                p1.into(),
+                p2,
+                egui::FontId::monospace(font_size),
+                p4.to_col(),
+            )
+            .width()
     }
 }
 #[cfg(feature = "skia")]
@@ -348,8 +350,8 @@ impl Painter {
             );
         }
     }
-    pub(crate) fn text(&mut self, p0: Pos, p1: crate::types::Align, p2: &str, p4: &Color) {
-        let Some(font) = &self.font else { return };
+    pub(crate) fn text(&mut self, p0: Pos, p1: crate::types::Align, p2: &str, p4: &Color) -> f32 {
+        let Some(font) = &self.font else { return 0.0 };
         let mut pos = (self.offset + p0).to_pos2();
         let paint = make_paint(1.0, p4, false, false);
         let strs = p2.split('\n').collect::<Vec<&str>>();
@@ -422,6 +424,11 @@ impl Painter {
                     body(s)
                 }
             }
+        }
+        if let Some(f) = &self.font {
+            f.measure_str(p2, None).0
+        } else {
+            0.0
         }
     }
 }
