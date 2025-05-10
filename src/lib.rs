@@ -9,18 +9,6 @@ fn is_3d(data: &[GraphType]) -> bool {
     data.iter()
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
 }
-//TODO optional x/y float types
-//TODO wasm
-//TODO 2d logscale
-//TODO 2d axis labels
-//TODO labels in flatten/depth/domain coloring
-//TODO vulkan renderer
-//TODO only refresh when needed
-//TODO only recalculate when needed
-//TODO fast3d multithread
-//TODO consider collecting data aggregately
-//TODO does storing Painter help perforamnce in skia?
-//TODO 3d points and manipulation
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
