@@ -50,7 +50,7 @@ impl Graph {
     }
     //use dark mode default colors
     pub fn set_dark_mode(&mut self) {
-        self.axis_color = Color::splat(255);
+        self.axis_color = Color::splat(220);
         self.axis_color_light = Color::splat(35);
         self.text_color = Color::splat(255);
         self.background_color = Color::splat(0);
@@ -512,7 +512,16 @@ impl Graph {
             painter.offset = Pos::new(0.0, self.screen.x as f32);
             painter.hline(self.screen.x as f32, 0.0, &self.axis_color);
         } else {
+            painter.line_segment(
+                [
+                    Pos::new(0.0, self.screen.y as f32 - 1.0),
+                    Pos::new(offset.x, self.screen.y as f32 - 1.0),
+                ],
+                1.0,
+                &self.axis_color,
+            );
             painter.vline(offset.x, self.screen.y as f32, &self.axis_color);
+            painter.vline(0.0, self.screen.y as f32, &self.axis_color);
         }
         let delta = self.font_size * self.side_height;
         for i in 0..=if is_portrait {
@@ -974,11 +983,7 @@ impl Graph {
     fn remove_char(&mut self, mut i: usize, j: usize) {
         for name in self.names.iter_mut() {
             if i < name.vars.len() {
-                if name.vars[i].len() == 1 {
-                    name.vars.remove(i);
-                } else {
-                    name.vars[i].remove(j);
-                }
+                name.vars[i].remove(j);
                 return;
             }
             i -= name.vars.len();
