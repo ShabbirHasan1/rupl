@@ -38,7 +38,7 @@ impl Graph {
                 &self.axis_color,
             )
         }
-        if let (Some((a, b)), Some((_, y))) = (self.select, self.text_box) {
+        if let (Some((a, b, _)), Some((_, y))) = (self.select, self.text_box) {
             painter.highlight(
                 a as f32 * self.font_width + 4.0,
                 y as f32 * delta,
@@ -154,23 +154,66 @@ impl Graph {
                     let x = ((x as f32 / self.font_width).round() as usize)
                         .min(self.get_name(new as usize).len());
                     self.text_box = Some((x, new as usize));
-                    self.select = Some((x, x));
+                    self.select = Some((x, x, None));
                 }
             }
             if i.pointer.is_some() {
                 if let Some((_, b)) = self.text_box {
                     let x =
                         ((x as f32 / self.font_width).round() as usize).min(self.get_name(b).len());
-                    let Some((a, b)) = self.select.as_mut() else {
+                    let (Some((a, b, right)), Some((tx, _))) =
+                        (self.select.as_mut(), self.text_box.as_mut())
+                    else {
                         unreachable!()
                     };
-                    if x.abs_diff(*a) <= x.abs_diff(*b) {
-                        *a = x
-                    } else {
-                        *b = x
-                    }
-                    if *a > *b {
-                        (*a, *b) = (*b, *a)
+                    let da = x.abs_diff(*a);
+                    let db = x.abs_diff(*b);
+                    match da.cmp(&db) {
+                        std::cmp::Ordering::Less => {
+                            if da == 0 && db == 1 && *right == Some(true) {
+                                *right = None;
+                                *tx = x;
+                                *b = x
+                            } else {
+                                *right = Some(false);
+                                *tx = x;
+                                *a = x
+                            }
+                        }
+                        std::cmp::Ordering::Equal if x > *b => {
+                            *tx = x;
+                            *b = x
+                        }
+                        std::cmp::Ordering::Equal if x < *a => {
+                            *tx = x;
+                            *a = x
+                        }
+                        std::cmp::Ordering::Greater => {
+                            if db == 0 && da == 1 && *right == Some(false) {
+                                *right = None;
+                                *tx = x;
+                                *a = x
+                            } else {
+                                *right = Some(true);
+                                *tx = x;
+                                *b = x
+                            }
+                        }
+                        std::cmp::Ordering::Equal => {
+                            if let Some(right) = right {
+                                if *right {
+                                    {
+                                        *tx = x;
+                                        *b = x
+                                    }
+                                } else {
+                                    {
+                                        *tx = x;
+                                        *a = x
+                                    }
+                                }
+                            }
+                        }
                     }
                 } else {
                     self.select = None;
@@ -259,7 +302,7 @@ impl Graph {
             match key.into() {
                 KeyStr::Character(a) if !i.modifiers.ctrl => modify(self, &mut text_box, a),
                 KeyStr::Character(a) => match a.as_str() {
-                    "a" => self.select = Some((0, self.get_name(text_box.1).len())),
+                    "a" => self.select = Some((0, self.get_name(text_box.1).len(), None)),
                     "z" => {} //TODO
                     "y" => {}
                     "c" => {}
@@ -288,7 +331,7 @@ impl Graph {
                         }
                     }
                     NamedKey::Backspace => {
-                        let (a, b) = self.select.unwrap_or_default();
+                        let (a, b, _) = self.select.unwrap_or_default();
                         if a != b {
                             self.select = None;
                             for _ in a..b {
