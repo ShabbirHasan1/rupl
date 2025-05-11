@@ -256,28 +256,49 @@ impl Graph {
             };
             match key.into() {
                 KeyStr::Character(a) if !i.modifiers.ctrl => {
-                    self.history.push(Change::Pos(text_box));
-                    modify(self, &mut text_box, a)
+                    self.history_push(Change::Char(text_box, a));
+                    modify(self, &mut text_box, a.to_string())
                 }
-                KeyStr::Character(a) => match a.as_str() {
-                    "a" => self.select = Some((0, self.get_name(text_box.1).len(), None)),
-                    "z" => match self.history.pop() {
-                        Some(Change::Pos((a, b))) => {
-                            self.remove_char(b, a);
-                            text_box = (a, b);
+                KeyStr::Character(a) => match a {
+                    'a' => self.select = Some((0, self.get_name(text_box.1).len(), None)),
+                    'z' if !self.history.is_empty() && self.history_pos != self.history.len() => {
+                        self.name_modified = true;
+                        match self.history[self.history.len() - self.history_pos - 1] {
+                            Change::Char((a, b), _) => {
+                                self.remove_char(b, a);
+                                text_box = (a, b);
+                                self.history_pos += 1;
+                            }
+                            Change::Del((a, b), c) => {
+                                text_box = (a, b);
+                                modify(self, &mut text_box, c.to_string());
+                                self.history_pos += 1;
+                            }
                         }
-                        Some(_) => todo!(),
-                        None => {}
-                    },
-                    "y" => {}
-                    "c" => {
+                    }
+                    'y' if !self.history.is_empty() && self.history_pos != 0 => {
+                        self.name_modified = true;
+                        match self.history[self.history.len() - self.history_pos] {
+                            Change::Char((a, b), c) => {
+                                text_box = (a, b);
+                                modify(self, &mut text_box, c.to_string());
+                                self.history_pos -= 1;
+                            }
+                            Change::Del((a, b), _) => {
+                                self.remove_char(b, a);
+                                text_box = (a, b);
+                                self.history_pos -= 1;
+                            }
+                        }
+                    }
+                    'c' => {
                         let (a, b, _) = self.select.unwrap_or_default();
                         if a != b {
                             let text = &self.get_name(text_box.1)[a..b];
                             self.clipboard.as_mut().unwrap().set_text(text).unwrap()
                         }
                     }
-                    "v" => {
+                    'v' => {
                         let (a, b, _) = self.select.unwrap_or_default();
                         if a != b {
                             self.select = None;
@@ -291,7 +312,7 @@ impl Graph {
                         }
                         self.name_modified = true;
                     }
-                    "x" => {
+                    'x' => {
                         let (a, b, _) = self.select.unwrap_or_default();
                         if a != b {
                             self.select = None;
@@ -356,8 +377,9 @@ impl Graph {
                             }
                             text_box.0 = a;
                         } else if text_box.0 != 0 {
-                            self.remove_char(text_box.1, text_box.0 - 1);
+                            let c = self.remove_char(text_box.1, text_box.0 - 1);
                             text_box.0 -= 1;
+                            self.history_push(Change::Del(text_box, c.unwrap()));
                         } else if self.get_name(text_box.1).is_empty() {
                             self.remove_name(text_box.1);
                             if text_box.1 > 0 {
@@ -596,6 +618,13 @@ impl Graph {
             i += 1 + name.vars.len()
         }
         i
+    }
+    pub(crate) fn history_push(&mut self, c: Change) {
+        if !self.history.is_empty() {
+            self.history.drain(self.history.len() - self.history_pos..);
+            self.history_pos = 0;
+        }
+        self.history.push(c)
     }
     pub(crate) fn select_move(&mut self, x: usize) {
         let (Some((a, b, right)), Some((tx, _))) = (self.select.as_mut(), self.text_box.as_mut())
