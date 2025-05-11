@@ -41,7 +41,7 @@ impl Graph {
         if let (Some((a, b, _)), Some((_, y))) = (self.select, self.text_box) {
             painter.highlight(
                 a as f32 * self.font_width + 4.0,
-                y as f32 * delta,
+                y as f32 * delta + 1.0,
                 b as f32 * self.font_width + 4.0,
                 (y + 1) as f32 * delta,
                 &self.select_color,
@@ -114,6 +114,14 @@ impl Graph {
             let y = text_box.1 as f32 * delta;
             painter.line_segment(
                 [Pos::new(x + 4.0, y), Pos::new(x + 4.0, y + delta)],
+                1.0,
+                &self.text_color,
+            );
+            painter.line_segment(
+                [
+                    Pos::new(offset.x - 1.0, y),
+                    Pos::new(offset.x - 1.0, y + delta),
+                ],
                 1.0,
                 &self.text_color,
             );
@@ -247,10 +255,20 @@ impl Graph {
                 g.name_modified = true;
             };
             match key.into() {
-                KeyStr::Character(a) if !i.modifiers.ctrl => modify(self, &mut text_box, a),
+                KeyStr::Character(a) if !i.modifiers.ctrl => {
+                    self.history.push(Change::Pos(text_box));
+                    modify(self, &mut text_box, a)
+                }
                 KeyStr::Character(a) => match a.as_str() {
                     "a" => self.select = Some((0, self.get_name(text_box.1).len(), None)),
-                    "z" => {} //TODO
+                    "z" => match self.history.pop() {
+                        Some(Change::Pos((a, b))) => {
+                            self.remove_char(b, a);
+                            text_box = (a, b);
+                        }
+                        Some(_) => todo!(),
+                        None => {}
+                    },
                     "y" => {}
                     "c" => {
                         let (a, b, _) = self.select.unwrap_or_default();
@@ -323,7 +341,7 @@ impl Graph {
                         self.recalculate = true;
                     }
                     NamedKey::Tab => {
-                        if i.modifiers.shift && i.modifiers.ctrl {
+                        if i.modifiers.shift {
                             up(self, &mut text_box)
                         } else {
                             down(self, &mut text_box)

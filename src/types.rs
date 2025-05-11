@@ -138,6 +138,12 @@ impl Angle {
         }
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy)]
+pub enum Change {
+    Char((usize, usize), char),
+    Pos((usize, usize)),
+}
 #[cfg(feature = "tiny-skia")]
 pub(crate) struct Image(pub tiny_skia::Pixmap);
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -261,6 +267,7 @@ pub struct Graph {
     pub(crate) side_bar_width: f64,
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
     pub(crate) clipboard: Option<arboard::Clipboard>,
+    pub(crate) history: Vec<Change>,
     ///do not show anything if it contains an imaginary part
     pub only_real: bool,
     ///if we should draw the functions in a modifiable way on the left or bottom side
@@ -294,6 +301,7 @@ impl Default for Graph {
         Self {
             is_3d: false,
             clipboard,
+            history: Vec::new(),
             is_3d_data: false,
             names: Vec::new(),
             fast_3d: false,
@@ -393,7 +401,7 @@ impl Default for Graph {
             keybinds: Keybinds::default(),
             target_side_ratio: 3.0 / 2.0,
             min_side_width: 256.0,
-            select_color: Color::new(190, 150, 130),
+            select_color: Color::new(191, 191, 255),
         }
     }
 }
@@ -416,6 +424,7 @@ impl Clone for Graph {
             fast_3d_move: self.fast_3d_move,
             reduced_move: self.reduced_move,
             bound: self.bound,
+            history: self.history.clone(),
             is_complex: self.is_complex,
             offset3d: self.offset3d,
             offset: self.offset,
