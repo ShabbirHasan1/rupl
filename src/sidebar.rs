@@ -161,60 +161,7 @@ impl Graph {
                 if let Some((_, b)) = self.text_box {
                     let x =
                         ((x as f32 / self.font_width).round() as usize).min(self.get_name(b).len());
-                    let (Some((a, b, right)), Some((tx, _))) =
-                        (self.select.as_mut(), self.text_box.as_mut())
-                    else {
-                        unreachable!()
-                    };
-                    let da = x.abs_diff(*a);
-                    let db = x.abs_diff(*b);
-                    match da.cmp(&db) {
-                        std::cmp::Ordering::Less => {
-                            if da == 0 && db == 1 && *right == Some(true) {
-                                *right = None;
-                                *tx = x;
-                                *b = x
-                            } else {
-                                *right = Some(false);
-                                *tx = x;
-                                *a = x
-                            }
-                        }
-                        std::cmp::Ordering::Equal if x > *b => {
-                            *tx = x;
-                            *b = x
-                        }
-                        std::cmp::Ordering::Equal if x < *a => {
-                            *tx = x;
-                            *a = x
-                        }
-                        std::cmp::Ordering::Greater => {
-                            if db == 0 && da == 1 && *right == Some(false) {
-                                *right = None;
-                                *tx = x;
-                                *a = x
-                            } else {
-                                *right = Some(true);
-                                *tx = x;
-                                *b = x
-                            }
-                        }
-                        std::cmp::Ordering::Equal => {
-                            if let Some(right) = right {
-                                if *right {
-                                    {
-                                        *tx = x;
-                                        *b = x
-                                    }
-                                } else {
-                                    {
-                                        *tx = x;
-                                        *a = x
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    self.select_move(x);
                 } else {
                     self.select = None;
                 }
@@ -305,18 +252,52 @@ impl Graph {
                     "a" => self.select = Some((0, self.get_name(text_box.1).len(), None)),
                     "z" => {} //TODO
                     "y" => {}
-                    "c" => {}
-                    "v" => {}
-                    "x" => {}
+                    "c" => {
+                        let (a, b, _) = self.select.unwrap_or_default();
+                        if a != b {
+                            let text = &self.get_name(text_box.1)[a..b];
+                            self.clipboard.as_mut().unwrap().set_text(text).unwrap()
+                        }
+                    }
+                    "v" => {
+                        let (a, b, _) = self.select.unwrap_or_default();
+                        if a != b {
+                            self.select = None;
+                            for _ in a..b {
+                                self.remove_char(text_box.1, a);
+                            }
+                            text_box.0 = a;
+                        }
+                        for c in self.clipboard.as_mut().unwrap().get_text().unwrap().chars() {
+                            modify(self, &mut text_box, c.to_string())
+                        }
+                    }
+                    "x" => {
+                        let (a, b, _) = self.select.unwrap_or_default();
+                        if a != b {
+                            self.select = None;
+                            let text = (a..b)
+                                .filter_map(|_| self.remove_char(text_box.1, a))
+                                .collect::<String>();
+                            self.clipboard.as_mut().unwrap().set_text(text).unwrap();
+                            text_box.0 = a;
+                        }
+                    }
                     _ => {}
                 },
                 KeyStr::Named(key) => match key {
                     NamedKey::ArrowDown => down(self, &mut text_box),
                     NamedKey::ArrowLeft => {
                         text_box.0 = text_box.0.saturating_sub(1);
+                        if i.modifiers.shift {
+                            self.select_move(text_box.0);
+                        }
                     }
                     NamedKey::ArrowRight => {
-                        text_box.0 = (text_box.0 + 1).min(self.get_name(text_box.1).len())
+                        text_box.0 = (text_box.0 + 1).min(self.get_name(text_box.1).len());
+                        if i.modifiers.shift {
+                            self.select_move(text_box.0);
+                        }
                     }
                     NamedKey::ArrowUp => up(self, &mut text_box),
                     NamedKey::Escape => {
@@ -560,19 +541,18 @@ impl Graph {
             }
         }
     }
-    pub(crate) fn remove_char(&mut self, mut i: usize, j: usize) {
+    pub(crate) fn remove_char(&mut self, mut i: usize, j: usize) -> Option<char> {
         for name in self.names.iter_mut() {
             if i < name.vars.len() {
-                name.vars[i].remove(j);
-                return;
+                return Some(name.vars[i].remove(j));
             }
             i -= name.vars.len();
             if i == 0 {
-                name.name.remove(j);
-                break;
+                return Some(name.name.remove(j));
             }
             i -= 1;
         }
+        None
     }
     pub(crate) fn get_name_len(&self) -> usize {
         let mut i = 0;
@@ -580,5 +560,60 @@ impl Graph {
             i += 1 + name.vars.len()
         }
         i
+    }
+    pub(crate) fn select_move(&mut self, x: usize) {
+        let (Some((a, b, right)), Some((tx, _))) = (self.select.as_mut(), self.text_box.as_mut())
+        else {
+            unreachable!()
+        };
+        let da = x.abs_diff(*a);
+        let db = x.abs_diff(*b);
+        match da.cmp(&db) {
+            std::cmp::Ordering::Less => {
+                if da == 0 && db == 1 && *right == Some(true) {
+                    *right = None;
+                    *tx = x;
+                    *b = x
+                } else {
+                    *right = Some(false);
+                    *tx = x;
+                    *a = x
+                }
+            }
+            std::cmp::Ordering::Equal if x > *b => {
+                *tx = x;
+                *b = x
+            }
+            std::cmp::Ordering::Equal if x < *a => {
+                *tx = x;
+                *a = x
+            }
+            std::cmp::Ordering::Greater => {
+                if db == 0 && da == 1 && *right == Some(false) {
+                    *right = None;
+                    *tx = x;
+                    *a = x
+                } else {
+                    *right = Some(true);
+                    *tx = x;
+                    *b = x
+                }
+            }
+            std::cmp::Ordering::Equal => {
+                if let Some(right) = right {
+                    if *right {
+                        {
+                            *tx = x;
+                            *b = x
+                        }
+                    } else {
+                        {
+                            *tx = x;
+                            *a = x
+                        }
+                    }
+                }
+            }
+        }
     }
 }

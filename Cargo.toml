@@ -10,13 +10,14 @@ repository = "https://github.com/bgkillas/rupl"
 homepage = "https://github.com/bgkillas/rupl"
 
 [features]
-default = ["skia", "winit", "rayon", "serde"]
+default = ["skia", "winit", "rayon", "serde", "arboard"]
 egui = ["dep:egui"]
 skia = ["dep:skia-safe"]
 tiny-skia = ["dep:tiny-skia"]
 winit = ["dep:winit"]
 rayon = ["dep:rayon"]
 serde = ["dep:serde"]
+arboard = ["dep:arboard"]
 
 [dependencies]
 rayon = { version = "1.10.0", optional = true }
@@ -24,4 +25,5 @@ winit = { version = "0.30.9", optional = true }
 egui = { version = "0.31.1", optional = true }
 skia-safe = { version = "0.84.0", optional = true }
 tiny-skia = { version = "0.11.4", optional = true }
-serde = {version = "1.0.219",features = ["derive"], optional = true }
+serde = { version = "1.0.219", features = ["derive"], optional = true }
+arboard = { version = "3.5.0", features = ["wayland-data-control"], optional = true }

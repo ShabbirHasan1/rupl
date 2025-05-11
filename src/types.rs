@@ -259,6 +259,8 @@ pub struct Graph {
     pub(crate) side_drag: Option<usize>,
     pub(crate) last_multi: bool,
     pub(crate) side_bar_width: f64,
+    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    pub(crate) clipboard: Option<arboard::Clipboard>,
     ///do not show anything if it contains an imaginary part
     pub only_real: bool,
     ///if we should draw the functions in a modifiable way on the left or bottom side
@@ -287,8 +289,10 @@ impl Default for Graph {
         let font_size = 18.0;
         #[cfg(feature = "skia")]
         let font = Some(skia_safe::Font::new(typeface, font_size));
+        let clipboard = Some(arboard::Clipboard::new().unwrap());
         Self {
             is_3d: false,
+            clipboard,
             is_3d_data: false,
             names: Vec::new(),
             fast_3d: false,
@@ -399,6 +403,7 @@ impl Clone for Graph {
             names: self.names.clone(),
             cache: None,
             select: self.select,
+            clipboard: None,
             #[cfg(feature = "skia")]
             font: None,
             font_size: self.font_size,
