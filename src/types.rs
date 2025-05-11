@@ -289,6 +289,7 @@ impl Default for Graph {
         let font_size = 18.0;
         #[cfg(feature = "skia")]
         let font = Some(skia_safe::Font::new(typeface, font_size));
+        //TODO should be abstracted since egui has its own clipboard
         let clipboard = Some(arboard::Clipboard::new().unwrap());
         Self {
             is_3d: false,

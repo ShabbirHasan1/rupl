@@ -271,6 +271,7 @@ impl Graph {
                         for c in self.clipboard.as_mut().unwrap().get_text().unwrap().chars() {
                             modify(self, &mut text_box, c.to_string())
                         }
+                        self.name_modified = true;
                     }
                     "x" => {
                         let (a, b, _) = self.select.unwrap_or_default();
@@ -282,24 +283,41 @@ impl Graph {
                             self.clipboard.as_mut().unwrap().set_text(text).unwrap();
                             text_box.0 = a;
                         }
+                        self.name_modified = true;
                     }
                     _ => {}
                 },
                 KeyStr::Named(key) => match key {
-                    NamedKey::ArrowDown => down(self, &mut text_box),
+                    NamedKey::ArrowDown => {
+                        self.select = None;
+                        down(self, &mut text_box)
+                    }
                     NamedKey::ArrowLeft => {
+                        if self.select.is_none() {
+                            self.select = Some((text_box.0, text_box.0, None))
+                        }
                         text_box.0 = text_box.0.saturating_sub(1);
                         if i.modifiers.shift {
                             self.select_move(text_box.0);
+                        } else {
+                            self.select = None;
                         }
                     }
                     NamedKey::ArrowRight => {
+                        if self.select.is_none() {
+                            self.select = Some((text_box.0, text_box.0, None))
+                        }
                         text_box.0 = (text_box.0 + 1).min(self.get_name(text_box.1).len());
                         if i.modifiers.shift {
                             self.select_move(text_box.0);
+                        } else {
+                            self.select = None;
                         }
                     }
-                    NamedKey::ArrowUp => up(self, &mut text_box),
+                    NamedKey::ArrowUp => {
+                        self.select = None;
+                        up(self, &mut text_box)
+                    }
                     NamedKey::Escape => {
                         self.draw_side = false;
                         self.recalculate = true;
