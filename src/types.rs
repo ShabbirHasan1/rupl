@@ -275,6 +275,8 @@ pub struct Graph {
     pub target_side_ratio: f64,
     /// bracket color based on depth of brackets
     pub bracket_color: Vec<Color>,
+    /// what color the text drag select will be
+    pub select_color: Color,
 }
 impl Default for Graph {
     fn default() -> Self {
@@ -386,6 +388,7 @@ impl Default for Graph {
             keybinds: Keybinds::default(),
             target_side_ratio: 3.0 / 2.0,
             min_side_width: 256.0,
+            select_color: Color::new(190, 150, 130),
         }
     }
 }
@@ -411,6 +414,7 @@ impl Clone for Graph {
             offset3d: self.offset3d,
             offset: self.offset,
             angle: self.angle,
+            select_color: self.select_color,
             ignore_bounds: self.ignore_bounds,
             zoom: self.zoom,
             slice: self.slice,

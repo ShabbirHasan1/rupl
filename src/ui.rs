@@ -44,6 +44,13 @@ impl<'a> Painter<'a> {
             egui::Stroke::new(p3, p2.to_col()),
         );
     }
+    pub(crate) fn highlight(&mut self, xi: f32, yi: f32, xf: f32, yf: f32, color: &Color) {
+        self.painter.rect_filled(
+            egui::Rect::from_points(&[egui::Pos2::new(xi, yi), egui::Pos2::new(xf, yf)]),
+            0.0,
+            color.to_col(),
+        );
+    }
     pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
         self.painter.rect_filled(
             egui::Rect::from_points(&[
@@ -249,7 +256,13 @@ impl Painter {
             self.clear_pts();
         }
     }
-    //pub(crate) fn highlight(&mut self) {}
+    pub(crate) fn highlight(&mut self, xi: f32, yi: f32, xf: f32, yf: f32, color: &Color) {
+        let mut paint = make_paint(1.0, color, false, true);
+        paint.set_style(skia_safe::PaintStyle::Fill);
+        self.canvas
+            .canvas()
+            .draw_rect(skia_safe::Rect::from_ltrb(xi, yi, xf, yf), &paint);
+    }
     pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
         let mut paint = make_paint(1.0, background, false, true);
         paint.set_style(skia_safe::PaintStyle::Fill);
@@ -551,6 +564,14 @@ impl Painter {
             )
             .unwrap(),
             &make_paint(p2, true),
+            tiny_skia::Transform::default(),
+            None,
+        );
+    }
+    pub(crate) fn highlight(&mut self, xi: f32, yi: f32, xf: f32, yf: f32, color: &Color) {
+        self.canvas.fill_rect(
+            tiny_skia::Rect::from_ltrb(xi, yi, xf, yf).unwrap(),
+            &make_paint(&color, false),
             tiny_skia::Transform::default(),
             None,
         );
