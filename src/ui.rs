@@ -249,6 +249,7 @@ impl Painter {
             self.clear_pts();
         }
     }
+    //pub(crate) fn highlight(&mut self) {}
     pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
         let mut paint = make_paint(1.0, background, false, true);
         paint.set_style(skia_safe::PaintStyle::Fill);

@@ -604,8 +604,8 @@ impl Graph {
             i += 1;
         }
         if let Some(text_box) = self.text_box {
-            let x = text_box.x * self.font_width;
-            let y = text_box.y * delta;
+            let x = text_box.0 as f32 * self.font_width;
+            let y = text_box.1 as f32 * delta;
             painter.line_segment(
                 [Pos::new(x + 4.0, y), Pos::new(x + 4.0, y + delta)],
                 1.0,
@@ -639,19 +639,39 @@ impl Graph {
                 } {
                     self.text_box = None
                 } else if self.text_box.is_none() {
-                    self.text_box = Some(Pos::new(0.0, 0.0))
+                    self.text_box = Some((0, 0))
                 }
             }
             if self.text_box.is_some() {
                 stop_keybinds = true;
                 if i.pointer.unwrap_or(false) && new >= 0.0 {
-                    self.text_box = Some(Pos::new(
-                        (x as f32 / self.font_width)
-                            .round()
-                            .min(self.get_name(new as usize).len() as f32),
-                        new,
-                    ));
+                    let x = ((x as f32 / self.font_width).round() as usize)
+                        .min(self.get_name(new as usize).len());
+                    self.text_box = Some((x, new as usize));
+                    self.select = Some((x, x));
                 }
+            }
+            if i.pointer.is_some() {
+                if let Some((_, b)) = self.text_box {
+                    let x =
+                        ((x as f32 / self.font_width).round() as usize).min(self.get_name(b).len());
+                    let Some((a, b)) = self.select.as_mut() else {
+                        unreachable!()
+                    };
+                    if x.abs_diff(*a) <= x.abs_diff(*b) {
+                        *a = x
+                    } else {
+                        *b = x
+                    }
+                    if *a > *b {
+                        (*a, *b) = (*b, *a)
+                    }
+                    println!("{} {}", a, b);
+                } else {
+                    self.select = None;
+                }
+            } else {
+                self.select = None;
             }
             if i.pointer_right.is_some() {
                 if let Some(last) = self.last_right_interact {
@@ -712,25 +732,25 @@ impl Graph {
             unreachable!()
         };
         for key in &i.keys_pressed {
-            let down = |g: &Graph, text_box: &mut Pos| {
-                text_box.y = (text_box.y + 1.0).min(g.get_name_len() as f32);
-                text_box.x = text_box.x.min(g.get_name(text_box.y as usize).len() as f32)
+            let down = |g: &Graph, text_box: &mut (usize, usize)| {
+                text_box.1 = (text_box.1 + 1).min(g.get_name_len());
+                text_box.0 = text_box.0.min(g.get_name(text_box.1).len())
             };
-            let up = |g: &Graph, text_box: &mut Pos| {
-                text_box.y = (text_box.y - 1.0).max(0.0);
-                text_box.x = text_box.x.min(g.get_name(text_box.y as usize).len() as f32)
+            let up = |g: &Graph, text_box: &mut (usize, usize)| {
+                text_box.1 = text_box.1.saturating_sub(1);
+                text_box.0 = text_box.0.min(g.get_name(text_box.1).len())
             };
-            let modify = |g: &mut Graph, text_box: &mut Pos, c: String| {
+            let modify = |g: &mut Graph, text_box: &mut (usize, usize), c: String| {
                 g.modify_name(
-                    text_box.y as usize,
-                    text_box.x as usize,
+                    text_box.1,
+                    text_box.0,
                     if i.modifiers.shift {
                         c.to_ascii_uppercase()
                     } else {
                         c
                     },
                 );
-                text_box.x += 1.0;
+                text_box.0 += 1;
                 g.name_modified = true;
             };
             match key.into() {
@@ -738,11 +758,10 @@ impl Graph {
                 KeyStr::Named(key) => match key {
                     NamedKey::ArrowDown => down(self, &mut text_box),
                     NamedKey::ArrowLeft => {
-                        text_box.x = (text_box.x - 1.0).max(0.0);
+                        text_box.0 = text_box.0.saturating_sub(1);
                     }
                     NamedKey::ArrowRight => {
-                        text_box.x =
-                            (text_box.x + 1.0).min(self.get_name(text_box.y as usize).len() as f32)
+                        text_box.0 = (text_box.0 + 1).min(self.get_name(text_box.1).len())
                     }
                     NamedKey::ArrowUp => up(self, &mut text_box),
                     NamedKey::Escape => {
@@ -757,45 +776,45 @@ impl Graph {
                         }
                     }
                     NamedKey::Backspace => {
-                        if text_box.x != 0.0 {
-                            self.remove_char(text_box.y as usize, text_box.x as usize - 1);
-                            text_box.x -= 1.0;
+                        if text_box.0 != 0 {
+                            self.remove_char(text_box.1, text_box.0 - 1);
+                            text_box.0 -= 1;
                             self.name_modified = true;
-                        } else if self.get_name(text_box.y as usize).is_empty() {
-                            self.remove_name(text_box.y as usize);
-                            if text_box.y > 0.0 {
-                                text_box.y = (text_box.y - 1.0).max(0.0);
-                                text_box.x = self.get_name(text_box.y as usize).len() as f32
+                        } else if self.get_name(text_box.1).is_empty() {
+                            self.remove_name(text_box.1);
+                            if text_box.1 > 0 {
+                                text_box.1 = text_box.1.saturating_sub(1);
+                                text_box.0 = self.get_name(text_box.1).len()
                             }
                         }
                     }
                     NamedKey::Enter => {
                         if i.modifiers.ctrl {
-                            self.insert_name(text_box.y as usize, true);
+                            self.insert_name(text_box.1, true);
                         } else {
                             down(self, &mut text_box);
-                            self.insert_name(text_box.y as usize, false);
+                            self.insert_name(text_box.1, false);
                         }
-                        text_box.x = 0.0;
+                        text_box.0 = 0;
                     }
                     NamedKey::Space => modify(self, &mut text_box, " ".to_string()),
                     NamedKey::Insert => {}
                     NamedKey::Delete => {}
                     NamedKey::Home => {
-                        text_box.y = 0.0;
-                        text_box.x = 0.0;
+                        text_box.1 = 0;
+                        text_box.0 = 0;
                     }
                     NamedKey::End => {
-                        text_box.y = self.get_name_len() as f32;
-                        text_box.x = self.get_name(text_box.y as usize).len() as f32;
+                        text_box.1 = self.get_name_len();
+                        text_box.0 = self.get_name(text_box.1).len();
                     }
                     NamedKey::PageUp => {
-                        text_box.y = 0.0;
-                        text_box.x = 0.0;
+                        text_box.1 = 0;
+                        text_box.0 = 0;
                     }
                     NamedKey::PageDown => {
-                        text_box.y = self.get_name_len() as f32;
-                        text_box.x = self.get_name(text_box.y as usize).len() as f32;
+                        text_box.1 = self.get_name_len();
+                        text_box.0 = self.get_name(text_box.1).len();
                     }
                     NamedKey::Copy => {}
                     NamedKey::Cut => {}
@@ -2260,7 +2279,7 @@ impl Graph {
         }
         if i.keys_pressed(self.keybinds.side) {
             self.draw_side = !self.draw_side;
-            self.text_box = self.draw_side.then_some(Pos::new(0.0, 0.0));
+            self.text_box = self.draw_side.then_some((0, 0));
             self.recalculate = true;
         }
         if i.keys_pressed(self.keybinds.fast) {
