@@ -327,7 +327,8 @@ pub struct Graph {
     pub(crate) cos_theta: f64,
     pub(crate) sin_theta: f64,
     pub(crate) select: Option<(usize, usize, Option<bool>)>,
-    pub(crate) text_box: Option<(usize, usize)>,
+    ///where in side panel the cursor is at
+    pub text_box: Option<(usize, usize)>,
     pub(crate) side_slider: Option<usize>,
     pub(crate) side_drag: Option<usize>,
     pub(crate) last_multi: bool,
