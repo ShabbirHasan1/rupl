@@ -139,10 +139,50 @@ impl Angle {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum Change {
-    Char((usize, usize), char),
-    Del((usize, usize), char),
+    Char((usize, usize), char, bool),
+    Str((usize, usize), String, bool),
+    Line(usize, bool, bool),
+}
+impl Change {
+    pub fn revert<T>(self, g: &mut Graph, text_box: &mut (usize, usize), modify: T, rev: bool)
+    where
+        T: Fn(&mut Graph, &mut (usize, usize), String),
+    {
+        let do_rev = |r: bool| -> bool { if rev { r } else { !r } };
+        match self {
+            Change::Char((a, b), _, r) if do_rev(r) => {
+                g.remove_char(b, a);
+                *text_box = (a, b);
+            }
+            Change::Char((a, b), c, _) => {
+                *text_box = (a, b);
+                modify(g, text_box, c.to_string());
+            }
+            Change::Str((a, b), s, r) if do_rev(r) => {
+                for _ in 0..s.len() {
+                    g.remove_char(b, a);
+                }
+                *text_box = (a, b);
+            }
+            Change::Str((a, b), s, _) => {
+                *text_box = (a, b);
+                for c in s.chars() {
+                    modify(g, text_box, c.to_string());
+                }
+            }
+            Change::Line(b, var, r) if do_rev(r) => {
+                g.remove_name(b);
+                let b = if var { b } else { b.saturating_sub(1) };
+                *text_box = (g.get_name(b).len(), b)
+            }
+            Change::Line(b, var, _) => {
+                g.insert_name(b, var);
+                *text_box = (0, b);
+            }
+        }
+    }
 }
 #[cfg(feature = "tiny-skia")]
 pub(crate) struct Image(pub tiny_skia::Pixmap);

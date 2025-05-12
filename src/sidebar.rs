@@ -256,40 +256,24 @@ impl Graph {
             };
             match key.into() {
                 KeyStr::Character(a) if !i.modifiers.ctrl => {
-                    self.history_push(Change::Char(text_box, a));
+                    self.history_push(Change::Char(text_box, a, false));
                     modify(self, &mut text_box, a.to_string())
                 }
                 KeyStr::Character(a) => match a {
                     'a' => self.select = Some((0, self.get_name(text_box.1).len(), None)),
                     'z' if !self.history.is_empty() && self.history_pos != self.history.len() => {
                         self.name_modified = true;
-                        match self.history[self.history.len() - self.history_pos - 1] {
-                            Change::Char((a, b), _) => {
-                                self.remove_char(b, a);
-                                text_box = (a, b);
-                                self.history_pos += 1;
-                            }
-                            Change::Del((a, b), c) => {
-                                text_box = (a, b);
-                                modify(self, &mut text_box, c.to_string());
-                                self.history_pos += 1;
-                            }
-                        }
+                        self.history[self.history.len() - self.history_pos - 1]
+                            .clone()
+                            .revert(self, &mut text_box, modify, false);
+                        self.history_pos += 1;
                     }
                     'y' if !self.history.is_empty() && self.history_pos != 0 => {
                         self.name_modified = true;
-                        match self.history[self.history.len() - self.history_pos] {
-                            Change::Char((a, b), c) => {
-                                text_box = (a, b);
-                                modify(self, &mut text_box, c.to_string());
-                                self.history_pos -= 1;
-                            }
-                            Change::Del((a, b), _) => {
-                                self.remove_char(b, a);
-                                text_box = (a, b);
-                                self.history_pos -= 1;
-                            }
-                        }
+                        self.history[self.history.len() - self.history_pos]
+                            .clone()
+                            .revert(self, &mut text_box, modify, true);
+                        self.history_pos -= 1;
                     }
                     'c' => {
                         let (a, b, _) = self.select.unwrap_or_default();
@@ -302,10 +286,11 @@ impl Graph {
                         let (a, b, _) = self.select.unwrap_or_default();
                         if a != b {
                             self.select = None;
-                            for _ in a..b {
-                                self.remove_char(text_box.1, a);
-                            }
+                            let s = (a..b)
+                                .filter_map(|_| self.remove_char(text_box.1, a))
+                                .collect::<String>();
                             text_box.0 = a;
+                            self.history_push(Change::Str(text_box, s, true));
                         }
                         for c in self.clipboard.as_mut().unwrap().get_text().unwrap().chars() {
                             modify(self, &mut text_box, c.to_string())
@@ -319,8 +304,9 @@ impl Graph {
                             let text = (a..b)
                                 .filter_map(|_| self.remove_char(text_box.1, a))
                                 .collect::<String>();
-                            self.clipboard.as_mut().unwrap().set_text(text).unwrap();
+                            self.clipboard.as_mut().unwrap().set_text(&text).unwrap();
                             text_box.0 = a;
+                            self.history_push(Change::Str(text_box, text, true));
                         }
                         self.name_modified = true;
                     }
@@ -372,16 +358,20 @@ impl Graph {
                         let (a, b, _) = self.select.unwrap_or_default();
                         if a != b {
                             self.select = None;
-                            for _ in a..b {
-                                self.remove_char(text_box.1, a);
-                            }
+                            let s = (a..b)
+                                .filter_map(|_| self.remove_char(text_box.1, a))
+                                .collect::<String>();
                             text_box.0 = a;
+                            self.history_push(Change::Str(text_box, s, true));
                         } else if text_box.0 != 0 {
                             let c = self.remove_char(text_box.1, text_box.0 - 1);
                             text_box.0 -= 1;
-                            self.history_push(Change::Del(text_box, c.unwrap()));
+                            self.history_push(Change::Char(text_box, c.unwrap(), true));
                         } else if self.get_name(text_box.1).is_empty() {
-                            self.remove_name(text_box.1);
+                            let Some(b) = self.remove_name(text_box.1) else {
+                                unreachable!()
+                            };
+                            self.history_push(Change::Line(text_box.1, b, true));
                             if text_box.1 > 0 {
                                 text_box.1 = text_box.1.saturating_sub(1);
                                 text_box.0 = self.get_name(text_box.1).len()
@@ -392,13 +382,18 @@ impl Graph {
                     NamedKey::Enter => {
                         if i.modifiers.ctrl {
                             self.insert_name(text_box.1, true);
+                            self.history_push(Change::Line(text_box.1, true, false));
                         } else {
                             down(self, &mut text_box);
                             self.insert_name(text_box.1, false);
+                            self.history_push(Change::Line(text_box.1, false, false));
                         }
                         text_box.0 = 0;
                     }
-                    NamedKey::Space => modify(self, &mut text_box, " ".to_string()),
+                    NamedKey::Space => {
+                        self.history_push(Change::Char(text_box, ' ', false));
+                        modify(self, &mut text_box, " ".to_string())
+                    }
                     NamedKey::Insert => {}
                     NamedKey::Delete => {}
                     NamedKey::Home => {
@@ -542,13 +537,13 @@ impl Graph {
             i -= 1;
         }
     }
-    pub(crate) fn remove_name(&mut self, mut i: usize) {
+    pub(crate) fn remove_name(&mut self, mut i: usize) -> Option<bool> {
         if i != self.get_name_len() {
             let l = self.names.len();
             for (k, name) in self.names.iter_mut().enumerate() {
                 if i < name.vars.len() {
                     name.vars.remove(i);
-                    return;
+                    return Some(true);
                 }
                 i -= name.vars.len();
                 if i == 0 {
@@ -559,11 +554,12 @@ impl Graph {
                         self.names[k + 1].vars.splice(0..0, v);
                         self.names.remove(k);
                     }
-                    return;
+                    return Some(false);
                 }
                 i -= 1;
             }
         }
+        None
     }
     pub(crate) fn insert_name(&mut self, j: usize, var: bool) {
         if j == self.get_name_len() {
