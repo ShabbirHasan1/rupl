@@ -334,7 +334,31 @@ impl Graph {
                         if self.select.map(|(a, b, _)| a == b).unwrap_or(true) {
                             self.select = Some((text_box.0, text_box.0, None))
                         }
-                        text_box.0 = text_box.0.saturating_sub(1);
+                        if i.modifiers.ctrl {
+                            let mut hit = false;
+                            for (i, j) in self.get_name(text_box.1)[..text_box.0]
+                                .chars()
+                                .collect::<Vec<char>>()
+                                .into_iter()
+                                .enumerate()
+                                .rev()
+                            {
+                                if !j.is_alphanumeric() {
+                                    if hit {
+                                        hit = false;
+                                        text_box.0 = i + 1;
+                                        break;
+                                    }
+                                } else {
+                                    hit = true;
+                                }
+                            }
+                            if hit {
+                                text_box.0 = 0
+                            }
+                        } else {
+                            text_box.0 = text_box.0.saturating_sub(1);
+                        }
                         if i.modifiers.shift {
                             self.select_move(text_box.0);
                         } else {
@@ -345,13 +369,33 @@ impl Graph {
                         if self.select.map(|(a, b, _)| a == b).unwrap_or(true) {
                             self.select = Some((text_box.0, text_box.0, None))
                         }
-                        text_box.0 = (text_box.0 + 1).min(self.get_name(text_box.1).len());
+                        if i.modifiers.ctrl {
+                            let mut hit = false;
+                            let s = self.get_name(text_box.1);
+                            for (i, j) in s[(text_box.0 + 1).min(s.len() - 1)..].chars().enumerate()
+                            {
+                                if !j.is_alphanumeric() {
+                                    if hit {
+                                        text_box.0 += i + 1;
+                                        break;
+                                    }
+                                } else {
+                                    hit = true;
+                                }
+                            }
+                            if !hit {
+                                text_box.0 = s.len()
+                            }
+                        } else {
+                            text_box.0 = (text_box.0 + 1).min(self.get_name(text_box.1).len());
+                        }
                         if i.modifiers.shift {
                             self.select_move(text_box.0);
                         } else {
                             self.select = None;
                         }
                     }
+                    //TODO scrollable list
                     NamedKey::ArrowUp => {
                         self.select = None;
                         up(self, &mut text_box)
@@ -361,10 +405,14 @@ impl Graph {
                         self.recalculate = true;
                     }
                     NamedKey::Tab => {
-                        if i.modifiers.shift {
-                            up(self, &mut text_box)
+                        if i.modifiers.ctrl {
+                            if i.modifiers.shift {
+                                up(self, &mut text_box)
+                            } else {
+                                down(self, &mut text_box)
+                            }
                         } else {
-                            down(self, &mut text_box)
+                            //TODO auto-complete
                         }
                     }
                     NamedKey::Backspace => {
@@ -377,9 +425,13 @@ impl Graph {
                             text_box.0 = a;
                             self.history_push(Change::Str(text_box, s, true));
                         } else if text_box.0 != 0 {
-                            let c = self.remove_char(text_box.1, text_box.0 - 1);
-                            text_box.0 -= 1;
-                            self.history_push(Change::Char(text_box, c.unwrap(), true));
+                            if i.modifiers.ctrl {
+                                //TODO del word
+                            } else {
+                                let c = self.remove_char(text_box.1, text_box.0 - 1);
+                                text_box.0 -= 1;
+                                self.history_push(Change::Char(text_box, c.unwrap(), true));
+                            }
                         } else if self.get_name(text_box.1).is_empty() {
                             let Some(b) = self.remove_name(text_box.1) else {
                                 unreachable!()
@@ -407,8 +459,6 @@ impl Graph {
                         self.history_push(Change::Char(text_box, ' ', false));
                         modify(self, &mut text_box, " ".to_string())
                     }
-                    NamedKey::Insert => {}
-                    NamedKey::Delete => {}
                     NamedKey::Home => {
                         text_box.1 = 0;
                         text_box.0 = 0;
@@ -425,9 +475,6 @@ impl Graph {
                         text_box.1 = self.get_name_len();
                         text_box.0 = self.get_name(text_box.1).len();
                     }
-                    NamedKey::Copy => {}
-                    NamedKey::Cut => {}
-                    NamedKey::Paste => {}
                     _ => {}
                 },
             }
@@ -644,7 +691,7 @@ impl Graph {
         let db = x.abs_diff(*b);
         match da.cmp(&db) {
             std::cmp::Ordering::Less => {
-                if da == 0 && db == 1 && *right == Some(true) {
+                if da == 0 && *right == Some(true) {
                     *right = None;
                     *tx = x;
                     *b = x
@@ -655,15 +702,17 @@ impl Graph {
                 }
             }
             std::cmp::Ordering::Equal if x > *b => {
+                *right = Some(true);
                 *tx = x;
                 *b = x
             }
             std::cmp::Ordering::Equal if x < *a => {
+                *right = Some(false);
                 *tx = x;
                 *a = x
             }
             std::cmp::Ordering::Greater => {
-                if db == 0 && da == 1 && *right == Some(false) {
+                if db == 0 && *right == Some(false) {
                     *right = None;
                     *tx = x;
                     *a = x
@@ -676,15 +725,11 @@ impl Graph {
             std::cmp::Ordering::Equal => {
                 if let Some(right) = right {
                     if *right {
-                        {
-                            *tx = x;
-                            *b = x
-                        }
+                        *tx = x;
+                        *b = x
                     } else {
-                        {
-                            *tx = x;
-                            *a = x
-                        }
+                        *tx = x;
+                        *a = x
                     }
                 }
             }
