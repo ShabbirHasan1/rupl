@@ -279,7 +279,7 @@ impl Graph {
                         let (a, b, _) = self.select.unwrap_or_default();
                         if a != b {
                             let text = &self.get_name(text_box.1)[a..b];
-                            self.clipboard.as_mut().unwrap().set_text(text).unwrap()
+                            self.clipboard.as_mut().unwrap().set_text(text)
                         }
                     }
                     'v' => {
@@ -292,7 +292,7 @@ impl Graph {
                             text_box.0 = a;
                             self.history_push(Change::Str(text_box, s, true));
                         }
-                        for c in self.clipboard.as_mut().unwrap().get_text().unwrap().chars() {
+                        for c in self.clipboard.as_mut().unwrap().get_text().chars() {
                             modify(self, &mut text_box, c.to_string())
                         }
                         self.name_modified = true;
@@ -304,7 +304,7 @@ impl Graph {
                             let text = (a..b)
                                 .filter_map(|_| self.remove_char(text_box.1, a))
                                 .collect::<String>();
-                            self.clipboard.as_mut().unwrap().set_text(&text).unwrap();
+                            self.clipboard.as_mut().unwrap().set_text(&text);
                             text_box.0 = a;
                             self.history_push(Change::Str(text_box, text, true));
                         }

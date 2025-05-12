@@ -140,14 +140,19 @@ impl Angle {
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone)]
-pub enum Change {
+pub(crate) enum Change {
     Char((usize, usize), char, bool),
     Str((usize, usize), String, bool),
     Line(usize, bool, bool),
 }
 impl Change {
-    pub fn revert<T>(self, g: &mut Graph, text_box: &mut (usize, usize), modify: T, rev: bool)
-    where
+    pub(crate) fn revert<T>(
+        self,
+        g: &mut Graph,
+        text_box: &mut (usize, usize),
+        modify: T,
+        rev: bool,
+    ) where
         T: Fn(&mut Graph, &mut (usize, usize), String),
     {
         let do_rev = |r: bool| -> bool { if rev { r } else { !r } };
@@ -182,6 +187,28 @@ impl Change {
                 *text_box = (0, b);
             }
         }
+    }
+}
+#[cfg(feature = "arboard")]
+pub(crate) struct Clipboard(arboard::Clipboard);
+#[cfg(not(feature = "arboard"))]
+pub(crate) struct Clipboard(String);
+impl Clipboard {
+    #[cfg(feature = "arboard")]
+    pub(crate) fn set_text(&mut self, text: &str) {
+        self.0.set_text(text).unwrap_or_default()
+    }
+    #[cfg(not(feature = "arboard"))]
+    pub(crate) fn set_text(&mut self, text: &str) {
+        self.0 = text.to_string();
+    }
+    #[cfg(feature = "arboard")]
+    pub(crate) fn get_text(&mut self) -> String {
+        self.0.get_text().unwrap_or_default()
+    }
+    #[cfg(not(feature = "arboard"))]
+    pub(crate) fn get_text(&mut self) -> String {
+        self.0.clone()
     }
 }
 #[cfg(feature = "tiny-skia")]
@@ -306,7 +333,7 @@ pub struct Graph {
     pub(crate) last_multi: bool,
     pub(crate) side_bar_width: f64,
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
-    pub(crate) clipboard: Option<arboard::Clipboard>,
+    pub(crate) clipboard: Option<Clipboard>,
     pub(crate) history: Vec<Change>,
     pub(crate) history_pos: usize,
     ///do not show anything if it contains an imaginary part
@@ -337,8 +364,10 @@ impl Default for Graph {
         let font_size = 18.0;
         #[cfg(feature = "skia")]
         let font = Some(skia_safe::Font::new(typeface, font_size));
-        //TODO should be abstracted since egui has its own clipboard
-        let clipboard = Some(arboard::Clipboard::new().unwrap());
+        #[cfg(feature = "arboard")]
+        let clipboard = Some(Clipboard(arboard::Clipboard::new().unwrap()));
+        #[cfg(not(feature = "arboard"))]
+        let clipboard = Some(Clipboard(String::new()));
         Self {
             is_3d: false,
             clipboard,
