@@ -90,7 +90,7 @@ impl Graph {
         } else {
             Vec2::new(width, height)
         };
-        self.side_bar_width = fw;
+        self.side_bar_width = if self.draw_side { fw } else { 0.0 };
         self.draw_offset = if self.draw_side && offset && height < width {
             Pos::new((width - new) as f32, 0.0)
         } else {
