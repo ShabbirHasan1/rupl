@@ -292,7 +292,9 @@ impl Graph {
                             text_box.0 = a;
                             self.history_push(Change::Str(text_box, s, true));
                         }
-                        for c in self.clipboard.as_mut().unwrap().get_text().chars() {
+                        let s = self.clipboard.as_mut().unwrap().get_text();
+                        self.history_push(Change::Str(text_box, s.clone(), false));
+                        for c in s.chars() {
                             modify(self, &mut text_box, c.to_string())
                         }
                         self.name_modified = true;
@@ -318,7 +320,7 @@ impl Graph {
                         down(self, &mut text_box)
                     }
                     NamedKey::ArrowLeft => {
-                        if self.select.is_none() {
+                        if self.select.map(|(a, b, _)| a == b).unwrap_or(true) {
                             self.select = Some((text_box.0, text_box.0, None))
                         }
                         text_box.0 = text_box.0.saturating_sub(1);
@@ -329,7 +331,7 @@ impl Graph {
                         }
                     }
                     NamedKey::ArrowRight => {
-                        if self.select.is_none() {
+                        if self.select.map(|(a, b, _)| a == b).unwrap_or(true) {
                             self.select = Some((text_box.0, text_box.0, None))
                         }
                         text_box.0 = (text_box.0 + 1).min(self.get_name(text_box.1).len());
