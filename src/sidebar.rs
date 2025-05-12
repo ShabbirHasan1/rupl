@@ -255,9 +255,18 @@ impl Graph {
                 g.name_modified = true;
             };
             match key.into() {
-                KeyStr::Character(a) if !i.modifiers.ctrl => {
-                    self.history_push(Change::Char(text_box, a, false));
-                    modify(self, &mut text_box, a.to_string())
+                KeyStr::Character(c) if !i.modifiers.ctrl => {
+                    let (a, b, _) = self.select.unwrap_or_default();
+                    if a != b {
+                        self.select = None;
+                        let s = (a..b)
+                            .filter_map(|_| self.remove_char(text_box.1, a))
+                            .collect::<String>();
+                        text_box.0 = a;
+                        self.history_push(Change::Str(text_box, s, true));
+                    }
+                    self.history_push(Change::Char(text_box, c, false));
+                    modify(self, &mut text_box, c.to_string())
                 }
                 KeyStr::Character(a) => match a {
                     'a' => self.select = Some((0, self.get_name(text_box.1).len(), None)),
@@ -283,21 +292,23 @@ impl Graph {
                         }
                     }
                     'v' => {
-                        let (a, b, _) = self.select.unwrap_or_default();
-                        if a != b {
-                            self.select = None;
-                            let s = (a..b)
-                                .filter_map(|_| self.remove_char(text_box.1, a))
-                                .collect::<String>();
-                            text_box.0 = a;
-                            self.history_push(Change::Str(text_box, s, true));
-                        }
                         let s = self.clipboard.as_mut().unwrap().get_text();
-                        self.history_push(Change::Str(text_box, s.clone(), false));
-                        for c in s.chars() {
-                            modify(self, &mut text_box, c.to_string())
+                        if !s.is_empty() {
+                            let (a, b, _) = self.select.unwrap_or_default();
+                            if a != b {
+                                self.select = None;
+                                let s = (a..b)
+                                    .filter_map(|_| self.remove_char(text_box.1, a))
+                                    .collect::<String>();
+                                text_box.0 = a;
+                                self.history_push(Change::Str(text_box, s, true));
+                            }
+                            self.history_push(Change::Str(text_box, s.clone(), false));
+                            for c in s.chars() {
+                                modify(self, &mut text_box, c.to_string())
+                            }
+                            self.name_modified = true;
                         }
-                        self.name_modified = true;
                     }
                     'x' => {
                         let (a, b, _) = self.select.unwrap_or_default();

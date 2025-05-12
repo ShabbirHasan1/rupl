@@ -1268,6 +1268,10 @@ impl Graph {
     ///expected to run before update_res()
     pub fn keybinds(&mut self, ui: &egui::Ui) {
         ui.input(|i| self.keybinds_inner(&i.into()));
+        let s = self.clipboard.as_ref().unwrap().0.clone();
+        if !s.is_empty() {
+            ui.ctx().copy_text(s)
+        }
     }
     #[cfg(any(feature = "skia", feature = "tiny-skia"))]
     ///process the current keys and mouse/touch inputs, see Keybinds for more info,
@@ -1276,6 +1280,10 @@ impl Graph {
         self.keybinds_inner(i)
     }
     fn keybinds_inner(&mut self, i: &InputState) {
+        #[cfg(feature = "egui")]
+        if let Some(s) = i.clipboard_override.clone() {
+            self.clipboard.as_mut().unwrap().0 = s;
+        }
         let ret = if self.draw_side {
             self.keybinds_side(i)
         } else {

@@ -192,7 +192,7 @@ impl Change {
 #[cfg(feature = "arboard")]
 pub(crate) struct Clipboard(arboard::Clipboard);
 #[cfg(not(feature = "arboard"))]
-pub(crate) struct Clipboard(String);
+pub(crate) struct Clipboard(pub(crate) String);
 impl Clipboard {
     #[cfg(feature = "arboard")]
     pub(crate) fn set_text(&mut self, text: &str) {
@@ -756,6 +756,8 @@ pub struct InputState {
     pub pointer_right: Option<bool>,
     ///Some if multiple touch inputs have been detected
     pub multi: Option<Multi>,
+    #[cfg(feature = "egui")]
+    pub(crate) clipboard_override: Option<String>,
 }
 impl Default for InputState {
     fn default() -> Self {
@@ -767,6 +769,8 @@ impl Default for InputState {
             pointer: None,
             pointer_right: None,
             multi: None,
+            #[cfg(feature = "egui")]
+            clipboard_override: None,
         }
     }
 }
@@ -798,24 +802,42 @@ impl From<&egui::InputState> for InputState {
         } else {
             None
         };
+        let mut clipboard_override = None;
+        let keys_pressed = val
+            .events
+            .iter()
+            .filter_map(|event| match event {
+                egui::Event::Copy => Some(Key::C),
+                egui::Event::Cut => Some(Key::X),
+                egui::Event::Paste(s) => {
+                    clipboard_override = Some(s.clone());
+                    Some(Key::V)
+                }
+                egui::Event::Key {
+                    key, pressed: true, ..
+                } => Some(key.into()),
+                egui::Event::Text(s) => match s.as_str() {
+                    "^" => Some(Key::Caret),
+                    "(" => Some(Key::OpenParentheses),
+                    ")" => Some(Key::CloseParentheses),
+                    "&" => Some(Key::And),
+                    "%" => Some(Key::Percent),
+                    "_" => Some(Key::Underscore),
+                    "<" => Some(Key::LessThen),
+                    ">" => Some(Key::GreaterThen),
+                    "±" => Some(Key::PlusMinus),
+                    "\"" => Some(Key::DoubleQuote),
+                    "$" => Some(Key::Dollar),
+                    "¢" => Some(Key::Cent),
+                    "~" => Some(Key::Tilde),
+                    "*" => Some(Key::Mult),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect::<Vec<Key>>();
         InputState {
-            keys_pressed: {
-                val.events
-                    .iter()
-                    .filter_map(|event| match event {
-                        egui::Event::Key {
-                            key, pressed: true, ..
-                        } => Some(key.into()),
-                        egui::Event::Text(s) => match s.as_str() {
-                            "^" => Some(Key::Caret),
-                            "(" => Some(Key::OpenParentheses),
-                            ")" => Some(Key::CloseParentheses),
-                            _ => None,
-                        },
-                        _ => None,
-                    })
-                    .collect::<Vec<Key>>()
-            },
+            keys_pressed,
             modifiers: val.modifiers.into(),
             raw_scroll_delta: Vec2 {
                 x: val.raw_scroll_delta.x as f64,
@@ -834,6 +856,7 @@ impl From<&egui::InputState> for InputState {
                 ),
                 zoom_delta: i.zoom_delta as f64,
             }),
+            clipboard_override,
         }
     }
 }
