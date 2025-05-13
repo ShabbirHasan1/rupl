@@ -337,6 +337,7 @@ pub struct Graph {
     pub(crate) clipboard: Option<Clipboard>,
     pub(crate) history: Vec<Change>,
     pub(crate) history_pos: usize,
+    pub(crate) text_scroll_pos: (usize, usize),
     ///do not show anything if it contains an imaginary part
     pub only_real: bool,
     ///if we should draw the functions in a modifiable way on the left or bottom side
@@ -377,6 +378,7 @@ impl Default for Graph {
             is_3d_data: false,
             names: Vec::new(),
             fast_3d: false,
+            text_scroll_pos: (0, 0),
             data: Vec::new(),
             cache: None,
             blacklist_graphs: Vec::new(),
@@ -501,6 +503,7 @@ impl Clone for Graph {
             is_complex: self.is_complex,
             offset3d: self.offset3d,
             offset: self.offset,
+            text_scroll_pos: self.text_scroll_pos,
             angle: self.angle,
             select_color: self.select_color,
             ignore_bounds: self.ignore_bounds,

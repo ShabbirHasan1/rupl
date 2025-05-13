@@ -27,8 +27,9 @@ impl Graph {
             self.screen.y
         } as f32;
         let ti = (t / delta).round();
+        self.text_scroll_pos.1 = ti as usize + self.text_scroll_pos.0 - 1;
         let delta = t / ti;
-        for i in 0..=ti as usize {
+        for i in 0..ti as usize {
             painter.hline(
                 if is_portrait {
                     self.screen.x as f32
@@ -48,7 +49,6 @@ impl Graph {
                 &self.select_color,
             )
         }
-        let mut i = 0;
         let mut text = |s: String, i: usize, color: (Option<Color>, Option<Color>)| {
             match color {
                 (Some(a), Some(b)) => {
@@ -88,11 +88,21 @@ impl Graph {
                 painter,
             )
         };
+        let mut j = self.text_scroll_pos.0;
+        let mut i = 0;
         let mut k = 0;
         for n in self.names.iter() {
             for v in n.vars.iter() {
+                if j != 0 {
+                    j -= 1;
+                    continue;
+                }
                 text(v.clone(), i, (Some(self.axis_color), None));
                 i += 1;
+            }
+            if j != 0 {
+                j -= 1;
+                continue;
             }
             if !n.name.is_empty() {
                 let real = if n.show.real() && !self.blacklist_graphs.contains(&k) {
@@ -112,7 +122,7 @@ impl Graph {
         }
         if let Some(text_box) = self.text_box {
             let x = text_box.0 as f32 * self.font_width;
-            let y = text_box.1 as f32 * delta;
+            let y = (text_box.1 as isize - self.text_scroll_pos.0 as isize) as f32 * delta;
             painter.line_segment(
                 [Pos::new(x + 4.0, y), Pos::new(x + 4.0, y + delta)],
                 1.0,
@@ -131,6 +141,20 @@ impl Graph {
             painter.offset = Pos::new(0.0, 0.0)
         };
     }
+    pub(crate) fn expand_names(&mut self, b: usize) {
+        let a = self.get_name_len();
+        for i in a..=b {
+            self.insert_name(i, false);
+        }
+        while self
+            .names
+            .last()
+            .map(|a| a.name.is_empty() && a.vars.is_empty())
+            .unwrap_or(false)
+        {
+            self.names.pop();
+        }
+    }
     pub(crate) fn keybinds_side(&mut self, i: &InputState) -> bool {
         let mut stop_keybinds = false;
         if let Some(mpos) = i.pointer_pos {
@@ -144,26 +168,55 @@ impl Graph {
                 mpos.y
             } as f32
                 / delta)
-                .floor()
-                .min(self.get_name_len() as f32);
+                .floor();
+            let main_graph = if is_portrait {
+                mpos.y < self.screen.x
+            } else {
+                mpos.x > 0.0
+            };
             if i.pointer.unwrap_or(false) {
-                if if is_portrait {
-                    mpos.y < self.screen.x
-                } else {
-                    mpos.x > 0.0
-                } {
+                if main_graph {
                     self.text_box = None
                 } else if self.text_box.is_none() {
                     self.text_box = Some((0, 0))
                 }
             }
+            if !main_graph {
+                if self.text_box.is_none() {
+                    self.text_box = Some((0, 0));
+                }
+                if i.raw_scroll_delta.y < 0.0 {
+                    let Some(mut text_box) = self.text_box else {
+                        unreachable!()
+                    };
+                    text_box.1 += 1;
+                    let n = self.get_name(text_box.1).len();
+                    text_box.0 = text_box.0.min(n);
+                    self.text_box = Some(text_box);
+                    self.text_scroll_pos.0 += 1;
+                    self.expand_names(text_box.1);
+                } else if i.raw_scroll_delta.y > 0.0 {
+                    let Some(mut text_box) = self.text_box else {
+                        unreachable!()
+                    };
+                    text_box.1 = text_box.1.saturating_sub(1);
+                    let n = self.get_name(text_box.1).len();
+                    text_box.0 = text_box.0.min(n);
+                    self.text_box = Some(text_box);
+                    self.text_scroll_pos.0 = self.text_scroll_pos.0.saturating_sub(1);
+                }
+            }
             if self.text_box.is_some() {
                 stop_keybinds = true;
-                if i.pointer.unwrap_or(false) && new >= 0.0 {
-                    let x = ((x as f32 / self.font_width).round() as usize)
-                        .min(self.get_name(new as usize).len());
-                    self.text_box = Some((x, new as usize));
-                    self.select = Some((x, x, None));
+                if i.pointer.unwrap_or(false) {
+                    self.expand_names(new as usize);
+                    let new = new + self.text_scroll_pos.0 as f32;
+                    if new > 0.0 {
+                        let x = ((x as f32 / self.font_width).round() as usize)
+                            .min(self.get_name(new as usize).len());
+                        self.text_box = Some((x, new as usize));
+                        self.select = Some((x, x, None));
+                    }
                 }
             }
             if i.pointer.is_some() {
@@ -396,7 +449,6 @@ impl Graph {
                             self.select = None;
                         }
                     }
-                    //TODO scrollable list
                     NamedKey::ArrowUp => {
                         self.select = None;
                         up(self, &mut text_box)
@@ -454,9 +506,7 @@ impl Graph {
                                 self.history_push(Change::Char(text_box, c.unwrap(), true));
                             }
                         } else if self.get_name(text_box.1).is_empty() {
-                            let Some(b) = self.remove_name(text_box.1) else {
-                                unreachable!()
-                            };
+                            let b = self.remove_name(text_box.1).unwrap_or(false);
                             self.history_push(Change::Line(text_box.1, b, true));
                             if text_box.1 > 0 {
                                 text_box.1 = text_box.1.saturating_sub(1);
@@ -470,8 +520,8 @@ impl Graph {
                             self.insert_name(text_box.1, true);
                             self.history_push(Change::Line(text_box.1, true, false));
                         } else {
+                            self.insert_name(text_box.1 + 1, false);
                             down(self, &mut text_box);
-                            self.insert_name(text_box.1, false);
                             self.history_push(Change::Line(text_box.1, false, false));
                         }
                         text_box.0 = 0;
@@ -500,7 +550,18 @@ impl Graph {
                 },
             }
         }
+        let (a, b) = self.text_scroll_pos;
+        if !(a..=b).contains(&text_box.1) {
+            let ta = text_box.1.abs_diff(a);
+            let tb = text_box.1.abs_diff(b);
+            if ta < tb {
+                self.text_scroll_pos.0 -= ta
+            } else {
+                self.text_scroll_pos.0 += tb
+            }
+        }
         self.text_box = Some(text_box);
+        self.expand_names(text_box.1);
         true
     }
     pub(crate) fn get_points(&self) -> Vec<(usize, String, Pos)> {
@@ -570,6 +631,7 @@ impl Graph {
             .unwrap_or_default()
     }
     pub(crate) fn get_name_place(&self, mut i: usize) -> Option<usize> {
+        i += self.text_scroll_pos.0;
         for (k, name) in self.names.iter().enumerate() {
             if i < name.vars.len() {
                 return None;
