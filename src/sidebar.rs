@@ -288,7 +288,7 @@ impl Graph {
         };
         for key in &i.keys_pressed {
             let down = |g: &Graph, text_box: &mut (usize, usize)| {
-                text_box.1 = (text_box.1 + 1).min(g.get_name_len());
+                text_box.1 += 1;
                 text_box.0 = text_box.0.min(g.get_name(text_box.1).len())
             };
             let up = |g: &Graph, text_box: &mut (usize, usize)| {
@@ -841,7 +841,7 @@ impl Graph {
     pub(crate) fn select_move(&mut self, x: usize) {
         let (Some((a, b, right)), Some((tx, _))) = (self.select.as_mut(), self.text_box.as_mut())
         else {
-            unreachable!()
+            return;
         };
         let da = x.abs_diff(*a);
         let db = x.abs_diff(*b);
