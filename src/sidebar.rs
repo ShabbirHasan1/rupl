@@ -464,8 +464,81 @@ impl Graph {
                             } else {
                                 down(self, &mut text_box)
                             }
-                        } else {
-                            //TODO auto-complete
+                        } else if let Some(get_word_bank) = &self.tab_complete {
+                            let mut wait = false;
+                            let mut word = String::new();
+                            let mut count = 0;
+                            let name = self.get_name(text_box.1);
+                            for (i, c) in name[..text_box.0].chars().rev().enumerate() {
+                                if !wait {
+                                    if c.is_alphabetic()
+                                        || matches!(
+                                            c,
+                                            '°' | '\''
+                                                | '`'
+                                                | '_'
+                                                | '∫'
+                                                | '$'
+                                                | '¢'
+                                                | '['
+                                                | '('
+                                                | '{'
+                                        )
+                                    {
+                                        word.insert(0, c)
+                                    } else if i == 0 {
+                                        wait = true
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                if wait {
+                                    if c == '(' || c == '{' {
+                                        count -= 1;
+                                    } else if c == ')' || c == '}' {
+                                        count += 1;
+                                    }
+                                    if count == -1 {
+                                        wait = false;
+                                    }
+                                }
+                            }
+                            let bank = get_word_bank(&word);
+                            let mut new = word.clone();
+                            if bank.is_empty() {
+                                continue;
+                            } else {
+                                let bc = bank
+                                    .iter()
+                                    .map(|b| b.chars().collect::<Vec<char>>())
+                                    .collect::<Vec<Vec<char>>>();
+                                for (i, c) in bc[0][word.len()..].iter().enumerate() {
+                                    if bc.len() == 1
+                                        || bc[1..].iter().all(|w| {
+                                            w.len() > word.len() + i && w[word.len() + i] == *c
+                                        })
+                                    {
+                                        new.push(*c);
+                                        if matches!(c, '(' | '{' | '[') {
+                                            break;
+                                        }
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            };
+                            let new = new.chars().collect::<Vec<char>>();
+                            let mut i = word.len();
+                            let mut nc = name.chars().collect::<Vec<char>>();
+                            while i < new.len() {
+                                if nc.len() == i || nc[i] != new[i] {
+                                    nc.insert(i, new[i])
+                                }
+                                i += 1;
+                                text_box.0 += 1;
+                            }
+                            self.replace_name(text_box.1, nc.iter().collect::<String>());
+                            self.name_modified = true;
                         }
                     }
                     NamedKey::Backspace => {

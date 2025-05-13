@@ -227,6 +227,11 @@ pub struct Graph {
     pub(crate) font: Option<skia_safe::Font>,
     pub(crate) font_size: f32,
     pub(crate) font_width: f32,
+    #[allow(clippy::type_complexity)]
+    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    ///for tab completion,will tab complete upto a "(" if it exists,
+    /// so you may give info about which variables will be accepted
+    pub tab_complete: Option<Box<dyn Fn(&str) -> Vec<String>>>,
     ///width of function lines
     pub line_width: f32,
     #[cfg(feature = "skia")]
@@ -374,6 +379,7 @@ impl Default for Graph {
             is_3d: false,
             clipboard,
             history: Vec::new(),
+            tab_complete: None,
             history_pos: 0,
             is_3d_data: false,
             names: Vec::new(),
@@ -485,6 +491,7 @@ impl Clone for Graph {
             data: Vec::new(),
             names: self.names.clone(),
             cache: None,
+            tab_complete: None,
             select: self.select,
             clipboard: None,
             history_pos: self.history_pos,
