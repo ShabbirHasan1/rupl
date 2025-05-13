@@ -146,13 +146,10 @@ impl Graph {
         for i in a..=b {
             self.insert_name(i, false);
         }
-        while self
-            .names
-            .last()
-            .map(|a| a.name.is_empty() && a.vars.is_empty())
-            .unwrap_or(false)
-        {
-            self.names.pop();
+        if (b + 1..self.get_name_len()).all(|i| self.get_name(i).is_empty()) {
+            for _ in b + 1..self.get_name_len() {
+                self.names.pop();
+            }
         }
     }
     pub(crate) fn keybinds_side(&mut self, i: &InputState) -> bool {
