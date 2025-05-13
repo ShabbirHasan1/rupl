@@ -21,13 +21,14 @@ impl Graph {
             painter.vline(0.0, self.screen.y as f32, &self.axis_color);
         }
         let delta = self.font_size * self.side_height;
-        for i in 0..=if is_portrait {
+        let t = if is_portrait {
             self.screen.y - self.screen.x
         } else {
             self.screen.y
-        } as usize
-            / delta as usize
-        {
+        } as f32;
+        let ti = (t / delta).round();
+        let delta = t / ti;
+        for i in 0..=ti as usize {
             painter.hline(
                 if is_portrait {
                     self.screen.x as f32
