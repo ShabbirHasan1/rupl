@@ -425,8 +425,28 @@ impl Graph {
                             text_box.0 = a;
                             self.history_push(Change::Str(text_box, s, true));
                         } else if text_box.0 != 0 {
-                            if i.modifiers.ctrl {
-                                //TODO del word
+                            let name = self.get_name(text_box.1).chars().collect::<Vec<char>>();
+                            if i.modifiers.ctrl && !end_word(name[text_box.0 - 1]) {
+                                for (i, c) in name[..text_box.0].iter().rev().enumerate() {
+                                    if c.is_whitespace() || i + 1 == text_box.0 {
+                                        let (a, b) = (text_box.0 - i - 1, text_box.0);
+                                        let text = (a..b)
+                                            .filter_map(|_| self.remove_char(text_box.1, a))
+                                            .collect::<String>();
+                                        text_box.0 -= i + 1;
+                                        self.history_push(Change::Str(text_box, text, true));
+                                        break;
+                                    }
+                                    if end_word(*c) {
+                                        let (a, b) = (text_box.0 - i, text_box.0);
+                                        let text = (a..b)
+                                            .filter_map(|_| self.remove_char(text_box.1, a))
+                                            .collect::<String>();
+                                        text_box.0 -= i;
+                                        self.history_push(Change::Str(text_box, text, true));
+                                        break;
+                                    }
+                                }
                             } else {
                                 let c = self.remove_char(text_box.1, text_box.0 - 1);
                                 text_box.0 -= 1;
@@ -735,4 +755,28 @@ impl Graph {
             }
         }
     }
+}
+pub fn end_word(c: char) -> bool {
+    matches!(
+        c,
+        '(' | '{'
+            | '['
+            | ')'
+            | '}'
+            | ']'
+            | '+'
+            | '-'
+            | '*'
+            | '/'
+            | '^'
+            | '<'
+            | '='
+            | '>'
+            | '|'
+            | '&'
+            | '!'
+            | '±'
+            | '%'
+            | ';'
+    )
 }
