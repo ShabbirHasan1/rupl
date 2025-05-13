@@ -146,9 +146,12 @@ impl Graph {
         for i in a..=b {
             self.insert_name(i, false);
         }
-        if (b + 1..self.get_name_len()).all(|i| self.get_name(i).is_empty()) {
-            for _ in b + 1..self.get_name_len() {
+        for _ in (b + 1..self.get_name_len()).rev() {
+            let n = self.names.last().unwrap();
+            if n.name.is_empty() && n.vars.is_empty() {
                 self.names.pop();
+            } else {
+                break;
             }
         }
     }
