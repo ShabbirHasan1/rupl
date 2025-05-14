@@ -88,7 +88,7 @@ impl Graph {
                 painter,
             )
         };
-        let mut j = self.text_scroll_pos.0;
+        let mut j = 0;
         let mut i = 0;
         let mut k = 0;
         for n in self.names.iter() {
@@ -97,18 +97,20 @@ impl Graph {
                     j -= 1;
                     continue;
                 }
-                text(
-                    v.clone(),
-                    i,
-                    (
-                        if self.blacklist_graphs.contains(&i) {
-                            Some(self.axis_color_light)
-                        } else {
-                            Some(self.axis_color)
-                        },
-                        None,
-                    ),
-                );
+                if i >= self.text_scroll_pos.0 {
+                    text(
+                        v.clone(),
+                        i - self.text_scroll_pos.0,
+                        (
+                            if self.blacklist_graphs.contains(&i) {
+                                Some(self.axis_color_light)
+                            } else {
+                                Some(self.axis_color)
+                            },
+                            None,
+                        ),
+                    );
+                }
                 i += 1;
             }
             if j != 0 {
@@ -116,17 +118,19 @@ impl Graph {
                 continue;
             }
             if !n.name.is_empty() {
-                let real = if n.show.real() && !self.blacklist_graphs.contains(&i) {
-                    Some(self.main_colors[k % self.main_colors.len()])
-                } else {
-                    None
-                };
-                let imag = if n.show.imag() && !self.blacklist_graphs.contains(&i) {
-                    Some(self.alt_colors[k % self.alt_colors.len()])
-                } else {
-                    None
-                };
-                text(n.name.clone(), i, (real, imag));
+                if i >= self.text_scroll_pos.0 {
+                    let real = if n.show.real() && !self.blacklist_graphs.contains(&i) {
+                        Some(self.main_colors[k % self.main_colors.len()])
+                    } else {
+                        None
+                    };
+                    let imag = if n.show.imag() && !self.blacklist_graphs.contains(&i) {
+                        Some(self.alt_colors[k % self.alt_colors.len()])
+                    } else {
+                        None
+                    };
+                    text(n.name.clone(), i - self.text_scroll_pos.0, (real, imag));
+                }
                 k += 1;
             }
             i += 1;
@@ -165,6 +169,17 @@ impl Graph {
                 break;
             }
         }
+    }
+    pub(crate) fn last_visible(&self) -> usize {
+        let mut i = 0;
+        for n in self.names.iter().rev() {
+            if n.name.is_empty() && n.vars.is_empty() {
+                i += 1
+            } else {
+                break;
+            }
+        }
+        i
     }
     pub(crate) fn keybinds_side(&mut self, i: &InputState) -> bool {
         let mut stop_keybinds = false;
@@ -645,6 +660,15 @@ impl Graph {
                     _ => {}
                 },
             }
+        }
+        let d = self
+            .text_scroll_pos
+            .0
+            .saturating_sub(self.get_name_len() - self.last_visible());
+        if d > 0 {
+            self.text_scroll_pos.0 -= d;
+            self.text_scroll_pos.1 -= d;
+            text_box.1 -= d;
         }
         let (a, b) = self.text_scroll_pos;
         if !(a..=b).contains(&text_box.1) {
