@@ -628,8 +628,28 @@ impl Graph {
                     }
                     NamedKey::Enter => {
                         if i.modifiers.ctrl {
-                            self.insert_name(text_box.1, true);
-                            self.history_push(Change::Line(text_box.1, true, false));
+                            self.name_modified = true;
+                            if i.modifiers.shift {
+                                if let Some(i) = self.index_to_name(text_box.1, true) {
+                                    let mut n = self.names.remove(i);
+                                    let mut v = std::mem::take(&mut n.vars);
+                                    v.push(n.name);
+                                    if let Some(n) = self.names.get_mut(i) {
+                                        n.vars.splice(0..0, v);
+                                    } else {
+                                        self.names.push(Name {
+                                            name: String::new(),
+                                            vars: v,
+                                            show: Show::None,
+                                        })
+                                    }
+                                    down(self, &mut text_box);
+                                    self.history_push(Change::Line(text_box.1, false, false));
+                                }
+                            } else {
+                                self.insert_name(text_box.1, true);
+                                self.history_push(Change::Line(text_box.1, true, false));
+                            }
                         } else {
                             self.insert_name(text_box.1 + 1, false);
                             down(self, &mut text_box);
