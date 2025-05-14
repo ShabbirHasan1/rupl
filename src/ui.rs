@@ -93,7 +93,7 @@ impl<'a> Painter<'a> {
     }
     pub(crate) fn rect_filled(&self, p0: Pos, p2: &Color) {
         let rect =
-            egui::Rect::from_center_size((self.offset + p0).to_pos2(), egui::Vec2::splat(3.0));
+            egui::Rect::from_center_size((self.offset + p0).to_pos2(), egui::Vec2::splat(5.0));
         self.painter.rect_filled(rect, 0.0, p2.to_col());
     }
     pub(crate) fn image(&self, p0: &Image, pos: Vec2) {
@@ -1032,7 +1032,7 @@ impl Point {
                         canvas.unwrap().draw_points(
                             skia_safe::canvas::PointMode::Points,
                             points,
-                            &make_paint(3.0, color, true, true),
+                            &make_paint(5.0, color, true, true),
                         );
                         points.clear();
                     }
@@ -1055,7 +1055,7 @@ impl Point {
                     canvas.draw_points(
                         skia_safe::canvas::PointMode::Points,
                         points,
-                        &make_paint(3.0, color, true, true),
+                        &make_paint(5.0, color, true, true),
                     );
                 }
             }
@@ -1064,7 +1064,7 @@ impl Point {
                     canvas.draw_points(
                         skia_safe::canvas::PointMode::Points,
                         points,
-                        &make_paint(3.0, color, true, true),
+                        &make_paint(5.0, color, true, true),
                     );
                 }
             }
