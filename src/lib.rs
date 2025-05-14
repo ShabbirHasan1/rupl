@@ -507,7 +507,7 @@ impl Graph {
         let blacklist = self
             .blacklist_graphs
             .iter()
-            .filter_map(|i| self.index_to_name(*i, true))
+            .filter_map(|i| self.index_to_name(*i, true).0)
             .collect::<Vec<usize>>();
         for (i, Name { name, show, .. }) in self
             .names

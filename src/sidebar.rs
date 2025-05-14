@@ -302,12 +302,12 @@ impl Graph {
                     .position(|&n| n == new as usize)
                 {
                     self.blacklist_graphs.remove(n);
-                    if self.index_to_name(new as usize, true).is_some() {
+                    if self.index_to_name(new as usize, true).0.is_some() {
                         self.recalculate = true;
                     } else {
                         self.name_modified = true;
                     }
-                } else if let Some(i) = self.index_to_name(new as usize, true) {
+                } else if let (Some(i), _) = self.index_to_name(new as usize, true) {
                     if !matches!(self.names[i].show, Show::None) {
                         self.blacklist_graphs.push(new as usize);
                         self.recalculate = true;
@@ -630,21 +630,32 @@ impl Graph {
                         if i.modifiers.ctrl {
                             self.name_modified = true;
                             if i.modifiers.shift {
-                                if let Some(i) = self.index_to_name(text_box.1, true) {
-                                    let mut n = self.names.remove(i);
-                                    let mut v = std::mem::take(&mut n.vars);
-                                    v.push(n.name);
-                                    if let Some(n) = self.names.get_mut(i) {
-                                        n.vars.splice(0..0, v);
-                                    } else {
-                                        self.names.push(Name {
-                                            name: String::new(),
-                                            vars: v,
-                                            show: Show::None,
-                                        })
+                                match self.index_to_name(text_box.1, true) {
+                                    (Some(i), _) => {
+                                        let mut n = self.names.remove(i);
+                                        let mut v = std::mem::take(&mut n.vars);
+                                        v.push(n.name);
+                                        if let Some(n) = self.names.get_mut(i) {
+                                            n.vars.splice(0..0, v);
+                                        } else {
+                                            self.names.push(Name {
+                                                name: String::new(),
+                                                vars: v,
+                                                show: Show::None,
+                                            })
+                                        }
+                                        down(self, &mut text_box);
+                                        self.history_push(Change::Line(text_box.1, false, false));
                                     }
-                                    down(self, &mut text_box);
-                                    self.history_push(Change::Line(text_box.1, false, false));
+                                    (_, Some((i, j))) => {
+                                        let name = Name {
+                                            name: self.names[i].vars.remove(j).clone(),
+                                            vars: self.names[i].vars.drain(..j).collect(),
+                                            show: Show::None,
+                                        };
+                                        self.names.insert(i, name);
+                                    }
+                                    _ => {}
                                 }
                             } else {
                                 self.insert_name(text_box.1, true);
@@ -877,22 +888,26 @@ impl Graph {
             }
         }
     }
-    pub fn index_to_name(&self, mut i: usize, ignore_white: bool) -> Option<usize> {
+    pub fn index_to_name(
+        &self,
+        mut i: usize,
+        ignore_white: bool,
+    ) -> (Option<usize>, Option<(usize, usize)>) {
         let mut j = 0;
         for (k, name) in self.names.iter().enumerate() {
             if i < name.vars.len() {
-                return None;
+                return (None, Some((k - j, i)));
             }
             i -= name.vars.len();
             if i == 0 {
-                return Some(k - j);
+                return (Some(k - j), None);
             }
             i -= 1;
             if !ignore_white && name.name.is_empty() {
                 j += 1;
             }
         }
-        None
+        (None, None)
     }
     pub(crate) fn remove_char(&mut self, mut i: usize, j: usize) -> Option<char> {
         for name in self.names.iter_mut() {
