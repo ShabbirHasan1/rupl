@@ -222,7 +222,7 @@ impl Graph {
                 if i.pointer.unwrap_or(false) {
                     self.expand_names(new as usize);
                     let new = new + self.text_scroll_pos.0 as f32;
-                    if new > 0.0 {
+                    if new >= 0.0 {
                         let x = ((x as f32 / self.font_width).round() as usize)
                             .min(self.get_name(new as usize).len());
                         self.text_box = Some((x, new as usize));
