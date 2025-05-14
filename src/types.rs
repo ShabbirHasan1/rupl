@@ -667,6 +667,70 @@ pub struct Keybinds {
     ///toggles using faster logic in 2d/3d
     pub fast: Option<Keys>,
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone)]
+pub struct GraphTiny {
+    pub names: Vec<Name>,
+    pub bound: (f32, f32),
+    pub is_complex: bool,
+    pub offset3d: Option<(f32, f32, f32)>,
+    pub offset: Option<(f32, f32)>,
+    pub zoom: f32,
+    pub slice: i8,
+    pub var: (f32, f32),
+    pub log_scale: bool,
+    pub domain_alternate: bool,
+    pub color_depth: DepthColor,
+    pub blacklist_graphs: Vec<u8>,
+    pub view_x: bool,
+    pub graph_mode: GraphMode,
+}
+impl Graph {
+    pub fn to_tiny(&self) -> GraphTiny {
+        GraphTiny {
+            names: self
+                .names
+                .iter()
+                .filter_map(|n| {
+                    if n.vars.is_empty() && n.name.is_empty() {
+                        None
+                    } else {
+                        Some(n.clone())
+                    }
+                })
+                .collect(),
+            bound: self.bound.to_tuple(),
+            is_complex: self.is_complex,
+            offset3d: self.is_3d.then_some(self.offset3d.to_tuple()),
+            offset: (!self.is_3d).then_some(self.offset.to_tuple()),
+            zoom: self.zoom as f32,
+            slice: self.slice as i8,
+            var: self.var.to_tuple(),
+            log_scale: self.log_scale,
+            domain_alternate: self.domain_alternate,
+            color_depth: self.color_depth,
+            blacklist_graphs: self.blacklist_graphs.iter().map(|i| *i as u8).collect(),
+            view_x: self.view_x,
+            graph_mode: self.graph_mode,
+        }
+    }
+    pub fn apply_tiny(&mut self, tiny: GraphTiny) {
+        self.names = tiny.names;
+        self.bound = tiny.bound.into();
+        self.is_complex = tiny.is_complex;
+        self.offset3d = tiny.offset3d.unwrap_or_default().into();
+        self.offset = tiny.offset.unwrap_or_default().into();
+        self.zoom = tiny.zoom as f64;
+        self.slice = tiny.slice as isize;
+        self.var = tiny.var.into();
+        self.log_scale = tiny.log_scale;
+        self.domain_alternate = tiny.domain_alternate;
+        self.color_depth = tiny.color_depth;
+        self.blacklist_graphs = tiny.blacklist_graphs.iter().map(|i| *i as usize).collect();
+        self.view_x = tiny.view_x;
+        self.graph_mode = tiny.graph_mode;
+    }
+}
 impl Default for Keybinds {
     fn default() -> Self {
         Self {
@@ -1063,6 +1127,26 @@ impl Vec2 {
             y: self.y as f32,
         }
     }
+    pub(crate) fn to_tuple(self) -> (f32, f32) {
+        (self.x as f32, self.y as f32)
+    }
+}
+impl From<(f32, f32)> for Vec2 {
+    fn from(value: (f32, f32)) -> Self {
+        Self {
+            x: value.0 as f64,
+            y: value.1 as f64,
+        }
+    }
+}
+impl From<(f32, f32, f32)> for Vec3 {
+    fn from(value: (f32, f32, f32)) -> Self {
+        Self {
+            x: value.0 as f64,
+            y: value.1 as f64,
+            z: value.2 as f64,
+        }
+    }
 }
 impl Sub for Vec2 {
     type Output = Vec2;
@@ -1118,6 +1202,9 @@ impl Vec3 {
     }
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
+    }
+    pub(crate) fn to_tuple(self) -> (f32, f32, f32) {
+        (self.x as f32, self.y as f32, self.z as f32)
     }
 }
 impl AddAssign<Vec2> for Vec2 {
