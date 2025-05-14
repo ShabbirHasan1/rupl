@@ -166,144 +166,140 @@ impl Graph {
     ///if keybinds does something that requires more data to be generated,
     ///will return a corrosponding UpdateResult asking for more data,
     ///meant to be ran before update()
-    pub fn update_res(&mut self) -> (Option<Bound>, Vec<usize>) {
-        (
-            if self.recalculate || self.name_modified {
-                self.recalculate = false;
-                self.name_modified = false;
-                let prec = self.prec();
-                if self.is_3d_data {
-                    match self.graph_mode {
-                        GraphMode::Normal => Some(Bound::Width3D(
-                            self.bound.x + self.offset3d.x,
-                            self.bound.x - self.offset3d.y,
-                            self.bound.y + self.offset3d.x,
-                            self.bound.y - self.offset3d.y,
-                            Prec::Mult(self.prec),
-                        )),
-                        GraphMode::Polar => Some(Bound::Width3D(
-                            self.bound.x + self.offset3d.x,
-                            self.bound.x - self.offset3d.y,
-                            self.bound.y + self.offset3d.x,
-                            self.bound.y - self.offset3d.y,
-                            Prec::Mult(self.prec),
-                        )),
-                        GraphMode::DomainColoring => {
-                            let c = self.to_coord(Pos::new(0.0, 0.0));
-                            let cf = self.to_coord(self.screen.to_pos());
-                            Some(Bound::Width3D(
-                                c.0,
-                                c.1,
-                                cf.0,
-                                cf.1,
-                                Prec::Dimension(
-                                    (self.screen.x * prec * self.mult) as usize,
-                                    (self.screen.y * prec * self.mult) as usize,
-                                ),
-                            ))
-                        }
-                        GraphMode::Slice => {
-                            let c = self.to_coord(Pos::new(0.0, 0.0));
-                            let cf = self.to_coord(self.screen.to_pos());
-                            if self.view_x {
-                                Some(Bound::Width3D(
-                                    c.0,
-                                    self.bound.x,
-                                    cf.0,
-                                    self.bound.y,
-                                    Prec::Slice(prec),
-                                ))
-                            } else {
-                                Some(Bound::Width3D(
-                                    self.bound.x,
-                                    c.0,
-                                    self.bound.y,
-                                    cf.0,
-                                    Prec::Slice(prec),
-                                ))
-                            }
-                        }
-                        GraphMode::Flatten => {
-                            if self.view_x {
-                                Some(Bound::Width3D(
-                                    self.var.x,
-                                    self.bound.x,
-                                    self.var.y,
-                                    self.bound.y,
-                                    Prec::Slice(self.prec),
-                                ))
-                            } else {
-                                Some(Bound::Width3D(
-                                    self.bound.x,
-                                    self.var.x,
-                                    self.bound.y,
-                                    self.var.y,
-                                    Prec::Slice(self.prec),
-                                ))
-                            }
-                        }
-                        GraphMode::Depth => {
-                            if self.view_x {
-                                Some(Bound::Width3D(
-                                    self.bound.x - self.offset3d.z,
-                                    self.bound.x,
-                                    self.bound.y - self.offset3d.z,
-                                    self.bound.y,
-                                    Prec::Slice(self.prec),
-                                ))
-                            } else {
-                                Some(Bound::Width3D(
-                                    self.bound.x,
-                                    self.bound.x - self.offset3d.z,
-                                    self.bound.y,
-                                    self.bound.y - self.offset3d.z,
-                                    Prec::Slice(self.prec),
-                                ))
-                            }
-                        }
-                        GraphMode::SlicePolar => {
-                            if self.view_x {
-                                Some(Bound::Width3D(
-                                    self.var.x,
-                                    self.bound.x,
-                                    self.var.y,
-                                    self.bound.y,
-                                    Prec::Slice(self.prec),
-                                ))
-                            } else {
-                                Some(Bound::Width3D(
-                                    self.bound.x,
-                                    self.var.x,
-                                    self.bound.y,
-                                    self.var.y,
-                                    Prec::Slice(self.prec),
-                                ))
-                            }
-                        }
-                    }
-                } else if self.graph_mode == GraphMode::Depth {
-                    Some(Bound::Width(
-                        self.bound.x - self.offset3d.z,
-                        self.bound.y - self.offset3d.z,
+    pub fn update_res(&mut self) -> Option<Bound> {
+        if self.recalculate || self.name_modified {
+            self.recalculate = false;
+            self.name_modified = false;
+            let prec = self.prec();
+            if self.is_3d_data {
+                match self.graph_mode {
+                    GraphMode::Normal => Some(Bound::Width3D(
+                        self.bound.x + self.offset3d.x,
+                        self.bound.x - self.offset3d.y,
+                        self.bound.y + self.offset3d.x,
+                        self.bound.y - self.offset3d.y,
                         Prec::Mult(self.prec),
-                    ))
-                } else if !self.is_3d {
-                    if self.graph_mode == GraphMode::Flatten || self.graph_mode == GraphMode::Polar
-                    {
-                        Some(Bound::Width(self.var.x, self.var.y, Prec::Mult(prec)))
-                    } else {
+                    )),
+                    GraphMode::Polar => Some(Bound::Width3D(
+                        self.bound.x + self.offset3d.x,
+                        self.bound.x - self.offset3d.y,
+                        self.bound.y + self.offset3d.x,
+                        self.bound.y - self.offset3d.y,
+                        Prec::Mult(self.prec),
+                    )),
+                    GraphMode::DomainColoring => {
                         let c = self.to_coord(Pos::new(0.0, 0.0));
                         let cf = self.to_coord(self.screen.to_pos());
-                        Some(Bound::Width(c.0, cf.0, Prec::Mult(prec)))
+                        Some(Bound::Width3D(
+                            c.0,
+                            c.1,
+                            cf.0,
+                            cf.1,
+                            Prec::Dimension(
+                                (self.screen.x * prec * self.mult) as usize,
+                                (self.screen.y * prec * self.mult) as usize,
+                            ),
+                        ))
                     }
+                    GraphMode::Slice => {
+                        let c = self.to_coord(Pos::new(0.0, 0.0));
+                        let cf = self.to_coord(self.screen.to_pos());
+                        if self.view_x {
+                            Some(Bound::Width3D(
+                                c.0,
+                                self.bound.x,
+                                cf.0,
+                                self.bound.y,
+                                Prec::Slice(prec),
+                            ))
+                        } else {
+                            Some(Bound::Width3D(
+                                self.bound.x,
+                                c.0,
+                                self.bound.y,
+                                cf.0,
+                                Prec::Slice(prec),
+                            ))
+                        }
+                    }
+                    GraphMode::Flatten => {
+                        if self.view_x {
+                            Some(Bound::Width3D(
+                                self.var.x,
+                                self.bound.x,
+                                self.var.y,
+                                self.bound.y,
+                                Prec::Slice(self.prec),
+                            ))
+                        } else {
+                            Some(Bound::Width3D(
+                                self.bound.x,
+                                self.var.x,
+                                self.bound.y,
+                                self.var.y,
+                                Prec::Slice(self.prec),
+                            ))
+                        }
+                    }
+                    GraphMode::Depth => {
+                        if self.view_x {
+                            Some(Bound::Width3D(
+                                self.bound.x - self.offset3d.z,
+                                self.bound.x,
+                                self.bound.y - self.offset3d.z,
+                                self.bound.y,
+                                Prec::Slice(self.prec),
+                            ))
+                        } else {
+                            Some(Bound::Width3D(
+                                self.bound.x,
+                                self.bound.x - self.offset3d.z,
+                                self.bound.y,
+                                self.bound.y - self.offset3d.z,
+                                Prec::Slice(self.prec),
+                            ))
+                        }
+                    }
+                    GraphMode::SlicePolar => {
+                        if self.view_x {
+                            Some(Bound::Width3D(
+                                self.var.x,
+                                self.bound.x,
+                                self.var.y,
+                                self.bound.y,
+                                Prec::Slice(self.prec),
+                            ))
+                        } else {
+                            Some(Bound::Width3D(
+                                self.bound.x,
+                                self.var.x,
+                                self.bound.y,
+                                self.var.y,
+                                Prec::Slice(self.prec),
+                            ))
+                        }
+                    }
+                }
+            } else if self.graph_mode == GraphMode::Depth {
+                Some(Bound::Width(
+                    self.bound.x - self.offset3d.z,
+                    self.bound.y - self.offset3d.z,
+                    Prec::Mult(self.prec),
+                ))
+            } else if !self.is_3d {
+                if self.graph_mode == GraphMode::Flatten || self.graph_mode == GraphMode::Polar {
+                    Some(Bound::Width(self.var.x, self.var.y, Prec::Mult(prec)))
                 } else {
-                    None
+                    let c = self.to_coord(Pos::new(0.0, 0.0));
+                    let cf = self.to_coord(self.screen.to_pos());
+                    Some(Bound::Width(c.0, cf.0, Prec::Mult(prec)))
                 }
             } else {
                 None
-            },
-            self.blacklist_graphs.clone(),
-        )
+            }
+        } else {
+            None
+        }
     }
     #[cfg(not(feature = "tiny-skia"))]
     fn max(&self) -> usize {
@@ -508,11 +504,24 @@ impl Graph {
     }
     fn write_label(&self, painter: &mut Painter) {
         let mut pos = Pos::new(self.screen.x as f32 - 48.0, 0.0);
+        let blacklist = self
+            .blacklist_graphs
+            .iter()
+            .filter_map(|i| self.index_to_name(*i))
+            .collect::<Vec<usize>>();
+        println!("{:?}", blacklist);
         for (i, Name { name, show, .. }) in self
             .names
             .iter()
             .enumerate()
-            .filter(|(i, n)| !n.name.is_empty() && !self.blacklist_graphs.contains(i))
+            .filter_map(|(i, n)| {
+                if !n.name.is_empty() && !blacklist.contains(&i) {
+                    Some(n)
+                } else {
+                    None
+                }
+            })
+            .enumerate()
         {
             let y = (pos.y + 3.0 * self.font_size / 4.0).round();
             match self.graph_mode {

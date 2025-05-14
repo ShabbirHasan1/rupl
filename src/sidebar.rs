@@ -97,7 +97,18 @@ impl Graph {
                     j -= 1;
                     continue;
                 }
-                text(v.clone(), i, (Some(self.axis_color), None));
+                text(
+                    v.clone(),
+                    i,
+                    (
+                        if self.blacklist_graphs.contains(&i) {
+                            Some(self.axis_color_light)
+                        } else {
+                            Some(self.axis_color)
+                        },
+                        None,
+                    ),
+                );
                 i += 1;
             }
             if j != 0 {
@@ -105,12 +116,12 @@ impl Graph {
                 continue;
             }
             if !n.name.is_empty() {
-                let real = if n.show.real() && !self.blacklist_graphs.contains(&k) {
+                let real = if n.show.real() && !self.blacklist_graphs.contains(&i) {
                     Some(self.main_colors[k % self.main_colors.len()])
                 } else {
                     None
                 };
-                let imag = if n.show.imag() && !self.blacklist_graphs.contains(&k) {
+                let imag = if n.show.imag() && !self.blacklist_graphs.contains(&i) {
                     Some(self.alt_colors[k % self.alt_colors.len()])
                 } else {
                     None
@@ -270,13 +281,25 @@ impl Graph {
                 self.last_right_interact = None
             }
             if x < 0.0 && i.pointer.unwrap_or(false) {
-                if let Some(new) = self.get_name_place(new as usize) {
-                    if let Some(n) = self.blacklist_graphs.iter().position(|&n| n == new) {
-                        self.blacklist_graphs.remove(n);
+                if let Some(n) = self
+                    .blacklist_graphs
+                    .iter()
+                    .position(|&n| n == new as usize)
+                {
+                    self.blacklist_graphs.remove(n);
+                    if self.index_to_name(new as usize).is_some() {
+                        self.recalculate = true;
                     } else {
-                        self.blacklist_graphs.push(new)
+                        self.name_modified = true;
                     }
-                    self.recalculate = true;
+                } else if let Some(i) = self.index_to_name(new as usize) {
+                    if !matches!(self.names[i].show, Show::None) {
+                        self.blacklist_graphs.push(new as usize);
+                        self.recalculate = true;
+                    }
+                } else {
+                    self.blacklist_graphs.push(new as usize);
+                    self.name_modified = true;
                 }
             }
         }
@@ -703,20 +726,6 @@ impl Graph {
             .max()
             .unwrap_or_default()
     }
-    pub(crate) fn get_name_place(&self, mut i: usize) -> Option<usize> {
-        i += self.text_scroll_pos.0;
-        for (k, name) in self.names.iter().enumerate() {
-            if i < name.vars.len() {
-                return None;
-            }
-            i -= name.vars.len();
-            if i == 0 {
-                return Some(k);
-            }
-            i -= 1;
-        }
-        None
-    }
     pub(crate) fn modify_name(&mut self, mut i: usize, j: usize, char: String) {
         if i == self.get_name_len() {
             self.names.push(Name {
@@ -810,6 +819,19 @@ impl Graph {
                 i -= 1;
             }
         }
+    }
+    pub fn index_to_name(&self, mut i: usize) -> Option<usize> {
+        for (k, name) in self.names.iter().enumerate() {
+            if i < name.vars.len() {
+                return None;
+            }
+            i -= name.vars.len();
+            if i == 0 {
+                return Some(k);
+            }
+            i -= 1;
+        }
+        None
     }
     pub(crate) fn remove_char(&mut self, mut i: usize, j: usize) -> Option<char> {
         for name in self.names.iter_mut() {
