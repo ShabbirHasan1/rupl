@@ -129,6 +129,12 @@ pub enum Angle {
     Degree,
     Gradian,
 }
+#[derive(Clone, Copy)]
+pub(crate) enum Dragable {
+    Point(Pos),
+    X(f32),
+    Y(f32),
+}
 impl Angle {
     pub(crate) fn to_val(self, t: f64) -> f64 {
         match self {

@@ -704,7 +704,7 @@ impl Graph {
         self.expand_names(text_box.1);
         true
     }
-    pub(crate) fn get_points(&self) -> Vec<(usize, String, Pos)> {
+    pub(crate) fn get_points(&self) -> Vec<(usize, String, Dragable)> {
         let mut pts = Vec::new();
         macro_rules! register {
             ($o: tt, $i: tt) => {
@@ -720,7 +720,16 @@ impl Graph {
                     continue;
                 }
                 let mut v = sp.last().unwrap().to_string();
-                if v.len() >= 5 && v.pop().unwrap() == '}' && v.remove(0) == '{' {
+                if let Ok(a) = v.parse() {
+                    let s = sp.first().unwrap().to_string();
+                    if s != "y" {
+                        let a = self.to_screen(a, 0.0).x;
+                        pts.push(($i, s, Dragable::X(a)));
+                    } else {
+                        let a = self.to_screen(0.0, a).y;
+                        pts.push(($i, s, Dragable::Y(a)));
+                    }
+                } else if v.len() >= 5 && v.pop().unwrap() == '}' && v.remove(0) == '{' {
                     let s: Vec<&str> = v.split(',').collect();
                     if s.len() != 2 {
                         $i += 1;
@@ -730,7 +739,11 @@ impl Graph {
                         $i += 1;
                         continue;
                     };
-                    pts.push(($i, sp.first().unwrap().to_string(), self.to_screen(a, b)));
+                    pts.push((
+                        $i,
+                        sp.first().unwrap().to_string(),
+                        Dragable::Point(self.to_screen(a, b)),
+                    ));
                 }
             };
         }

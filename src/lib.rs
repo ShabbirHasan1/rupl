@@ -1312,28 +1312,66 @@ impl Graph {
             }
             if i.pointer_right.is_some() {
                 if i.pointer_right.unwrap() && mpos.x > 0.0 {
-                    let pts: Vec<(usize, String, Pos)> = self
+                    let pts: Vec<(usize, String, Dragable)> = self
                         .get_points()
                         .into_iter()
-                        .filter(|p| {
-                            let dx = p.2.x - mpos.x as f32;
-                            let dy = p.2.y - mpos.y as f32;
-                            dx * dx + dy * dy <= 32.0 * 32.0
+                        .filter(|(_, _, p)| {
+                            let v = 32.0;
+                            match p {
+                                Dragable::Point(p) => {
+                                    let dx = p.x - mpos.x as f32;
+                                    let dy = p.y - mpos.y as f32;
+                                    dx * dx + dy * dy <= v * v
+                                }
+                                Dragable::X(x) => {
+                                    let dx = (x - mpos.x as f32).abs();
+                                    dx <= v
+                                }
+                                Dragable::Y(y) => {
+                                    let dy = (y - mpos.y as f32).abs();
+                                    dy <= v
+                                }
+                            }
                         })
                         .collect();
                     if !pts.is_empty() {
-                        let mut min: (usize, String, Pos) = pts[0].clone();
+                        let get_d = |p: Dragable| -> f32 {
+                            match p {
+                                Dragable::Point(p) => {
+                                    let dx = p.x - mpos.x as f32;
+                                    let dy = p.y - mpos.y as f32;
+                                    dx * dx + dy * dy
+                                }
+                                Dragable::X(x) => {
+                                    let dx = (x - mpos.x as f32).abs();
+                                    dx * dx
+                                }
+                                Dragable::Y(y) => {
+                                    let dy = (y - mpos.y as f32).abs();
+                                    dy * dy
+                                }
+                            }
+                        };
+                        let mut min: (f32, (usize, String, Dragable)) =
+                            (get_d(pts[0].2), pts[0].clone());
                         if pts.len() > 1 {
-                            for p in pts {
-                                if p.2.y * p.2.y + p.2.x * p.2.x
-                                    < min.2.x * min.2.x + min.2.y * min.2.y
-                                {
-                                    min = p
+                            for (a, b, p) in pts {
+                                let d = get_d(p);
+                                if d < min.0 {
+                                    min = (d, (a, b, p))
                                 }
                             }
                         }
+                        let min = min.1;
                         let s = self.to_coord(mpos.to_pos());
-                        self.replace_name(min.0, format!("{}={{{},{}}}", min.1, s.0, s.1));
+                        self.replace_name(
+                            min.0,
+                            match min.2 {
+                                Dragable::Point(_) => format!("{}={{{},{}}}", min.1, s.0, s.1),
+                                Dragable::X(_) => format!("{}={}", min.1, s.0),
+                                Dragable::Y(_) => format!("{}={}", min.1, s.1),
+                            },
+                        );
                         self.side_drag = Some(min.0);
                         self.name_modified = true;
                     }
@@ -1342,10 +1380,18 @@ impl Graph {
                     let v = self
                         .get_name(i)
                         .split('=')
-                        .next()
-                        .map(|s| s.to_string())
-                        .unwrap();
-                    self.replace_name(i, format!("{}={{{},{}}}", v, s.0, s.1));
+                        .map(|i| i.to_string())
+                        .collect::<Vec<String>>();
+                    self.replace_name(
+                        i,
+                        if v[1].contains('{') {
+                            format!("{}={{{},{}}}", v[0], s.0, s.1)
+                        } else if v[0] != "y" {
+                            format!("{}={}", v[0], s.0)
+                        } else {
+                            format!("{}={}", v[0], s.1)
+                        },
+                    );
                     self.name_modified = true;
                 } else {
                     self.side_drag = None
