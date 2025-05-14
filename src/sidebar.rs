@@ -287,12 +287,12 @@ impl Graph {
                     .position(|&n| n == new as usize)
                 {
                     self.blacklist_graphs.remove(n);
-                    if self.index_to_name(new as usize).is_some() {
+                    if self.index_to_name(new as usize, true).is_some() {
                         self.recalculate = true;
                     } else {
                         self.name_modified = true;
                     }
-                } else if let Some(i) = self.index_to_name(new as usize) {
+                } else if let Some(i) = self.index_to_name(new as usize, true) {
                     if !matches!(self.names[i].show, Show::None) {
                         self.blacklist_graphs.push(new as usize);
                         self.recalculate = true;
@@ -820,16 +820,20 @@ impl Graph {
             }
         }
     }
-    pub fn index_to_name(&self, mut i: usize) -> Option<usize> {
+    pub fn index_to_name(&self, mut i: usize, ignore_white: bool) -> Option<usize> {
+        let mut j = 0;
         for (k, name) in self.names.iter().enumerate() {
             if i < name.vars.len() {
                 return None;
             }
             i -= name.vars.len();
             if i == 0 {
-                return Some(k);
+                return Some(k - j);
             }
             i -= 1;
+            if !ignore_white && name.name.is_empty() {
+                j += 1;
+            }
         }
         None
     }
