@@ -76,6 +76,24 @@ impl Graph {
         self.cache = None;
         self.recalculate = true;
     }
+    pub(crate) fn get_rate(&self) -> Vec2 {
+        let (width, height) = (self.screen.x + self.draw_offset.x as f64, self.screen.y);
+        let fw =
+            ((self.get_longest() as f32 * self.font_width) as f64 + 4.0).max(self.side_bar_width);
+        let new = (height * self.target_side_ratio)
+            .min(width - self.min_side_width.max(fw))
+            .max(self.min_screen_width);
+        let screen = if self.draw_side {
+            if height < width {
+                Vec2::new(new, height)
+            } else {
+                Vec2::new(width, width)
+            }
+        } else {
+            Vec2::new(width, height)
+        };
+        self.screen - screen
+    }
     ///sets screen dimensions
     pub fn set_screen(&mut self, width: f64, height: f64, offset: bool) {
         let fw =
@@ -1874,6 +1892,10 @@ impl Graph {
             self.draw_side = !self.draw_side;
             self.text_box = self.draw_side.then_some((0, 0));
             self.recalculate = true;
+            if !self.is_3d {
+                let rt = self.get_rate();
+                self.offset += rt / 2.0;
+            }
         }
         if i.keys_pressed(self.keybinds.fast) {
             self.fast_3d = !self.fast_3d;

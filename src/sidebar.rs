@@ -494,6 +494,10 @@ impl Graph {
                     NamedKey::Escape => {
                         self.draw_side = false;
                         self.recalculate = true;
+                        if !self.is_3d {
+                            let rt = self.get_rate();
+                            self.offset += rt / 2.0;
+                        }
                     }
                     NamedKey::Tab => {
                         if i.modifiers.ctrl {
