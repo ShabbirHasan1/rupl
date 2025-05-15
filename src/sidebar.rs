@@ -741,20 +741,43 @@ impl Graph {
                         pts.push(($i, s, Dragable::Y(a)));
                     }
                 } else if v.len() >= 5 && v.pop().unwrap() == '}' && v.remove(0) == '{' {
-                    let s: Vec<&str> = v.split(',').collect();
-                    if s.len() != 2 {
-                        $i += 1;
-                        continue;
+                    if v.contains("{") {
+                        v.pop();
+                        for (k, v) in v.split("}").enumerate() {
+                            let mut v = v.to_string();
+                            if v.starts_with(",") {
+                                v.remove(0);
+                            }
+                            v.remove(0);
+                            let s: Vec<&str> = v.split(',').collect();
+                            if s.len() != 2 {
+                                continue;
+                            }
+                            let (Ok(a), Ok(b)) = (s[0].parse::<f64>(), s[1].parse::<f64>()) else {
+                                continue;
+                            };
+                            pts.push((
+                                $i,
+                                sp.first().unwrap().to_string(),
+                                Dragable::Points((k, self.to_screen(a, b))),
+                            ));
+                        }
+                    } else {
+                        let s: Vec<&str> = v.split(',').collect();
+                        if s.len() != 2 {
+                            $i += 1;
+                            continue;
+                        }
+                        let (Ok(a), Ok(b)) = (s[0].parse::<f64>(), s[1].parse::<f64>()) else {
+                            $i += 1;
+                            continue;
+                        };
+                        pts.push((
+                            $i,
+                            sp.first().unwrap().to_string(),
+                            Dragable::Point(self.to_screen(a, b)),
+                        ));
                     }
-                    let (Ok(a), Ok(b)) = (s[0].parse::<f64>(), s[1].parse::<f64>()) else {
-                        $i += 1;
-                        continue;
-                    };
-                    pts.push((
-                        $i,
-                        sp.first().unwrap().to_string(),
-                        Dragable::Point(self.to_screen(a, b)),
-                    ));
                 }
             };
         }

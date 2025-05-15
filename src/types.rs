@@ -132,6 +132,7 @@ pub enum Angle {
 #[derive(Clone, Copy)]
 pub(crate) enum Dragable {
     Point(Pos),
+    Points((usize, Pos)),
     X(f32),
     Y(f32),
 }
@@ -341,7 +342,7 @@ pub struct Graph {
     ///where in side panel the cursor is at
     pub text_box: Option<(usize, usize)>,
     pub(crate) side_slider: Option<usize>,
-    pub(crate) side_drag: Option<usize>,
+    pub(crate) side_drag: Option<(usize, Option<usize>)>,
     pub(crate) last_multi: bool,
     pub(crate) side_bar_width: f64,
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
