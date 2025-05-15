@@ -1,4 +1,6 @@
 #[cfg(feature = "serde")]
+use base64::Engine;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
 use std::iter::Sum;
@@ -679,6 +681,8 @@ pub struct Keybinds {
     pub side: Option<Keys>,
     ///toggles using faster logic in 2d/3d
     pub fast: Option<Keys>,
+    ///copys tiny serialized data to clipboard
+    pub save: Option<Keys>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone)]
@@ -742,6 +746,26 @@ impl Graph {
         self.blacklist_graphs = tiny.blacklist_graphs.iter().map(|i| *i as usize).collect();
         self.view_x = tiny.view_x;
         self.graph_mode = tiny.graph_mode;
+        self.recalculate = true;
+        self.name_modified = true;
+    }
+}
+#[cfg(feature = "serde")]
+impl From<String> for GraphTiny {
+    fn from(value: String) -> Self {
+        let s = value.split('@').collect::<Vec<&str>>();
+        let (a, b) = (s[0], s[1]);
+        let l = base64::prelude::BASE64_URL_SAFE_NO_PAD
+            .decode(a)
+            .unwrap()
+            .iter()
+            .map(|c| *c as char)
+            .collect::<String>()
+            .parse::<usize>()
+            .unwrap();
+        let comp = base64::prelude::BASE64_URL_SAFE_NO_PAD.decode(b).unwrap();
+        let seri = zstd::bulk::decompress(&comp, l).unwrap();
+        bitcode::deserialize(&seri).unwrap()
     }
 }
 impl Default for Keybinds {
@@ -779,6 +803,7 @@ impl Default for Keybinds {
                 Key::ArrowUp,
                 Modifiers::default().ctrl().alt(),
             )),
+            save: Some(Keys::new_with_modifier(Key::S, Modifiers::default().ctrl())),
             coord: Some(Keys::new(Key::C)),
             anti_alias: Some(Keys::new(Key::R)),
             ignore_bounds: Some(Keys::new(Key::P)),

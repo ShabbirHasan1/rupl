@@ -3,6 +3,8 @@ pub mod types;
 mod ui;
 use crate::types::*;
 use crate::ui::Painter;
+#[cfg(feature = "serde")]
+use base64::Engine;
 #[cfg(feature = "rayon")]
 use rayon::slice::ParallelSliceMut;
 use std::f64::consts::{PI, TAU};
@@ -1890,6 +1892,19 @@ impl Graph {
             self.mouse_position = None;
             self.mouse_moved = false;
             self.recalculate = true;
+        }
+        #[cfg(feature = "serde")]
+        if i.keys_pressed(self.keybinds.save) {
+            let tiny = self.to_tiny();
+            let seri = bitcode::serialize(&tiny).unwrap();
+            let l = seri.len();
+            let comp = zstd::bulk::compress(&seri, 22).unwrap();
+            let s = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(&comp);
+            let l = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(l.to_string());
+            self.clipboard
+                .as_mut()
+                .unwrap()
+                .set_text(&format!("{l}@{s}"));
         }
     }
     #[cfg(feature = "egui")]
