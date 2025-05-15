@@ -197,7 +197,7 @@ impl Change {
     }
 }
 #[cfg(feature = "arboard")]
-pub(crate) struct Clipboard(arboard::Clipboard);
+pub(crate) struct Clipboard(pub arboard::Clipboard);
 #[cfg(not(feature = "arboard"))]
 pub(crate) struct Clipboard(pub(crate) String);
 impl Clipboard {
@@ -368,6 +368,8 @@ pub struct Graph {
     pub bracket_color: Vec<Color>,
     /// what color the text drag select will be
     pub select_color: Color,
+    #[cfg(feature = "arboard")]
+    pub(crate) wait_frame: bool,
 }
 impl Default for Graph {
     fn default() -> Self {
@@ -379,12 +381,14 @@ impl Default for Graph {
         #[cfg(feature = "skia")]
         let font = Some(skia_safe::Font::new(typeface, font_size));
         #[cfg(feature = "arboard")]
-        let clipboard = Some(Clipboard(arboard::Clipboard::new().unwrap()));
+        let clipboard = None;
         #[cfg(not(feature = "arboard"))]
         let clipboard = Some(Clipboard(String::new()));
         Self {
             is_3d: false,
             clipboard,
+            #[cfg(feature = "arboard")]
+            wait_frame: true,
             history: Vec::new(),
             tab_complete: None,
             history_pos: 0,
@@ -495,6 +499,8 @@ impl Default for Graph {
 impl Clone for Graph {
     fn clone(&self) -> Self {
         Self {
+            #[cfg(feature = "arboard")]
+            wait_frame: true,
             data: Vec::new(),
             names: self.names.clone(),
             cache: None,

@@ -1288,6 +1288,13 @@ impl Graph {
         self.keybinds_inner(i)
     }
     fn keybinds_inner(&mut self, i: &InputState) {
+        #[cfg(feature = "arboard")]
+        if self.clipboard.is_none() {
+            if !self.wait_frame {
+                self.clipboard = Some(Clipboard(arboard::Clipboard::new().unwrap()))
+            }
+            self.wait_frame = false;
+        }
         #[cfg(feature = "egui")]
         if let Some(s) = i.clipboard_override.clone() {
             self.clipboard.as_mut().unwrap().0 = s;
