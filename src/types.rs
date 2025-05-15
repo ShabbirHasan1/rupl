@@ -760,12 +760,8 @@ impl From<String> for GraphTiny {
     fn from(value: String) -> Self {
         let s = value.split('@').collect::<Vec<&str>>();
         let (a, b) = (s[0], s[1]);
-        let l = base64::prelude::BASE64_URL_SAFE_NO_PAD
-            .decode(a)
+        let l = String::try_from(base64::prelude::BASE64_URL_SAFE_NO_PAD.decode(a).unwrap())
             .unwrap()
-            .iter()
-            .map(|c| *c as char)
-            .collect::<String>()
             .parse::<usize>()
             .unwrap();
         let comp = base64::prelude::BASE64_URL_SAFE_NO_PAD.decode(b).unwrap();

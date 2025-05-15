@@ -76,14 +76,22 @@ impl Graph {
         self.cache = None;
         self.recalculate = true;
     }
-    pub(crate) fn get_rate(&self) -> Vec2 {
-        let (width, height) = (self.screen.x + self.draw_offset.x as f64, self.screen.y);
+    pub(crate) fn reset_offset(&self, width: f64, height: f64) -> Vec2 {
+        let (_, _, screen) = self.get_new_screen(width, height, true);
+        let s = screen - self.screen;
+        let (a, b) = (self.offset.x / self.screen.x, self.offset.y / self.screen.y);
+        Vec2 {
+            x: s.x * a,
+            y: s.y * b,
+        }
+    }
+    fn get_new_screen(&self, width: f64, height: f64, offset: bool) -> (f64, f64, Vec2) {
         let fw =
             ((self.get_longest() as f32 * self.font_width) as f64 + 4.0).max(self.side_bar_width);
         let new = (height * self.target_side_ratio)
             .min(width - self.min_side_width.max(fw))
             .max(self.min_screen_width);
-        let screen = if self.draw_side {
+        let screen = if self.draw_side && offset {
             if height < width {
                 Vec2::new(new, height)
             } else {
@@ -92,24 +100,18 @@ impl Graph {
         } else {
             Vec2::new(width, height)
         };
-        self.screen - screen
+        (fw, new, screen)
     }
     ///sets screen dimensions
     pub fn set_screen(&mut self, width: f64, height: f64, offset: bool) {
-        let fw =
-            ((self.get_longest() as f32 * self.font_width) as f64 + 4.0).max(self.side_bar_width);
-        let new = (height * self.target_side_ratio)
-            .min(width - self.min_side_width.max(fw))
-            .max(self.min_screen_width);
-        self.screen = if self.draw_side && offset {
-            if height < width {
-                Vec2::new(new, height)
-            } else {
-                Vec2::new(width, width)
+        let (fw, new, screen);
+        (fw, new, screen) = self.get_new_screen(width, height, offset);
+        if screen != self.screen && offset {
+            if self.screen != Vec2::splat(0.0) {
+                self.offset += self.reset_offset(width, height);
             }
-        } else {
-            Vec2::new(width, height)
-        };
+            self.screen = screen;
+        }
         self.side_bar_width = if self.draw_side { fw } else { 0.0 };
         self.draw_offset = if self.draw_side && offset && height < width {
             Pos::new((width - new) as f32, 0.0)
@@ -1892,10 +1894,6 @@ impl Graph {
             self.draw_side = !self.draw_side;
             self.text_box = self.draw_side.then_some((0, 0));
             self.recalculate = true;
-            if !self.is_3d {
-                let rt = self.get_rate();
-                self.offset += rt / 2.0;
-            }
         }
         if i.keys_pressed(self.keybinds.fast) {
             self.fast_3d = !self.fast_3d;
