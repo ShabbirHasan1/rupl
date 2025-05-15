@@ -1906,6 +1906,12 @@ impl Graph {
                 .unwrap()
                 .set_text(&format!("{l}@{s}"));
         }
+        #[cfg(feature = "serde")]
+        if i.keys_pressed(self.keybinds.paste) {
+            let data = self.clipboard.as_mut().unwrap().get_text();
+            let tiny: GraphTiny = data.into();
+            self.apply_tiny(tiny);
+        }
     }
     #[cfg(feature = "egui")]
     fn plot(&mut self, painter: &mut Painter, ui: &egui::Ui) -> Option<Vec<(f32, Draw, Color)>> {

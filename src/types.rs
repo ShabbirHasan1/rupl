@@ -683,12 +683,15 @@ pub struct Keybinds {
     pub fast: Option<Keys>,
     ///copys tiny serialized data to clipboard
     pub save: Option<Keys>,
+    ///applys tiny serialized data from clipboard
+    pub paste: Option<Keys>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 pub struct GraphTiny {
     pub names: Vec<Name>,
     pub bound: (f32, f32),
+    pub prec: f32,
     pub is_complex: bool,
     pub offset3d: Option<(f32, f32, f32)>,
     pub offset: Option<(f32, f32)>,
@@ -717,6 +720,7 @@ impl Graph {
                 })
                 .collect(),
             bound: self.bound.to_tuple(),
+            prec: self.prec as f32,
             is_complex: self.is_complex,
             offset3d: self.is_3d.then_some(self.offset3d.to_tuple()),
             offset: (!self.is_3d).then_some(self.offset.to_tuple()),
@@ -735,6 +739,7 @@ impl Graph {
         self.names = tiny.names;
         self.bound = tiny.bound.into();
         self.is_complex = tiny.is_complex;
+        self.prec = tiny.prec as f64;
         self.offset3d = tiny.offset3d.unwrap_or_default().into();
         self.offset = tiny.offset.unwrap_or_default().into();
         self.zoom = tiny.zoom as f64;
@@ -804,6 +809,7 @@ impl Default for Keybinds {
                 Modifiers::default().ctrl().alt(),
             )),
             save: Some(Keys::new_with_modifier(Key::S, Modifiers::default().ctrl())),
+            paste: Some(Keys::new_with_modifier(Key::P, Modifiers::default().ctrl())),
             coord: Some(Keys::new(Key::C)),
             anti_alias: Some(Keys::new(Key::R)),
             ignore_bounds: Some(Keys::new(Key::P)),
@@ -931,6 +937,7 @@ impl From<&egui::InputState> for InputState {
                 } => Some(key.into()),
                 egui::Event::Text(s) => match s.as_str() {
                     "^" => Some(Key::Caret),
+                    "#" => Some(Key::HashTag),
                     "(" => Some(Key::OpenParentheses),
                     ")" => Some(Key::CloseParentheses),
                     "&" => Some(Key::And),
@@ -1400,6 +1407,7 @@ pub enum Key {
     Num8,
     Num9,
     Caret,
+    HashTag,
     A,
     B,
     C,
@@ -1783,6 +1791,7 @@ impl From<Key> for winit::keyboard::Key {
             Key::Z => winit::keyboard::Key::Character("z".into()),
             Key::Mult => winit::keyboard::Key::Character("*".into()),
             Key::Caret => winit::keyboard::Key::Character("^".into()),
+            Key::HashTag => winit::keyboard::Key::Character("#".into()),
             Key::OpenParentheses => winit::keyboard::Key::Character("(".into()),
             Key::CloseParentheses => winit::keyboard::Key::Character(")".into()),
             Key::And => winit::keyboard::Key::Character("&".into()),
@@ -1913,6 +1922,7 @@ impl From<winit::keyboard::Key> for Key {
                     "y" => Key::Y,
                     "z" => Key::Z,
                     "^" => Key::Caret,
+                    "#" => Key::HashTag,
                     "(" => Key::OpenParentheses,
                     ")" => Key::CloseParentheses,
                     "&" => Key::And,
@@ -2139,6 +2149,7 @@ impl From<&Key> for KeyStr {
             Key::Z => KeyStr::Character('z'),
             Key::Mult => KeyStr::Character('*'),
             Key::Caret => KeyStr::Character('^'),
+            Key::HashTag => KeyStr::Character('#'),
             Key::OpenParentheses => KeyStr::Character('('),
             Key::CloseParentheses => KeyStr::Character(')'),
             Key::And => KeyStr::Character('&'),
