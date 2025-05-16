@@ -107,8 +107,8 @@ impl Graph {
     pub fn set_screen(&mut self, width: f64, height: f64, offset: bool) {
         let (fw, new, screen);
         (fw, new, screen) = self.get_new_screen(width, height, offset);
-        if screen != self.screen && offset {
-            if self.screen != Vec2::splat(0.0) {
+        if screen != self.screen {
+            if self.screen != Vec2::splat(0.0) && offset {
                 let s = self.reset_offset(width, height);
                 self.offset.x += s.x;
                 self.offset.y += s.y;
