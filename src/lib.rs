@@ -107,9 +107,11 @@ impl Graph {
     pub fn set_screen(&mut self, width: f64, height: f64, offset: bool, reset: bool) {
         let (fw, new, screen);
         (fw, new, screen) = self.get_new_screen(width, height, offset);
+        let mut c = None;
         if screen != self.screen {
             if self.screen != Vec2::splat(0.0) && offset && reset {
-                self.offset += self.reset_offset(width, height);
+                c = Some(self.to_coord((self.screen / 2.0).to_pos()).into());
+                self.offset.x += self.reset_offset(width, height).x;
             }
             self.screen = screen;
         }
@@ -128,6 +130,9 @@ impl Graph {
                 self.recalculate = true;
             }
             self.screen_offset = t;
+        }
+        if let Some(c) = c {
+            self.offset.y = self.get_new_offset(c).y;
         }
     }
     ///clears data and domain coloring cache
@@ -743,6 +748,13 @@ impl Graph {
         let x = (p.x as f64 / self.zoom - ox) * s;
         let y = (oy - p.y as f64 / self.zoom) * s;
         (x, y)
+    }
+    fn get_new_offset(&self, mut o: Vec2) -> Vec2 {
+        let s = (self.bound.y - self.bound.x) / self.screen.x;
+        o /= s;
+        let x = self.screen.x / (self.zoom * 2.0) - o.x - self.screen_offset.x;
+        let y = o.y - self.screen_offset.y + self.screen.y / (self.zoom * 2.0);
+        Vec2::new(x, y)
     }
     fn draw_point(
         &self,

@@ -707,6 +707,7 @@ pub struct GraphTiny {
 }
 impl Graph {
     pub fn to_tiny(&self) -> GraphTiny {
+        let (a, b) = self.to_coord((self.screen / 2.0).to_pos());
         GraphTiny {
             names: self
                 .names
@@ -723,7 +724,7 @@ impl Graph {
             prec: self.prec as f32,
             is_complex: self.is_complex,
             offset3d: self.is_3d.then_some(self.offset3d.to_tuple()),
-            offset: (!self.is_3d).then_some(self.offset.to_tuple()),
+            offset: (!self.is_3d).then_some((a as f32, b as f32)),
             zoom: self.zoom as f32,
             slice: self.slice as i8,
             var: self.var.to_tuple(),
@@ -741,7 +742,8 @@ impl Graph {
         self.is_complex = tiny.is_complex;
         self.prec = tiny.prec as f64;
         self.offset3d = tiny.offset3d.unwrap_or_default().into();
-        self.offset = tiny.offset.unwrap_or_default().into();
+        let o: Vec2 = tiny.offset.unwrap_or_default().into();
+        self.offset = self.get_new_offset(o);
         self.zoom = tiny.zoom as f64;
         self.slice = tiny.slice as isize;
         self.var = tiny.var.into();
@@ -1177,6 +1179,14 @@ impl From<(f32, f32)> for Vec2 {
         Self {
             x: value.0 as f64,
             y: value.1 as f64,
+        }
+    }
+}
+impl From<(f64, f64)> for Vec2 {
+    fn from(value: (f64, f64)) -> Self {
+        Self {
+            x: value.0,
+            y: value.1,
         }
     }
 }
