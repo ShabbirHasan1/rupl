@@ -104,14 +104,12 @@ impl Graph {
         (fw, new, screen)
     }
     ///sets screen dimensions
-    pub fn set_screen(&mut self, width: f64, height: f64, offset: bool) {
+    pub fn set_screen(&mut self, width: f64, height: f64, offset: bool, reset: bool) {
         let (fw, new, screen);
         (fw, new, screen) = self.get_new_screen(width, height, offset);
         if screen != self.screen {
-            if self.screen != Vec2::splat(0.0) && offset {
-                let s = self.reset_offset(width, height);
-                self.offset.x += s.x;
-                self.offset.y += s.y;
+            if self.screen != Vec2::splat(0.0) && offset && reset {
+                self.offset += self.reset_offset(width, height);
             }
             self.screen = screen;
         }
@@ -347,7 +345,7 @@ impl Graph {
         self.font_width(ctx);
         let rect = ctx.available_rect();
         let (width, height) = (rect.width() as f64, rect.height() as f64);
-        self.set_screen(width, height, true);
+        self.set_screen(width, height, true, true);
         let mut painter = Painter::new(
             ui,
             self.fast_3d(),
@@ -365,7 +363,7 @@ impl Graph {
         T: std::ops::DerefMut<Target = [u32]>,
     {
         self.font_width();
-        self.set_screen(width as f64, height as f64, true);
+        self.set_screen(width as f64, height as f64, true, true);
         let mut painter = Painter::new(
             width,
             height,
@@ -385,7 +383,7 @@ impl Graph {
     ///get png data
     pub fn get_png(&mut self, width: u32, height: u32) -> ui::Data {
         self.font_width();
-        self.set_screen(width as f64, height as f64, true);
+        self.set_screen(width as f64, height as f64, true, true);
         let mut painter = Painter::new(
             width,
             height,
@@ -407,7 +405,7 @@ impl Graph {
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
-        self.set_screen(width as f64, height as f64, true);
+        self.set_screen(width as f64, height as f64, true, true);
         let mut painter = Painter::new(
             width,
             height,
@@ -424,7 +422,7 @@ impl Graph {
     #[cfg(feature = "tiny-skia")]
     ///get png data
     pub fn get_png(&mut self, width: u32, height: u32) -> Vec<u8> {
-        self.set_screen(width as f64, height as f64, true);
+        self.set_screen(width as f64, height as f64, true, true);
         let mut painter = Painter::new(
             width,
             height,
@@ -516,14 +514,14 @@ impl Graph {
         }
         self.write_label(painter);
         if draw {
-            self.set_screen(width, height, false);
+            self.set_screen(width, height, false, false);
             if painter.offset.x == painter.offset.y && painter.offset.x == 0.0 {
                 painter.clear_below(self.screen, &self.background_color)
             } else {
                 painter.clear_offset(self.screen, &self.background_color);
             }
             self.write_side(painter);
-            self.set_screen(width, height, true);
+            self.set_screen(width, height, true, false);
         }
         finish(painter);
     }
