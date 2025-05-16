@@ -1834,16 +1834,14 @@ impl Graph {
                 Lines::LinesPoints => Lines::Lines,
             };
         }
-        if self.is_3d_data
-            && matches!(
-                self.graph_mode,
-                GraphMode::Slice
-                    | GraphMode::Flatten
-                    | GraphMode::Depth
-                    | GraphMode::Polar
-                    | GraphMode::SlicePolar
-            )
-        {
+        if matches!(
+            self.graph_mode,
+            GraphMode::Slice
+                | GraphMode::Flatten
+                | GraphMode::Depth
+                | GraphMode::Polar
+                | GraphMode::SlicePolar
+        ) {
             let s = (self.var.y - self.var.x) / 4.0;
             if i.keys_pressed(self.keybinds.var_down) {
                 self.var.x -= s;
@@ -1856,13 +1854,17 @@ impl Graph {
                 self.recalculate = true;
             }
             if i.keys_pressed(self.keybinds.var_in) {
-                self.var.x = (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x) / 4.0;
-                self.var.y = (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x) / 4.0;
+                (self.var.x, self.var.y) = (
+                    (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x) / 4.0,
+                    (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x) / 4.0,
+                );
                 self.recalculate = true;
             }
             if i.keys_pressed(self.keybinds.var_out) {
-                self.var.x = (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x);
-                self.var.y = (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x);
+                (self.var.x, self.var.y) = (
+                    (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x),
+                    (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x),
+                );
                 self.recalculate = true;
             }
         }
