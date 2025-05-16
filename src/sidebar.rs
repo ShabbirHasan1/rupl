@@ -26,8 +26,8 @@ impl Graph {
         } else {
             self.screen.y
         } as f32;
-        let ti = (t / delta).round();
-        self.text_scroll_pos.1 = ti as usize + self.text_scroll_pos.0 - 1;
+        let ti = (t / delta).round().max(1.0);
+        self.text_scroll_pos.1 = (ti as usize + self.text_scroll_pos.0) - 1;
         let delta = t / ti;
         for i in 0..ti as usize {
             painter.hline(

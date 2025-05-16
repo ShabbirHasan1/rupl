@@ -80,6 +80,7 @@ impl Graph {
         let (_, _, screen) = self.get_new_screen(width, height, true);
         let s = screen - self.screen;
         let (a, b) = (self.offset.x / self.screen.x, self.offset.y / self.screen.y);
+        let b = (a + b) / 2.0;
         Vec2 {
             x: s.x * a,
             y: s.y * b,
@@ -110,6 +111,7 @@ impl Graph {
             if self.screen != Vec2::splat(0.0) {
                 let s = self.reset_offset(width, height);
                 self.offset.x += s.x;
+                self.offset.y += s.y;
             }
             self.screen = screen;
         }
