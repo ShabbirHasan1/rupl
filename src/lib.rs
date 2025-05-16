@@ -1391,7 +1391,13 @@ impl Graph {
                             }
                         }
                         let min = min.1;
-                        let s = self.to_coord(mpos.to_pos());
+                        let (mut a, mut b) = self.to_coord(mpos.to_pos());
+                        if matches!(self.graph_mode, GraphMode::Polar) {
+                            let r = b.hypot(a);
+                            let t = b.atan2(a);
+                            (a, b) = (t, r);
+                        }
+                        let s = (a, b);
                         let mut k = None;
                         self.replace_name(
                             min.0,
@@ -1432,7 +1438,13 @@ impl Graph {
                         self.name_modified = true;
                     }
                 } else if let Some((i, k)) = self.side_drag {
-                    let s = self.to_coord(mpos.to_pos());
+                    let (mut a, mut b) = self.to_coord(mpos.to_pos());
+                    if matches!(self.graph_mode, GraphMode::Polar) {
+                        let r = b.hypot(a);
+                        let t = b.atan2(a);
+                        (a, b) = (t, r);
+                    }
+                    let s = (a, b);
                     let v = self
                         .get_name(i)
                         .split('=')

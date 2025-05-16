@@ -730,8 +730,10 @@ impl Graph {
                 if let Ok(a) = v.parse() {
                     let s = sp.first().unwrap().to_string();
                     if s != "y" {
-                        let a = self.to_screen(a, 0.0).x;
-                        pts.push(($i, s, Dragable::X(a)));
+                        if !matches!(self.graph_mode, GraphMode::Polar) {
+                            let a = self.to_screen(a, 0.0).x;
+                            pts.push(($i, s, Dragable::X(a)));
+                        }
                     } else {
                         let a = self.to_screen(0.0, a).y;
                         pts.push(($i, s, Dragable::Y(a)));
@@ -749,9 +751,14 @@ impl Graph {
                             if s.len() != 2 {
                                 continue;
                             }
-                            let (Ok(a), Ok(b)) = (s[0].parse::<f64>(), s[1].parse::<f64>()) else {
+                            let (Ok(mut a), Ok(mut b)) = (s[0].parse::<f64>(), s[1].parse::<f64>())
+                            else {
                                 continue;
                             };
+                            if matches!(self.graph_mode, GraphMode::Polar) {
+                                let (s, c) = a.sin_cos();
+                                (a, b) = (c * b, s * b);
+                            }
                             pts.push((
                                 $i,
                                 sp.first().unwrap().to_string(),
@@ -764,10 +771,15 @@ impl Graph {
                             $i += 1;
                             continue;
                         }
-                        let (Ok(a), Ok(b)) = (s[0].parse::<f64>(), s[1].parse::<f64>()) else {
+                        let (Ok(mut a), Ok(mut b)) = (s[0].parse::<f64>(), s[1].parse::<f64>())
+                        else {
                             $i += 1;
                             continue;
                         };
+                        if matches!(self.graph_mode, GraphMode::Polar) {
+                            let (s, c) = a.sin_cos();
+                            (a, b) = (c * b, s * b);
+                        }
                         pts.push((
                             $i,
                             sp.first().unwrap().to_string(),
