@@ -1942,8 +1942,9 @@ impl Graph {
         #[cfg(feature = "serde")]
         if i.keys_pressed(self.keybinds.paste) {
             let data = self.clipboard.as_mut().unwrap().get_text();
-            let tiny: GraphTiny = data.into();
-            self.apply_tiny(tiny);
+            if let Ok(tiny) = data.try_into() {
+                self.apply_tiny(tiny);
+            }
         }
     }
     #[cfg(feature = "egui")]

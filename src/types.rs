@@ -742,9 +742,9 @@ impl Graph {
         self.is_complex = tiny.is_complex;
         self.prec = tiny.prec as f64;
         self.offset3d = tiny.offset3d.unwrap_or_default().into();
+        self.zoom = tiny.zoom as f64;
         let o: Vec2 = tiny.offset.unwrap_or_default().into();
         self.offset = self.get_new_offset(o);
-        self.zoom = tiny.zoom as f64;
         self.slice = tiny.slice as isize;
         self.var = tiny.var.into();
         self.log_scale = tiny.log_scale;
@@ -755,20 +755,32 @@ impl Graph {
         self.graph_mode = tiny.graph_mode;
         self.recalculate = true;
         self.name_modified = true;
+        self.text_box = Some((0, 0));
     }
 }
 #[cfg(feature = "serde")]
-impl From<String> for GraphTiny {
-    fn from(value: String) -> Self {
+impl TryFrom<String> for GraphTiny {
+    type Error = ();
+    fn try_from(value: String) -> Result<Self, Self::Error> {
         let s = value.split('@').collect::<Vec<&str>>();
-        let (a, b) = (s[0], s[1]);
-        let l = String::try_from(base64::prelude::BASE64_URL_SAFE_NO_PAD.decode(a).unwrap())
-            .unwrap()
+        if s.len() == 2 {
+            let (a, b) = (s[0], s[1]);
+            let l = String::try_from(
+                base64::prelude::BASE64_URL_SAFE_NO_PAD
+                    .decode(a)
+                    .map_err(|_| ())?,
+            )
+            .map_err(|_| ())?
             .parse::<usize>()
-            .unwrap();
-        let comp = base64::prelude::BASE64_URL_SAFE_NO_PAD.decode(b).unwrap();
-        let seri = zstd::bulk::decompress(&comp, l).unwrap();
-        bitcode::deserialize(&seri).unwrap()
+            .map_err(|_| ())?;
+            let comp = base64::prelude::BASE64_URL_SAFE_NO_PAD
+                .decode(b)
+                .map_err(|_| ())?;
+            let seri = zstd::bulk::decompress(&comp, l).map_err(|_| ())?;
+            bitcode::deserialize(&seri).map_err(|_| ())
+        } else {
+            Err(())
+        }
     }
 }
 impl Default for Keybinds {
