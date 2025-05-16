@@ -108,7 +108,8 @@ impl Graph {
         (fw, new, screen) = self.get_new_screen(width, height, offset);
         if screen != self.screen && offset {
             if self.screen != Vec2::splat(0.0) {
-                self.offset += self.reset_offset(width, height);
+                let s = self.reset_offset(width, height);
+                self.offset.x += s.x;
             }
             self.screen = screen;
         }
