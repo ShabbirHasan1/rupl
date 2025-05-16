@@ -491,10 +491,6 @@ impl Graph {
                         self.select = None;
                         up(self, &mut text_box)
                     }
-                    NamedKey::Escape => {
-                        self.draw_side = false;
-                        self.recalculate = true;
-                    }
                     NamedKey::Tab => {
                         if i.modifiers.ctrl {
                             if i.modifiers.shift {

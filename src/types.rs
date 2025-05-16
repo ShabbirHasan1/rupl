@@ -759,9 +759,9 @@ impl Graph {
     }
 }
 #[cfg(feature = "serde")]
-impl TryFrom<String> for GraphTiny {
+impl TryFrom<&String> for GraphTiny {
     type Error = ();
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: &String) -> Result<Self, Self::Error> {
         let s = value.split('@').collect::<Vec<&str>>();
         if s.len() == 2 {
             let (a, b) = (s[0], s[1]);

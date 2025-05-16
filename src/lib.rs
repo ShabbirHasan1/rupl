@@ -1478,6 +1478,31 @@ impl Graph {
                 self.side_drag = None
             }
         }
+        if i.keys_pressed(self.keybinds.side) {
+            self.draw_side = !self.draw_side;
+            self.text_box = self.draw_side.then_some((0, 0));
+            self.recalculate = true;
+        }
+        #[cfg(feature = "serde")]
+        if i.keys_pressed(self.keybinds.save) {
+            let tiny = self.to_tiny();
+            let seri = bitcode::serialize(&tiny).unwrap();
+            let l = seri.len();
+            let comp = zstd::bulk::compress(&seri, 22).unwrap();
+            let s = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(&comp);
+            let l = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(l.to_string());
+            self.clipboard
+                .as_mut()
+                .unwrap()
+                .set_text(&format!("{l}@{s}"));
+        }
+        #[cfg(feature = "serde")]
+        if i.keys_pressed(self.keybinds.paste) {
+            let data = &self.clipboard.as_mut().unwrap().get_text();
+            if let Ok(tiny) = data.try_into() {
+                self.apply_tiny(tiny);
+            }
+        }
         if ret {
             return;
         }
@@ -1903,11 +1928,6 @@ impl Graph {
                 self.set_mode(order[(pt as isize - 1).rem_euclid(order.len() as isize) as usize])
             }
         }
-        if i.keys_pressed(self.keybinds.side) {
-            self.draw_side = !self.draw_side;
-            self.text_box = self.draw_side.then_some((0, 0));
-            self.recalculate = true;
-        }
         if i.keys_pressed(self.keybinds.fast) {
             self.fast_3d = !self.fast_3d;
             self.reduced_move = !self.reduced_move;
@@ -1925,26 +1945,6 @@ impl Graph {
             self.mouse_position = None;
             self.mouse_moved = false;
             self.recalculate = true;
-        }
-        #[cfg(feature = "serde")]
-        if i.keys_pressed(self.keybinds.save) {
-            let tiny = self.to_tiny();
-            let seri = bitcode::serialize(&tiny).unwrap();
-            let l = seri.len();
-            let comp = zstd::bulk::compress(&seri, 22).unwrap();
-            let s = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(&comp);
-            let l = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(l.to_string());
-            self.clipboard
-                .as_mut()
-                .unwrap()
-                .set_text(&format!("{l}@{s}"));
-        }
-        #[cfg(feature = "serde")]
-        if i.keys_pressed(self.keybinds.paste) {
-            let data = self.clipboard.as_mut().unwrap().get_text();
-            if let Ok(tiny) = data.try_into() {
-                self.apply_tiny(tiny);
-            }
         }
     }
     #[cfg(feature = "egui")]
