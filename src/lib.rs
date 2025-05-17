@@ -8,6 +8,8 @@ use base64::Engine;
 #[cfg(feature = "rayon")]
 use rayon::slice::ParallelSliceMut;
 use std::f64::consts::{PI, TAU};
+#[cfg(feature = "serde")]
+use std::io::BufRead;
 fn is_3d(data: &[GraphType]) -> bool {
     data.iter()
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
@@ -92,7 +94,7 @@ impl Graph {
         let new = (height * self.target_side_ratio)
             .min(width - self.min_side_width.max(fw))
             .max(self.min_screen_width);
-        let screen = if self.draw_side && offset {
+        let screen = if matches!(self.menu, Menu::Side) && offset {
             if height < width {
                 Vec2::new(new, height)
             } else {
@@ -115,8 +117,12 @@ impl Graph {
             }
             self.screen = screen;
         }
-        self.side_bar_width = if self.draw_side { fw } else { 0.0 };
-        self.draw_offset = if self.draw_side && offset && height < width {
+        self.side_bar_width = if matches!(self.menu, Menu::Side) {
+            fw
+        } else {
+            0.0
+        };
+        self.draw_offset = if matches!(self.menu, Menu::Side) && offset && height < width {
             Pos::new((width - new) as f32, 0.0)
         } else {
             Pos::new(0.0, 0.0)
@@ -502,7 +508,7 @@ impl Graph {
                 }
             }
         }
-        let draw = self.draw_side;
+        let draw = matches!(self.menu, Menu::Side);
         let finish = |painter: &mut Painter| {
             #[cfg(feature = "skia")]
             painter.finish(draw);
@@ -1334,7 +1340,7 @@ impl Graph {
         if let Some(s) = i.clipboard_override.clone() {
             self.clipboard.as_mut().unwrap().0 = s;
         }
-        let ret = if self.draw_side {
+        let ret = if matches!(self.menu, Menu::Side) {
             self.keybinds_side(i)
         } else {
             false
@@ -1491,9 +1497,42 @@ impl Graph {
             }
         }
         if i.keys_pressed(self.keybinds.side) {
-            self.draw_side = !self.draw_side;
-            self.text_box = self.draw_side.then_some((0, 0));
-            self.recalculate = true;
+            match self.menu {
+                Menu::Normal => {
+                    self.menu = Menu::Side;
+                    self.text_box = Some((0, 0));
+                    self.recalculate = true;
+                }
+                _ => {
+                    self.menu = Menu::Normal;
+                    self.text_box = None;
+                    self.recalculate = true;
+                }
+            }
+        }
+        if i.keys_pressed(self.keybinds.settings) {
+            match self.menu {
+                Menu::Settings => {
+                    self.menu = Menu::Normal;
+                    self.recalculate = true;
+                }
+                _ => {
+                    self.menu = Menu::Settings;
+                    self.recalculate = true;
+                }
+            }
+        }
+        if i.keys_pressed(self.keybinds.load) {
+            match self.menu {
+                Menu::Load => {
+                    self.menu = Menu::Normal;
+                    self.recalculate = true;
+                }
+                _ => {
+                    self.menu = Menu::Load;
+                    self.recalculate = true;
+                }
+            }
         }
         #[cfg(feature = "serde")]
         if i.keys_pressed(self.keybinds.save) {
@@ -1507,6 +1546,10 @@ impl Graph {
                 .as_mut()
                 .unwrap()
                 .set_text(&format!("{l}@{s}"));
+        }
+        #[cfg(feature = "serde")]
+        if i.keys_pressed(self.keybinds.full_save) {
+            self.save();
         }
         #[cfg(feature = "serde")]
         if i.keys_pressed(self.keybinds.paste) {
@@ -1960,6 +2003,34 @@ impl Graph {
             self.mouse_moved = false;
             self.recalculate = true;
         }
+    }
+    #[cfg(feature = "serde")]
+    pub(crate) fn save(&mut self) {
+        if self.names.is_empty() || self.data.is_empty() {
+            return;
+        }
+        let seri = bitcode::serialize(&self).unwrap();
+        let l = seri.len();
+        let comp = zstd::bulk::compress(&seri, 22).unwrap();
+        let s = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(&comp);
+        let l = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(l.to_string());
+        let n = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(&self.names[0].name);
+        if !std::fs::exists(&self.save_file).unwrap() {
+            std::fs::File::create(&self.save_file).unwrap();
+        }
+        let file = std::fs::File::open(&self.save_file).unwrap();
+        let mut data: Vec<String> = std::io::BufReader::new(file)
+            .lines()
+            .map(Result::unwrap)
+            .collect::<Vec<String>>();
+        let s = format!("{n}@{l}@@{s}");
+        if let Some(n) = self.save_num {
+            data[n] = s
+        } else {
+            self.save_num = Some(data.len());
+            data.push(s);
+        }
+        std::fs::write(&self.save_file, data.join("\n")).unwrap();
     }
     #[cfg(feature = "egui")]
     fn plot(&mut self, painter: &mut Painter, ui: &egui::Ui) -> Option<Vec<(f32, Draw, Color)>> {

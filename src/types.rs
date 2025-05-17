@@ -354,8 +354,8 @@ pub struct Graph {
     pub(crate) text_scroll_pos: (usize, usize),
     ///do not show anything if it contains an imaginary part
     pub only_real: bool,
-    ///if we should draw the functions in a modifiable way on the left or bottom side
-    pub draw_side: bool,
+    ///what menu should be drawn
+    pub menu: Menu,
     ///current keybinds
     pub keybinds: Keybinds,
     ///side bar height per line
@@ -372,6 +372,18 @@ pub struct Graph {
     pub select_color: Color,
     #[cfg(feature = "arboard")]
     pub(crate) wait_frame: bool,
+    #[cfg(feature = "serde")]
+    pub save_file: String,
+    #[cfg(feature = "serde")]
+    pub save_num: Option<usize>,
+}
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, PartialEq)]
+pub enum Menu {
+    Normal,
+    Side,
+    Settings,
+    Load,
 }
 impl Default for Graph {
     fn default() -> Self {
@@ -399,6 +411,10 @@ impl Default for Graph {
             fast_3d: false,
             text_scroll_pos: (0, 0),
             data: Vec::new(),
+            #[cfg(feature = "serde")]
+            save_file: String::new(),
+            #[cfg(feature = "serde")]
+            save_num: None,
             cache: None,
             blacklist_graphs: Vec::new(),
             line_width: 3.0,
@@ -427,7 +443,7 @@ impl Default for Graph {
             draw_offset: Pos::new(0.0, 0.0),
             angle_type: Angle::Radian,
             mouse_held: false,
-            draw_side: false,
+            menu: Menu::Normal,
             screen: Vec2::splat(0.0),
             screen_offset: Vec2::splat(0.0),
             delta: 0.0,
@@ -508,7 +524,12 @@ impl Clone for Graph {
             cache: None,
             tab_complete: None,
             select: self.select,
+            #[cfg(feature = "serde")]
+            save_file: self.save_file.clone(),
+            #[cfg(feature = "serde")]
+            save_num: self.save_num,
             clipboard: None,
+            menu: self.menu,
             history_pos: self.history_pos,
             #[cfg(feature = "skia")]
             font: None,
@@ -582,7 +603,6 @@ impl Clone for Graph {
             last_multi: self.last_multi,
             side_bar_width: self.side_bar_width,
             only_real: self.only_real,
-            draw_side: self.draw_side,
             keybinds: self.keybinds,
             side_height: self.side_height,
             min_side_width: self.min_side_width,
@@ -683,8 +703,14 @@ pub struct Keybinds {
     pub fast: Option<Keys>,
     ///copys tiny serialized data to clipboard
     pub save: Option<Keys>,
+    ///full saves the graph into the Graph.save_file directory
+    pub full_save: Option<Keys>,
     ///applys tiny serialized data from clipboard
     pub paste: Option<Keys>,
+    ///settings menu
+    pub settings: Option<Keys>,
+    ///load from full saves
+    pub load: Option<Keys>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone)]
@@ -762,25 +788,23 @@ impl Graph {
 impl TryFrom<&String> for GraphTiny {
     type Error = ();
     fn try_from(value: &String) -> Result<Self, Self::Error> {
-        let s = value.split('@').collect::<Vec<&str>>();
-        if s.len() == 2 {
-            let (a, b) = (s[0], s[1]);
-            let l = String::try_from(
-                base64::prelude::BASE64_URL_SAFE_NO_PAD
-                    .decode(a)
-                    .map_err(|_| ())?,
-            )
-            .map_err(|_| ())?
-            .parse::<usize>()
-            .map_err(|_| ())?;
-            let comp = base64::prelude::BASE64_URL_SAFE_NO_PAD
-                .decode(b)
-                .map_err(|_| ())?;
-            let seri = zstd::bulk::decompress(&comp, l).map_err(|_| ())?;
-            bitcode::deserialize(&seri).map_err(|_| ())
-        } else {
-            Err(())
+        if !value.contains('@') {
+            return Err(());
         }
+        let (a, b) = value.rsplit_once('@').unwrap();
+        let l = String::try_from(
+            base64::prelude::BASE64_URL_SAFE_NO_PAD
+                .decode(a)
+                .map_err(|_| ())?,
+        )
+        .map_err(|_| ())?
+        .parse::<usize>()
+        .map_err(|_| ())?;
+        let comp = base64::prelude::BASE64_URL_SAFE_NO_PAD
+            .decode(b)
+            .map_err(|_| ())?;
+        let seri = zstd::bulk::decompress(&comp, l).map_err(|_| ())?;
+        bitcode::deserialize(&seri).map_err(|_| ())
     }
 }
 impl Default for Keybinds {
@@ -819,6 +843,10 @@ impl Default for Keybinds {
                 Modifiers::default().ctrl().alt(),
             )),
             save: Some(Keys::new_with_modifier(Key::S, Modifiers::default().ctrl())),
+            full_save: Some(Keys::new_with_modifier(
+                Key::S,
+                Modifiers::default().ctrl().shift(),
+            )),
             paste: Some(Keys::new_with_modifier(Key::P, Modifiers::default().ctrl())),
             coord: Some(Keys::new(Key::C)),
             anti_alias: Some(Keys::new(Key::R)),
@@ -861,6 +889,14 @@ impl Default for Keybinds {
             reset: Some(Keys::new(Key::T)),
             side: Some(Keys::new(Key::Escape)),
             fast: Some(Keys::new(Key::F)),
+            settings: Some(Keys::new_with_modifier(
+                Key::Escape,
+                Modifiers::default().ctrl(),
+            )),
+            load: Some(Keys::new_with_modifier(
+                Key::Escape,
+                Modifiers::default().shift(),
+            )),
         }
     }
 }
