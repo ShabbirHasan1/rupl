@@ -259,7 +259,7 @@ impl Graph {
                 if let Some(last) = self.last_right_interact {
                     if let Some(new) = self.side_slider {
                         let delta = 2.0f64.powf((mpos.x - last.x) / 32.0);
-                        let name = self.get_name(new);
+                        let name = self.get_name(new).to_string();
                         let mut body = |s: String| {
                             self.side_slider = Some(new);
                             self.replace_name(new, s);
@@ -352,9 +352,7 @@ impl Graph {
                     let (a, b, _) = self.select.unwrap_or_default();
                     if a != b {
                         self.select = None;
-                        let s = (a..b)
-                            .filter_map(|_| self.remove_char(text_box.1, a))
-                            .collect::<String>();
+                        let s = self.remove_str(text_box.1, a, b);
                         text_box.0 = a;
                         self.history_push(Change::Str(text_box, s, true));
                     }
@@ -380,7 +378,7 @@ impl Graph {
                     'c' => {
                         let (a, b, _) = self.select.unwrap_or_default();
                         if a != b {
-                            let text = &self.get_name(text_box.1)[a..b];
+                            let text = &self.get_name(text_box.1)[a..b].to_string();
                             self.clipboard.as_mut().unwrap().set_text(text)
                         }
                     }
@@ -390,9 +388,7 @@ impl Graph {
                             let (a, b, _) = self.select.unwrap_or_default();
                             if a != b {
                                 self.select = None;
-                                let s = (a..b)
-                                    .filter_map(|_| self.remove_char(text_box.1, a))
-                                    .collect::<String>();
+                                let s = self.remove_str(text_box.1, a, b);
                                 text_box.0 = a;
                                 self.history_push(Change::Str(text_box, s, true));
                             }
@@ -407,9 +403,7 @@ impl Graph {
                         let (a, b, _) = self.select.unwrap_or_default();
                         if a != b {
                             self.select = None;
-                            let text = (a..b)
-                                .filter_map(|_| self.remove_char(text_box.1, a))
-                                .collect::<String>();
+                            let text = self.remove_str(text_box.1, a, b);
                             self.clipboard.as_mut().unwrap().set_text(&text);
                             text_box.0 = a;
                             self.history_push(Change::Str(text_box, text, true));
@@ -580,9 +574,7 @@ impl Graph {
                         let (a, b, _) = self.select.unwrap_or_default();
                         if a != b {
                             self.select = None;
-                            let s = (a..b)
-                                .filter_map(|_| self.remove_char(text_box.1, a))
-                                .collect::<String>();
+                            let s = self.remove_str(text_box.1, a, b);
                             text_box.0 = a;
                             self.history_push(Change::Str(text_box, s, true));
                         } else if text_box.0 != 0 {
@@ -591,18 +583,14 @@ impl Graph {
                                 for (i, c) in name[..text_box.0].iter().rev().enumerate() {
                                     if c.is_whitespace() || i + 1 == text_box.0 {
                                         let (a, b) = (text_box.0 - i - 1, text_box.0);
-                                        let text = (a..b)
-                                            .filter_map(|_| self.remove_char(text_box.1, a))
-                                            .collect::<String>();
+                                        let text = self.remove_str(text_box.1, a, b);
                                         text_box.0 -= i + 1;
                                         self.history_push(Change::Str(text_box, text, true));
                                         break;
                                     }
                                     if end_word(*c) {
                                         let (a, b) = (text_box.0 - i, text_box.0);
-                                        let text = (a..b)
-                                            .filter_map(|_| self.remove_char(text_box.1, a))
-                                            .collect::<String>();
+                                        let text = self.remove_str(text_box.1, a, b);
                                         text_box.0 -= i;
                                         self.history_push(Change::Str(text_box, text, true));
                                         break;
@@ -611,7 +599,7 @@ impl Graph {
                             } else {
                                 let c = self.remove_char(text_box.1, text_box.0 - 1);
                                 text_box.0 -= 1;
-                                self.history_push(Change::Char(text_box, c.unwrap(), true));
+                                self.history_push(Change::Char(text_box, c, true));
                             }
                         } else if self.get_name(text_box.1).is_empty() {
                             let b = self.remove_name(text_box.1).unwrap_or(false);
@@ -802,18 +790,31 @@ impl Graph {
         }
         pts
     }
-    pub(crate) fn get_name(&self, mut i: usize) -> String {
+    pub(crate) fn get_name(&self, mut i: usize) -> &str {
         for name in &self.names {
             if i < name.vars.len() {
-                return name.vars[i].clone();
+                return &name.vars[i];
             }
             i -= name.vars.len();
             if i == 0 {
-                return name.name.clone();
+                return &name.name;
             }
             i -= 1;
         }
-        String::new()
+        unreachable!()
+    }
+    pub(crate) fn get_mut_name(&mut self, mut i: usize) -> &mut String {
+        for name in self.names.iter_mut() {
+            if i < name.vars.len() {
+                return &mut name.vars[i];
+            }
+            i -= name.vars.len();
+            if i == 0 {
+                return &mut name.name;
+            }
+            i -= 1;
+        }
+        unreachable!()
     }
     pub(crate) fn get_longest(&self) -> usize {
         self.names
@@ -826,41 +827,11 @@ impl Graph {
             .max()
             .unwrap_or_default()
     }
-    pub(crate) fn modify_name(&mut self, mut i: usize, j: usize, char: String) {
-        if i == self.get_name_len() {
-            self.names.push(Name {
-                vars: Vec::new(),
-                name: char,
-                show: Show::None,
-            })
-        } else {
-            for name in self.names.iter_mut() {
-                if i < name.vars.len() {
-                    name.vars[i].insert_str(j, &char);
-                    return;
-                }
-                i -= name.vars.len();
-                if i == 0 {
-                    name.name.insert_str(j, &char);
-                    return;
-                }
-                i -= 1;
-            }
-        }
+    pub(crate) fn modify_name(&mut self, i: usize, j: usize, char: String) {
+        self.get_mut_name(i).insert_str(j, &char);
     }
-    pub(crate) fn replace_name(&mut self, mut i: usize, new: String) {
-        for name in self.names.iter_mut() {
-            if i < name.vars.len() {
-                name.vars[i] = new;
-                return;
-            }
-            i -= name.vars.len();
-            if i == 0 {
-                name.name = new;
-                return;
-            }
-            i -= 1;
-        }
+    pub(crate) fn replace_name(&mut self, i: usize, new: String) {
+        *self.get_mut_name(i) = new;
     }
     pub(crate) fn remove_name(&mut self, mut i: usize) -> Option<bool> {
         if i != self.get_name_len() {
@@ -941,18 +912,11 @@ impl Graph {
         }
         (None, None)
     }
-    pub(crate) fn remove_char(&mut self, mut i: usize, j: usize) -> Option<char> {
-        for name in self.names.iter_mut() {
-            if i < name.vars.len() {
-                return Some(name.vars[i].remove(j));
-            }
-            i -= name.vars.len();
-            if i == 0 {
-                return Some(name.name.remove(j));
-            }
-            i -= 1;
-        }
-        None
+    pub(crate) fn remove_char(&mut self, i: usize, j: usize) -> char {
+        self.get_mut_name(i).remove(j)
+    }
+    pub(crate) fn remove_str(&mut self, i: usize, j: usize, k: usize) -> String {
+        self.get_mut_name(i).drain(j..k).collect()
     }
     pub(crate) fn get_name_len(&self) -> usize {
         let mut i = 0;
