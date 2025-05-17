@@ -3,6 +3,7 @@ use crate::types::*;
 use crate::ui::Painter;
 impl Graph {
     pub(crate) fn write_side(&mut self, painter: &mut Painter) {
+        //TODO display different things on load/settings
         let offset = std::mem::replace(&mut painter.offset, Pos::new(0.0, 0.0));
         let is_portrait = offset.x == offset.y && offset.x == 0.0;
         if is_portrait {

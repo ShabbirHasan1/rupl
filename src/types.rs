@@ -373,9 +373,12 @@ pub struct Graph {
     #[cfg(feature = "arboard")]
     pub(crate) wait_frame: bool,
     #[cfg(feature = "serde")]
+    /// which file will save the serialization data
     pub save_file: String,
     #[cfg(feature = "serde")]
-    pub save_num: Option<usize>,
+    pub(crate) save_num: Option<usize>,
+    #[cfg(feature = "serde")]
+    pub(crate) file_data: Option<Vec<String>>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, PartialEq)]
@@ -403,6 +406,8 @@ impl Default for Graph {
             clipboard,
             #[cfg(feature = "arboard")]
             wait_frame: true,
+            #[cfg(feature = "serde")]
+            file_data: None,
             history: Vec::new(),
             tab_complete: None,
             history_pos: 0,
@@ -522,6 +527,8 @@ impl Clone for Graph {
             data: Vec::new(),
             names: self.names.clone(),
             cache: None,
+            #[cfg(feature = "serde")]
+            file_data: None,
             tab_complete: None,
             select: self.select,
             #[cfg(feature = "serde")]

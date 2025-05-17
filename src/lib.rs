@@ -94,7 +94,7 @@ impl Graph {
         let new = (height * self.target_side_ratio)
             .min(width - self.min_side_width.max(fw))
             .max(self.min_screen_width);
-        let screen = if matches!(self.menu, Menu::Side) && offset {
+        let screen = if !matches!(self.menu, Menu::Normal) && offset {
             if height < width {
                 Vec2::new(new, height)
             } else {
@@ -117,12 +117,12 @@ impl Graph {
             }
             self.screen = screen;
         }
-        self.side_bar_width = if matches!(self.menu, Menu::Side) {
+        self.side_bar_width = if !matches!(self.menu, Menu::Normal) {
             fw
         } else {
             0.0
         };
-        self.draw_offset = if matches!(self.menu, Menu::Side) && offset && height < width {
+        self.draw_offset = if !matches!(self.menu, Menu::Normal) && offset && height < width {
             Pos::new((width - new) as f32, 0.0)
         } else {
             Pos::new(0.0, 0.0)
@@ -508,7 +508,7 @@ impl Graph {
                 }
             }
         }
-        let draw = matches!(self.menu, Menu::Side);
+        let draw = !matches!(self.menu, Menu::Normal);
         let finish = |painter: &mut Painter| {
             #[cfg(feature = "skia")]
             painter.finish(draw);
@@ -1340,7 +1340,7 @@ impl Graph {
         if let Some(s) = i.clipboard_override.clone() {
             self.clipboard.as_mut().unwrap().0 = s;
         }
-        let ret = if matches!(self.menu, Menu::Side) {
+        let ret = if !matches!(self.menu, Menu::Normal) {
             self.keybinds_side(i)
         } else {
             false
@@ -1522,7 +1522,9 @@ impl Graph {
                 }
             }
         }
+        #[cfg(feature = "serde")]
         if i.keys_pressed(self.keybinds.load) {
+            self.save();
             match self.menu {
                 Menu::Load => {
                     self.menu = Menu::Normal;
@@ -2009,7 +2011,7 @@ impl Graph {
         if self.names.is_empty() || self.data.is_empty() {
             return;
         }
-        let seri = bitcode::serialize(&self).unwrap();
+        let seri = bitcode::serialize(&self.clone()).unwrap();
         let l = seri.len();
         let comp = zstd::bulk::compress(&seri, 22).unwrap();
         let s = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(&comp);
@@ -2018,19 +2020,29 @@ impl Graph {
         if !std::fs::exists(&self.save_file).unwrap() {
             std::fs::File::create(&self.save_file).unwrap();
         }
-        let file = std::fs::File::open(&self.save_file).unwrap();
-        let mut data: Vec<String> = std::io::BufReader::new(file)
-            .lines()
-            .map(Result::unwrap)
-            .collect::<Vec<String>>();
-        let s = format!("{n}@{l}@@{s}");
-        if let Some(n) = self.save_num {
-            data[n] = s
-        } else {
-            self.save_num = Some(data.len());
-            data.push(s);
+        if self.file_data.is_none() {
+            let file = std::fs::File::open(&self.save_file).unwrap();
+            self.file_data = Some(
+                std::io::BufReader::new(file)
+                    .lines()
+                    .map(Result::unwrap)
+                    .collect::<Vec<String>>(),
+            );
         }
-        std::fs::write(&self.save_file, data.join("\n")).unwrap();
+        let Some(file_data) = self.file_data.as_mut() else {
+            unreachable!()
+        };
+        if let Some(i) = self.save_num {
+            let k = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(i.to_string());
+            let s = format!("{n}@{k}@{l}@{s}");
+            file_data[i] = s
+        } else {
+            let k = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(file_data.len().to_string());
+            let s = format!("{n}@{k}@{l}@{s}");
+            self.save_num = Some(file_data.len());
+            file_data.push(s);
+        }
+        std::fs::write(&self.save_file, file_data.join("\n")).unwrap();
     }
     #[cfg(feature = "egui")]
     fn plot(&mut self, painter: &mut Painter, ui: &egui::Ui) -> Option<Vec<(f32, Draw, Color)>> {
