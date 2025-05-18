@@ -2046,6 +2046,10 @@ impl Graph {
                 self.save_num = Some(file_data.len());
                 file_data.push(s);
             }
+            let parent = std::path::Path::new(&self.save_file).parent().unwrap();
+            if !std::fs::exists(parent).unwrap() {
+                std::fs::create_dir_all(parent).unwrap()
+            }
             std::fs::write(&self.save_file, file_data.join("\n")).unwrap();
         }
         self.file_data = Some(
