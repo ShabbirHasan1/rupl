@@ -592,6 +592,7 @@ impl Graph {
         }
         self.text_box = Some(text_box);
         text_box.1 = self.expand_names(text_box.1);
+        #[cfg(feature = "serde")]
         if matches!(self.menu, Menu::Load) {
             self.load(text_box.1)
         }
@@ -718,6 +719,7 @@ impl Graph {
                 }
                 i
             }
+            #[cfg(feature = "serde")]
             Menu::Load => self.file_data.as_ref().unwrap().len(),
             Menu::Settings => todo!(),
         }
@@ -812,6 +814,7 @@ impl Graph {
                     i += 1;
                 }
             }
+            #[cfg(feature = "serde")]
             Menu::Load => {
                 for (i, n) in self.file_data.as_ref().unwrap().iter().enumerate() {
                     self.text_color(
@@ -840,6 +843,7 @@ impl Graph {
                 }
                 ""
             }
+            #[cfg(feature = "serde")]
             Menu::Load => &self.file_data.as_ref().unwrap()[i].0,
             Menu::Settings => todo!(),
         }
@@ -859,6 +863,7 @@ impl Graph {
                 }
                 unreachable!()
             }
+            #[cfg(feature = "serde")]
             Menu::Load => &mut self.file_data.as_mut().unwrap()[i].0,
             Menu::Settings => todo!(),
         }
@@ -875,6 +880,7 @@ impl Graph {
                 })
                 .max()
                 .unwrap_or_default(),
+            #[cfg(feature = "serde")]
             Menu::Load => self
                 .file_data
                 .as_ref()
@@ -917,6 +923,7 @@ impl Graph {
                     }
                 }
             }
+            #[cfg(feature = "serde")]
             Menu::Load => todo!(),
             Menu::Settings => todo!(),
         }
@@ -958,6 +965,7 @@ impl Graph {
                     }
                 }
             }
+            #[cfg(feature = "serde")]
             Menu::Load => {}
             Menu::Settings => todo!(),
         }
@@ -985,6 +993,7 @@ impl Graph {
                 }
                 unreachable!()
             }
+            #[cfg(feature = "serde")]
             Menu::Load => (None, None),
             Menu::Settings => (None, None),
         }
@@ -1004,6 +1013,7 @@ impl Graph {
                 }
                 i
             }
+            #[cfg(feature = "serde")]
             Menu::Load => self.file_data.as_ref().unwrap().len(),
             Menu::Settings => todo!(),
         }

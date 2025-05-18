@@ -380,6 +380,7 @@ pub struct Graph {
     #[cfg(feature = "serde")]
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
     pub(crate) file_data: Option<Vec<(String, usize, usize, String)>>,
+    #[cfg(feature = "serde")]
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
     pub(crate) file_data_raw: Option<Vec<String>>,
 }
@@ -389,6 +390,7 @@ pub enum Menu {
     Normal,
     Side,
     Settings,
+    #[cfg(feature = "serde")]
     Load,
 }
 impl Default for Graph {
