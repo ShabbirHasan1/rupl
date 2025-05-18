@@ -61,6 +61,15 @@ pub struct Name {
     ///if the function has an imaginary part or not
     pub show: Show,
 }
+impl Name {
+    pub fn new(name: String) -> Self {
+        Name {
+            vars: Vec::new(),
+            name,
+            show: Show::Real,
+        }
+    }
+}
 #[derive(Copy, Clone)]
 pub(crate) enum Draw {
     Line(Pos, Pos, f32),
