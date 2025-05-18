@@ -1524,7 +1524,6 @@ impl Graph {
         }
         #[cfg(feature = "serde")]
         if i.keys_pressed(self.keybinds.load) {
-            self.save();
             match self.menu {
                 Menu::Load => {
                     self.menu = Menu::Normal;
@@ -1532,8 +1531,11 @@ impl Graph {
                     self.recalculate = true;
                 }
                 _ => {
+                    self.save();
                     self.menu = Menu::Load;
-                    self.text_box = Some((0, self.save_num.unwrap_or_default()));
+                    let n = self.save_num.unwrap_or_default();
+                    self.text_box = Some((0, n));
+                    self.load(n);
                     self.recalculate = true;
                 }
             }

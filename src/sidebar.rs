@@ -707,9 +707,9 @@ impl Graph {
         b
     }
     pub(crate) fn last_visible(&self) -> usize {
-        let mut i = 0;
         match self.menu {
             Menu::Side | Menu::Normal => {
+                let mut i: usize = 0;
                 for n in self.names.iter().rev() {
                     if n.name.is_empty() && n.vars.is_empty() {
                         i += 1
@@ -717,10 +717,10 @@ impl Graph {
                         break;
                     }
                 }
-                i
+                i.saturating_sub(1)
             }
             #[cfg(feature = "serde")]
-            Menu::Load => self.file_data.as_ref().unwrap().len(),
+            Menu::Load => self.file_data.as_ref().unwrap().len() - 1,
             Menu::Settings => todo!(),
         }
     }
@@ -844,7 +844,12 @@ impl Graph {
                 ""
             }
             #[cfg(feature = "serde")]
-            Menu::Load => &self.file_data.as_ref().unwrap()[i].0,
+            Menu::Load => self
+                .file_data
+                .as_ref()
+                .unwrap()
+                .get(i)
+                .map_or("", |(a, _, _, _)| a),
             Menu::Settings => todo!(),
         }
     }
