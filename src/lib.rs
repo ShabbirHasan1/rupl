@@ -1358,7 +1358,7 @@ impl Graph {
             } else {
                 self.mouse_position = Some(mpos)
             }
-            if i.pointer_right.is_some() {
+            if i.pointer_right.is_some() && matches!(self.menu, Menu::Side | Menu::Normal) {
                 if i.pointer_right.unwrap() && mpos.x > 0.0 {
                     let get_d = |p: &Dragable| -> f32 {
                         match p {
@@ -1498,14 +1498,14 @@ impl Graph {
         }
         if i.keys_pressed(self.keybinds.side) {
             match self.menu {
-                Menu::Normal => {
-                    self.menu = Menu::Side;
-                    self.text_box = Some((0, 0));
+                Menu::Side => {
+                    self.menu = Menu::Normal;
+                    self.text_box = None;
                     self.recalculate = true;
                 }
                 _ => {
-                    self.menu = Menu::Normal;
-                    self.text_box = None;
+                    self.menu = Menu::Side;
+                    self.text_box = Some((0, 0));
                     self.recalculate = true;
                 }
             }
@@ -1528,10 +1528,12 @@ impl Graph {
             match self.menu {
                 Menu::Load => {
                     self.menu = Menu::Normal;
+                    self.text_box = None;
                     self.recalculate = true;
                 }
                 _ => {
                     self.menu = Menu::Load;
+                    self.text_box = Some((0, self.save_num.unwrap_or_default()));
                     self.recalculate = true;
                 }
             }
@@ -2008,41 +2010,85 @@ impl Graph {
     }
     #[cfg(feature = "serde")]
     pub(crate) fn save(&mut self) {
-        if self.names.is_empty() || self.data.is_empty() {
-            return;
-        }
         let seri = bitcode::serialize(&self.clone()).unwrap();
         let l = seri.len();
         let comp = zstd::bulk::compress(&seri, 22).unwrap();
         let s = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(&comp);
         let l = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(l.to_string());
-        let n = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(&self.names[0].name);
+        let n = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(if self.names.is_empty() {
+            ""
+        } else {
+            &self.names[0].name
+        });
         if !std::fs::exists(&self.save_file).unwrap() {
             std::fs::File::create(&self.save_file).unwrap();
         }
-        if self.file_data.is_none() {
+        if self.file_data_raw.is_none() {
             let file = std::fs::File::open(&self.save_file).unwrap();
-            self.file_data = Some(
+            self.file_data_raw = Some(
                 std::io::BufReader::new(file)
                     .lines()
                     .map(Result::unwrap)
                     .collect::<Vec<String>>(),
             );
         }
-        let Some(file_data) = self.file_data.as_mut() else {
+        let Some(file_data) = self.file_data_raw.as_mut() else {
             unreachable!()
         };
-        if let Some(i) = self.save_num {
-            let k = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(i.to_string());
-            let s = format!("{n}@{k}@{l}@{s}");
-            file_data[i] = s
-        } else {
-            let k = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(file_data.len().to_string());
-            let s = format!("{n}@{k}@{l}@{s}");
-            self.save_num = Some(file_data.len());
-            file_data.push(s);
+        if !self.names.is_empty() && !self.data.is_empty() {
+            if let Some(i) = self.save_num {
+                let k = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(i.to_string());
+                let s = format!("{n}@{k}@{l}@{s}");
+                file_data[i] = s
+            } else {
+                let k = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(file_data.len().to_string());
+                let s = format!("{n}@{k}@{l}@{s}");
+                self.save_num = Some(file_data.len());
+                file_data.push(s);
+            }
+            std::fs::write(&self.save_file, file_data.join("\n")).unwrap();
         }
-        std::fs::write(&self.save_file, file_data.join("\n")).unwrap();
+        self.file_data = Some(
+            file_data
+                .iter()
+                .map(|s| {
+                    let r = s.rsplitn(4, '@').collect::<Vec<&str>>();
+                    let s = |s: &str| {
+                        String::try_from(base64::prelude::BASE64_URL_SAFE_NO_PAD.decode(s).unwrap())
+                            .unwrap()
+                    };
+                    let a = s(r[3]);
+                    let b = s(r[2]).parse::<usize>().unwrap();
+                    let c = s(r[1]).parse::<usize>().unwrap();
+                    (a, b, c, r[0].to_string())
+                })
+                .collect(),
+        );
+    }
+    #[cfg(feature = "serde")]
+    pub(crate) fn load(&mut self, i: usize) {
+        if Some(i) == self.save_num {
+            return;
+        }
+        self.save();
+        let (_, j, n, s) = &self.file_data.as_ref().unwrap()[i];
+        let s = base64::prelude::BASE64_URL_SAFE_NO_PAD.decode(s).unwrap();
+        let data = zstd::bulk::decompress(&s, *n).unwrap();
+        let mut graph: Graph = bitcode::deserialize(&data).unwrap();
+        graph.save_num = Some(*j);
+        graph.file_data = std::mem::take(&mut self.file_data);
+        graph.file_data_raw = std::mem::take(&mut self.file_data_raw);
+        graph.clipboard = std::mem::take(&mut self.clipboard);
+        graph.menu = self.menu;
+        graph.font = std::mem::take(&mut self.font);
+        graph.recalculate = true;
+        graph.name_modified = true;
+        graph.text_box = self.text_box;
+        graph.screen = self.screen;
+        graph.screen_offset = self.screen_offset;
+        graph.delta = self.delta;
+        graph.offset = graph.get_new_offset(graph.offset);
+        *self = graph;
     }
     #[cfg(feature = "egui")]
     fn plot(&mut self, painter: &mut Painter, ui: &egui::Ui) -> Option<Vec<(f32, Draw, Color)>> {

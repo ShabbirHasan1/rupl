@@ -378,7 +378,10 @@ pub struct Graph {
     #[cfg(feature = "serde")]
     pub(crate) save_num: Option<usize>,
     #[cfg(feature = "serde")]
-    pub(crate) file_data: Option<Vec<String>>,
+    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    pub(crate) file_data: Option<Vec<(String, usize, usize, String)>>,
+    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    pub(crate) file_data_raw: Option<Vec<String>>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, PartialEq)]
@@ -408,6 +411,8 @@ impl Default for Graph {
             wait_frame: true,
             #[cfg(feature = "serde")]
             file_data: None,
+            #[cfg(feature = "serde")]
+            file_data_raw: None,
             history: Vec::new(),
             tab_complete: None,
             history_pos: 0,
@@ -521,6 +526,7 @@ impl Default for Graph {
 }
 impl Clone for Graph {
     fn clone(&self) -> Self {
+        let offset = self.to_coord((self.screen / 2.0).to_pos()).into();
         Self {
             #[cfg(feature = "arboard")]
             wait_frame: true,
@@ -529,14 +535,16 @@ impl Clone for Graph {
             cache: None,
             #[cfg(feature = "serde")]
             file_data: None,
+            #[cfg(feature = "serde")]
+            file_data_raw: None,
             tab_complete: None,
-            select: self.select,
+            select: None,
             #[cfg(feature = "serde")]
             save_file: self.save_file.clone(),
             #[cfg(feature = "serde")]
-            save_num: self.save_num,
+            save_num: None,
             clipboard: None,
-            menu: self.menu,
+            menu: Menu::Normal,
             history_pos: self.history_pos,
             #[cfg(feature = "skia")]
             font: None,
@@ -552,7 +560,7 @@ impl Clone for Graph {
             history: self.history.clone(),
             is_complex: self.is_complex,
             offset3d: self.offset3d,
-            offset: self.offset,
+            offset,
             text_scroll_pos: self.text_scroll_pos,
             angle: self.angle,
             select_color: self.select_color,
@@ -604,7 +612,7 @@ impl Clone for Graph {
             sin_phi: self.sin_phi,
             cos_theta: self.cos_theta,
             sin_theta: self.sin_theta,
-            text_box: self.text_box,
+            text_box: None,
             side_slider: self.side_slider,
             side_drag: self.side_drag,
             last_multi: self.last_multi,
@@ -798,7 +806,7 @@ impl TryFrom<&String> for GraphTiny {
         if !value.contains('@') {
             return Err(());
         }
-        let (a, b) = value.rsplit_once('@').unwrap();
+        let (b, a) = value.rsplit_once('@').unwrap();
         let l = String::try_from(
             base64::prelude::BASE64_URL_SAFE_NO_PAD
                 .decode(a)

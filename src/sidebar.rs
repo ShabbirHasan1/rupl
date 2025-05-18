@@ -50,92 +50,7 @@ impl Graph {
                 &self.select_color,
             )
         }
-        let mut text = |s: String, i: usize, color: (Option<Color>, Option<Color>)| {
-            match color {
-                (Some(a), Some(b)) => {
-                    painter.line_segment(
-                        [
-                            Pos::new(1.5, i as f32 * delta + 0.5),
-                            Pos::new(1.5, (i as f32 + 0.5) * delta),
-                        ],
-                        4.0,
-                        &a,
-                    );
-                    painter.line_segment(
-                        [
-                            Pos::new(1.5, (i as f32 + 0.5) * delta),
-                            Pos::new(1.5, (i + 1) as f32 * delta),
-                        ],
-                        4.0,
-                        &b,
-                    );
-                }
-                (Some(color), None) | (None, Some(color)) => {
-                    painter.line_segment(
-                        [
-                            Pos::new(1.5, i as f32 * delta + 0.5),
-                            Pos::new(1.5, (i + 1) as f32 * delta),
-                        ],
-                        4.0,
-                        &color,
-                    );
-                }
-                (None, None) => {}
-            }
-            self.text_color(
-                Pos::new(4.0, i as f32 * delta + delta / 2.0),
-                Align::LeftCenter,
-                s,
-                painter,
-            )
-        };
-        let mut j = 0;
-        let mut i = 0;
-        let mut k = 0;
-        for n in self.names.iter() {
-            for v in n.vars.iter() {
-                if j != 0 {
-                    j -= 1;
-                    continue;
-                }
-                if i >= self.text_scroll_pos.0 {
-                    text(
-                        v.clone(),
-                        i - self.text_scroll_pos.0,
-                        (
-                            if self.blacklist_graphs.contains(&i) {
-                                Some(self.axis_color_light)
-                            } else {
-                                Some(self.axis_color)
-                            },
-                            None,
-                        ),
-                    );
-                }
-                i += 1;
-            }
-            if j != 0 {
-                j -= 1;
-                continue;
-            }
-            if !n.name.is_empty() {
-                if i >= self.text_scroll_pos.0 {
-                    let real = if n.show.real() && !self.blacklist_graphs.contains(&i) {
-                        Some(self.main_colors[k % self.main_colors.len()])
-                    } else {
-                        None
-                    };
-                    let imag = if n.show.imag() && !self.blacklist_graphs.contains(&i) {
-                        Some(self.alt_colors[k % self.alt_colors.len()])
-                    } else {
-                        None
-                    };
-                    text(n.name.clone(), i - self.text_scroll_pos.0, (real, imag));
-                }
-                k += 1;
-            }
-            i += 1;
-        }
+        self.display_names(painter, delta);
         if let Some(text_box) = self.text_box {
             let x = text_box.0 as f32 * self.font_width;
             let y = (text_box.1 as isize - self.text_scroll_pos.0 as isize) as f32 * delta;
@@ -156,31 +71,6 @@ impl Graph {
         if is_portrait {
             painter.offset = Pos::new(0.0, 0.0)
         };
-    }
-    pub(crate) fn expand_names(&mut self, b: usize) {
-        let a = self.get_name_len();
-        for i in a..=b {
-            self.insert_name(i, false);
-        }
-        for _ in (b + 1..self.get_name_len()).rev() {
-            let n = self.names.last().unwrap();
-            if n.name.is_empty() && n.vars.is_empty() {
-                self.names.pop();
-            } else {
-                break;
-            }
-        }
-    }
-    pub(crate) fn last_visible(&self) -> usize {
-        let mut i = 0;
-        for n in self.names.iter().rev() {
-            if n.name.is_empty() && n.vars.is_empty() {
-                i += 1
-            } else {
-                break;
-            }
-        }
-        i
     }
     pub(crate) fn keybinds_side(&mut self, i: &InputState) -> bool {
         let mut stop_keybinds = false;
@@ -361,14 +251,20 @@ impl Graph {
                 }
                 KeyStr::Character(a) => match a {
                     'a' => self.select = Some((0, self.get_name(text_box.1).len(), None)),
-                    'z' if !self.history.is_empty() && self.history_pos != self.history.len() => {
+                    'z' if !self.history.is_empty()
+                        && self.history_pos != self.history.len()
+                        && matches!(self.menu, Menu::Side) =>
+                    {
                         self.name_modified = true;
                         self.history[self.history.len() - self.history_pos - 1]
                             .clone()
                             .revert(self, &mut text_box, modify, false);
                         self.history_pos += 1;
                     }
-                    'y' if !self.history.is_empty() && self.history_pos != 0 => {
+                    'y' if !self.history.is_empty()
+                        && self.history_pos != 0
+                        && matches!(self.menu, Menu::Side) =>
+                    {
                         self.name_modified = true;
                         self.history[self.history.len() - self.history_pos]
                             .clone()
@@ -698,6 +594,9 @@ impl Graph {
         }
         self.text_box = Some(text_box);
         self.expand_names(text_box.1);
+        if matches!(self.menu, Menu::Load) {
+            self.load(text_box.1)
+        }
         true
     }
     pub(crate) fn get_points(&self) -> Vec<(usize, String, Dragable)> {
@@ -790,42 +689,207 @@ impl Graph {
         }
         pts
     }
-    pub(crate) fn get_name(&self, mut i: usize) -> &str {
-        for name in &self.names {
-            if i < name.vars.len() {
-                return &name.vars[i];
-            }
-            i -= name.vars.len();
-            if i == 0 {
-                return &name.name;
-            }
-            i -= 1;
+    pub(crate) fn expand_names(&mut self, b: usize) {
+        let a = self.get_name_len();
+        for i in a..=b {
+            self.insert_name(i, false);
         }
-        unreachable!()
+        for _ in (b + 1..self.get_name_len()).rev() {
+            //TODO
+            match self.menu {
+                Menu::Side | Menu::Normal => {
+                    let n = self.names.last().unwrap();
+                    if n.name.is_empty() && n.vars.is_empty() {
+                        self.names.pop();
+                    } else {
+                        break;
+                    }
+                }
+                Menu::Load => {} //TODO
+                Menu::Settings => todo!(),
+            }
+        }
+    }
+    pub(crate) fn last_visible(&self) -> usize {
+        let mut i = 0;
+        match self.menu {
+            Menu::Side | Menu::Normal => {
+                for n in self.names.iter().rev() {
+                    if n.name.is_empty() && n.vars.is_empty() {
+                        i += 1
+                    } else {
+                        break;
+                    }
+                }
+                i
+            }
+            Menu::Load => self.file_data.as_ref().unwrap().len(),
+            Menu::Settings => todo!(),
+        }
+    }
+    pub(crate) fn display_names(&self, painter: &mut Painter, delta: f32) {
+        match self.menu {
+            Menu::Side | Menu::Normal => {
+                let mut text = |s: String, i: usize, color: (Option<Color>, Option<Color>)| {
+                    match color {
+                        (Some(a), Some(b)) => {
+                            painter.line_segment(
+                                [
+                                    Pos::new(1.5, i as f32 * delta + 0.5),
+                                    Pos::new(1.5, (i as f32 + 0.5) * delta),
+                                ],
+                                4.0,
+                                &a,
+                            );
+                            painter.line_segment(
+                                [
+                                    Pos::new(1.5, (i as f32 + 0.5) * delta),
+                                    Pos::new(1.5, (i + 1) as f32 * delta),
+                                ],
+                                4.0,
+                                &b,
+                            );
+                        }
+                        (Some(color), None) | (None, Some(color)) => {
+                            painter.line_segment(
+                                [
+                                    Pos::new(1.5, i as f32 * delta + 0.5),
+                                    Pos::new(1.5, (i + 1) as f32 * delta),
+                                ],
+                                4.0,
+                                &color,
+                            );
+                        }
+                        (None, None) => {}
+                    }
+                    self.text_color(
+                        Pos::new(4.0, i as f32 * delta + delta / 2.0),
+                        Align::LeftCenter,
+                        s,
+                        painter,
+                    )
+                };
+                let mut j = 0;
+                let mut i = 0;
+                let mut k = 0;
+                for n in self.names.iter() {
+                    for v in n.vars.iter() {
+                        if j != 0 {
+                            j -= 1;
+                            continue;
+                        }
+                        if i >= self.text_scroll_pos.0 {
+                            text(
+                                v.clone(),
+                                i - self.text_scroll_pos.0,
+                                (
+                                    if self.blacklist_graphs.contains(&i) {
+                                        Some(self.axis_color_light)
+                                    } else {
+                                        Some(self.axis_color)
+                                    },
+                                    None,
+                                ),
+                            );
+                        }
+                        i += 1;
+                    }
+                    if j != 0 {
+                        j -= 1;
+                        continue;
+                    }
+                    if !n.name.is_empty() {
+                        if i >= self.text_scroll_pos.0 {
+                            let real = if n.show.real() && !self.blacklist_graphs.contains(&i) {
+                                Some(self.main_colors[k % self.main_colors.len()])
+                            } else {
+                                None
+                            };
+                            let imag = if n.show.imag() && !self.blacklist_graphs.contains(&i) {
+                                Some(self.alt_colors[k % self.alt_colors.len()])
+                            } else {
+                                None
+                            };
+                            text(n.name.clone(), i - self.text_scroll_pos.0, (real, imag));
+                        }
+                        k += 1;
+                    }
+                    i += 1;
+                }
+            }
+            Menu::Load => {
+                for (i, n) in self.file_data.as_ref().unwrap().iter().enumerate() {
+                    self.text_color(
+                        Pos::new(4.0, i as f32 * delta + delta / 2.0),
+                        Align::LeftCenter,
+                        n.0.clone(),
+                        painter,
+                    )
+                }
+            }
+            Menu::Settings => todo!(),
+        }
+    }
+    pub(crate) fn get_name(&self, mut i: usize) -> &str {
+        match self.menu {
+            Menu::Side | Menu::Normal => {
+                for name in &self.names {
+                    if i < name.vars.len() {
+                        return &name.vars[i];
+                    }
+                    i -= name.vars.len();
+                    if i == 0 {
+                        return &name.name;
+                    }
+                    i -= 1;
+                }
+                ""
+            }
+            Menu::Load => &self.file_data.as_ref().unwrap()[i].0,
+            Menu::Settings => todo!(),
+        }
     }
     pub(crate) fn get_mut_name(&mut self, mut i: usize) -> &mut String {
-        for name in self.names.iter_mut() {
-            if i < name.vars.len() {
-                return &mut name.vars[i];
+        match self.menu {
+            Menu::Side | Menu::Normal => {
+                for name in self.names.iter_mut() {
+                    if i < name.vars.len() {
+                        return &mut name.vars[i];
+                    }
+                    i -= name.vars.len();
+                    if i == 0 {
+                        return &mut name.name;
+                    }
+                    i -= 1;
+                }
+                unreachable!()
             }
-            i -= name.vars.len();
-            if i == 0 {
-                return &mut name.name;
-            }
-            i -= 1;
+            Menu::Load => &mut self.file_data.as_mut().unwrap()[i].0,
+            Menu::Settings => todo!(),
         }
-        unreachable!()
     }
     pub(crate) fn get_longest(&self) -> usize {
-        self.names
-            .iter()
-            .map(|n| {
-                n.name
-                    .len()
-                    .max(n.vars.iter().map(|v| v.len()).max().unwrap_or_default())
-            })
-            .max()
-            .unwrap_or_default()
+        match self.menu {
+            Menu::Side | Menu::Normal => self
+                .names
+                .iter()
+                .map(|n| {
+                    n.name
+                        .len()
+                        .max(n.vars.iter().map(|v| v.len()).max().unwrap_or_default())
+                })
+                .max()
+                .unwrap_or_default(),
+            Menu::Load => self
+                .file_data
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|a| a.0.len())
+                .max()
+                .unwrap_or_default(),
+            Menu::Settings => todo!(),
+        }
     }
     pub(crate) fn modify_name(&mut self, i: usize, j: usize, char: String) {
         self.get_mut_name(i).insert_str(j, &char);
@@ -834,61 +898,73 @@ impl Graph {
         *self.get_mut_name(i) = new;
     }
     pub(crate) fn remove_name(&mut self, mut i: usize) -> Option<bool> {
-        if i != self.get_name_len() {
-            let l = self.names.len();
-            for (k, name) in self.names.iter_mut().enumerate() {
-                if i < name.vars.len() {
-                    name.vars.remove(i);
-                    return Some(true);
-                }
-                i -= name.vars.len();
-                if i == 0 {
-                    if name.vars.is_empty() {
-                        self.names.remove(k);
-                    } else if l > k + 1 {
-                        let v = self.names[k].vars.clone();
-                        self.names[k + 1].vars.splice(0..0, v);
-                        self.names.remove(k);
+        match self.menu {
+            Menu::Side | Menu::Normal => {
+                if i != self.get_name_len() {
+                    let l = self.names.len();
+                    for (k, name) in self.names.iter_mut().enumerate() {
+                        if i < name.vars.len() {
+                            name.vars.remove(i);
+                            return Some(true);
+                        }
+                        i -= name.vars.len();
+                        if i == 0 {
+                            if name.vars.is_empty() {
+                                self.names.remove(k);
+                            } else if l > k + 1 {
+                                let v = self.names[k].vars.clone();
+                                self.names[k + 1].vars.splice(0..0, v);
+                                self.names.remove(k);
+                            }
+                            return Some(false);
+                        }
+                        i -= 1;
                     }
-                    return Some(false);
                 }
-                i -= 1;
             }
+            Menu::Load => todo!(),
+            Menu::Settings => todo!(),
         }
         None
     }
     pub(crate) fn insert_name(&mut self, j: usize, var: bool) {
-        if j == self.get_name_len() {
-            self.names.push(Name {
-                vars: if var { vec![String::new()] } else { Vec::new() },
-                name: String::new(),
-                show: Show::None,
-            })
-        } else {
-            let mut i = j;
-            for (k, name) in self.names.iter_mut().enumerate() {
-                if i <= name.vars.len() && (i > 0 || var) {
-                    name.vars.insert(i, String::new());
-                    return;
-                }
-                i = i.saturating_sub(name.vars.len());
-                if i == 0 {
-                    if var {
-                        name.vars.push(String::new())
-                    } else {
-                        self.names.insert(
-                            k,
-                            Name {
-                                vars: Vec::new(),
-                                name: String::new(),
-                                show: Show::None,
-                            },
-                        );
+        match self.menu {
+            Menu::Side | Menu::Normal => {
+                if j == self.get_name_len() {
+                    self.names.push(Name {
+                        vars: if var { vec![String::new()] } else { Vec::new() },
+                        name: String::new(),
+                        show: Show::None,
+                    })
+                } else {
+                    let mut i = j;
+                    for (k, name) in self.names.iter_mut().enumerate() {
+                        if i <= name.vars.len() && (i > 0 || var) {
+                            name.vars.insert(i, String::new());
+                            return;
+                        }
+                        i = i.saturating_sub(name.vars.len());
+                        if i == 0 {
+                            if var {
+                                name.vars.push(String::new())
+                            } else {
+                                self.names.insert(
+                                    k,
+                                    Name {
+                                        vars: Vec::new(),
+                                        name: String::new(),
+                                        show: Show::None,
+                                    },
+                                );
+                            }
+                            return;
+                        }
+                        i -= 1;
                     }
-                    return;
                 }
-                i -= 1;
             }
+            Menu::Load => todo!(),
+            Menu::Settings => todo!(),
         }
     }
     pub fn index_to_name(
@@ -896,21 +972,27 @@ impl Graph {
         mut i: usize,
         ignore_white: bool,
     ) -> (Option<usize>, Option<(usize, usize)>) {
-        let mut j = 0;
-        for (k, name) in self.names.iter().enumerate() {
-            if i < name.vars.len() {
-                return (None, Some((k - j, i)));
+        match self.menu {
+            Menu::Side | Menu::Normal => {
+                let mut j = 0;
+                for (k, name) in self.names.iter().enumerate() {
+                    if i < name.vars.len() {
+                        return (None, Some((k - j, i)));
+                    }
+                    i -= name.vars.len();
+                    if i == 0 {
+                        return (Some(k - j), None);
+                    }
+                    i -= 1;
+                    if !ignore_white && name.name.is_empty() {
+                        j += 1;
+                    }
+                }
+                unreachable!()
             }
-            i -= name.vars.len();
-            if i == 0 {
-                return (Some(k - j), None);
-            }
-            i -= 1;
-            if !ignore_white && name.name.is_empty() {
-                j += 1;
-            }
+            Menu::Load => (None, None),
+            Menu::Settings => (None, None),
         }
-        (None, None)
     }
     pub(crate) fn remove_char(&mut self, i: usize, j: usize) -> char {
         self.get_mut_name(i).remove(j)
@@ -919,13 +1001,22 @@ impl Graph {
         self.get_mut_name(i).drain(j..k).collect()
     }
     pub(crate) fn get_name_len(&self) -> usize {
-        let mut i = 0;
-        for name in &self.names {
-            i += 1 + name.vars.len()
+        match self.menu {
+            Menu::Side | Menu::Normal => {
+                let mut i = 0;
+                for name in &self.names {
+                    i += 1 + name.vars.len()
+                }
+                i
+            }
+            Menu::Load => self.file_data.as_ref().unwrap().len(),
+            Menu::Settings => todo!(),
         }
-        i
     }
     pub(crate) fn history_push(&mut self, c: Change) {
+        if !matches!(self.menu, Menu::Side) {
+            return;
+        }
         if !self.history.is_empty() {
             self.history.drain(self.history.len() - self.history_pos..);
             self.history_pos = 0;
