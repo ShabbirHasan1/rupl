@@ -2088,6 +2088,7 @@ impl Graph {
         graph.screen_offset = self.screen_offset;
         graph.delta = self.delta;
         graph.offset = graph.get_new_offset(graph.offset);
+        graph.side_bar_width = self.side_bar_width;
         *self = graph;
     }
     #[cfg(feature = "egui")]

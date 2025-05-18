@@ -111,7 +111,7 @@ impl Graph {
                     text_box.0 = text_box.0.min(n);
                     self.text_box = Some(text_box);
                     self.text_scroll_pos.0 += 1;
-                    self.expand_names(text_box.1);
+                    text_box.1 = self.expand_names(text_box.1);
                 } else if i.raw_scroll_delta.y > 0.0 {
                     let Some(mut text_box) = self.text_box else {
                         unreachable!()
@@ -126,14 +126,12 @@ impl Graph {
             if self.text_box.is_some() {
                 stop_keybinds = true;
                 if i.pointer.unwrap_or(false) {
-                    self.expand_names(new as usize);
-                    let new = new + self.text_scroll_pos.0 as f32;
-                    if new >= 0.0 {
-                        let x = ((x as f32 / self.font_width).round() as usize)
-                            .min(self.get_name(new as usize).len());
-                        self.text_box = Some((x, new as usize));
-                        self.select = Some((x, x, None));
-                    }
+                    let new = self.expand_names(new as usize);
+                    let new = new + self.text_scroll_pos.0;
+                    let x = ((x as f32 / self.font_width).round() as usize)
+                        .min(self.get_name(new).len());
+                    self.text_box = Some((x, new));
+                    self.select = Some((x, x, None));
                 }
             }
             if i.pointer.is_some() {
@@ -593,7 +591,7 @@ impl Graph {
             }
         }
         self.text_box = Some(text_box);
-        self.expand_names(text_box.1);
+        text_box.1 = self.expand_names(text_box.1);
         if matches!(self.menu, Menu::Load) {
             self.load(text_box.1)
         }
@@ -689,26 +687,23 @@ impl Graph {
         }
         pts
     }
-    pub(crate) fn expand_names(&mut self, b: usize) {
+    pub(crate) fn expand_names(&mut self, b: usize) -> usize {
+        if !matches!(self.menu, Menu::Side | Menu::Normal) {
+            return b.min(self.get_name_len() - 1);
+        }
         let a = self.get_name_len();
         for i in a..=b {
             self.insert_name(i, false);
         }
         for _ in (b + 1..self.get_name_len()).rev() {
-            //TODO
-            match self.menu {
-                Menu::Side | Menu::Normal => {
-                    let n = self.names.last().unwrap();
-                    if n.name.is_empty() && n.vars.is_empty() {
-                        self.names.pop();
-                    } else {
-                        break;
-                    }
-                }
-                Menu::Load => {} //TODO
-                Menu::Settings => todo!(),
+            let n = self.names.last().unwrap();
+            if n.name.is_empty() && n.vars.is_empty() {
+                self.names.pop();
+            } else {
+                break;
             }
         }
+        b
     }
     pub(crate) fn last_visible(&self) -> usize {
         let mut i = 0;
@@ -963,7 +958,7 @@ impl Graph {
                     }
                 }
             }
-            Menu::Load => todo!(),
+            Menu::Load => {}
             Menu::Settings => todo!(),
         }
     }
