@@ -2084,7 +2084,10 @@ impl Graph {
         graph.file_data_raw = std::mem::take(&mut self.file_data_raw);
         graph.clipboard = std::mem::take(&mut self.clipboard);
         graph.menu = self.menu;
-        graph.font = std::mem::take(&mut self.font);
+        #[cfg(feature = "skia")]
+        {
+            graph.font = std::mem::take(&mut self.font);
+        }
         graph.recalculate = true;
         graph.name_modified = true;
         graph.text_box = self.text_box;
