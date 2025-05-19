@@ -505,7 +505,7 @@ impl Default for Graph {
             mouse_moved: false,
             disable_lines: false,
             disable_axis: false,
-            disable_coord: false,
+            disable_coord: true,
             side_slider: None,
             side_drag: None,
             graph_mode: GraphMode::Normal,
