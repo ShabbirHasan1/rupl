@@ -2017,11 +2017,19 @@ impl Graph {
         let comp = zstd::bulk::compress(&seri, 22).unwrap();
         let s = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(&comp);
         let l = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(l.to_string());
-        let n = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(if self.names.is_empty() {
-            ""
-        } else {
-            &self.names[0].name
-        });
+        let n = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(
+            self.names
+                .iter()
+                .filter_map(|n| {
+                    if n.name.is_empty() {
+                        None
+                    } else {
+                        Some(n.name.as_str())
+                    }
+                })
+                .next()
+                .unwrap_or(""),
+        );
         if !std::fs::exists(&self.save_file).unwrap() {
             std::fs::File::create(&self.save_file).unwrap();
         }
