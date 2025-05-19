@@ -3239,6 +3239,7 @@ pub(crate) fn update_saves(fd: &mut Vec<String>, n: &[(String, usize, usize, Str
         })
         .collect();
 }
+#[cfg(feature = "serde")]
 impl Drop for Graph {
     fn drop(&mut self) {
         if self.save_num.is_some() {
