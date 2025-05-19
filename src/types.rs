@@ -216,6 +216,16 @@ impl Clipboard {
     pub(crate) fn set_text(&mut self, text: &str) {
         self.0.set_text(text).unwrap_or_default()
     }
+    #[cfg(feature = "arboard")]
+    pub(crate) fn set_image(&mut self, width: usize, height: usize, bytes: &[u8]) {
+        self.0
+            .set_image(arboard::ImageData {
+                width,
+                height,
+                bytes: bytes.into(),
+            })
+            .unwrap()
+    }
     #[cfg(not(feature = "arboard"))]
     pub(crate) fn set_text(&mut self, text: &str) {
         self.0 = text.to_string();
@@ -365,8 +375,9 @@ pub struct Graph {
     pub only_real: bool,
     ///what menu should be drawn
     pub menu: Menu,
-    ///current keybinds
-    pub keybinds: Keybinds,
+    ///current keybinds, always some, besides during deserialization
+    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    pub keybinds: Option<Keybinds>,
     ///side bar height per line
     pub side_height: f32,
     ///in horizontal view, minimum width side bar will be in pixels
@@ -528,7 +539,7 @@ impl Default for Graph {
             cos_theta: 0.0,
             sin_theta: 0.0,
             only_real: false,
-            keybinds: Keybinds::default(),
+            keybinds: Some(Keybinds::default()),
             target_side_ratio: 3.0 / 2.0,
             min_side_width: 256.0,
             select_color: Color::new(191, 191, 255),
@@ -737,6 +748,9 @@ pub struct Keybinds {
     pub settings: Option<Keys>,
     ///load from full saves
     pub load: Option<Keys>,
+    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+    ///save screen to clipboard
+    pub save_png: Option<Keys>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone)]
@@ -923,6 +937,8 @@ impl Default for Keybinds {
                 Key::Escape,
                 Modifiers::default().shift(),
             )),
+            #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+            save_png: Some(Keys::new_with_modifier(Key::S, Modifiers::default().alt())),
         }
     }
 }

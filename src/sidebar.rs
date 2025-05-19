@@ -223,7 +223,7 @@ impl Graph {
                 g.name_modified = true;
             };
             match key.into() {
-                KeyStr::Character(c) if !i.modifiers.ctrl => {
+                KeyStr::Character(c) if !i.modifiers.ctrl && !i.modifiers.alt => {
                     let (a, b, _) = self.select.unwrap_or_default();
                     if a != b {
                         self.select = None;
