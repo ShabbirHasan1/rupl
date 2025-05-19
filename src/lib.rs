@@ -2037,7 +2037,7 @@ impl Graph {
         let Some(file_data) = self.file_data_raw.as_mut() else {
             unreachable!()
         };
-        if !self.names.is_empty() && !self.data.is_empty() {
+        if self.names.iter().any(|n| !n.name.is_empty()) && !self.data.is_empty() {
             if let Some(i) = self.save_num {
                 let k = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(i.to_string());
                 let s = format!("{n}@{k}@{l}@{s}");
