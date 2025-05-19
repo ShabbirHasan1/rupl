@@ -76,7 +76,6 @@ impl Graph {
     pub fn set_data(&mut self, data: Vec<GraphType>) {
         self.data = data;
         self.cache = None;
-        self.recalculate = true;
     }
     pub(crate) fn reset_offset(&self, width: f64, height: f64) -> Vec2 {
         let (_, _, screen) = self.get_new_screen(width, height, true);
@@ -131,7 +130,7 @@ impl Graph {
             self.screen.x * 0.5 - (self.delta * (self.bound.x + self.bound.y) * 0.5),
             self.screen.y * 0.5,
         );
-        if t != self.screen_offset {
+        if t != self.screen_offset && offset {
             if self.graph_mode == GraphMode::DomainColoring {
                 self.recalculate = true;
             }
@@ -145,7 +144,6 @@ impl Graph {
     pub fn clear_data(&mut self) {
         self.data.clear();
         self.cache = None;
-        self.recalculate = true;
     }
     ///resets current 3d view based on the data that is supplied
     pub fn reset_3d(&mut self) {
@@ -1501,12 +1499,10 @@ impl Graph {
                 Menu::Side => {
                     self.menu = Menu::Normal;
                     self.text_box = None;
-                    self.recalculate = true;
                 }
                 _ => {
                     self.menu = Menu::Side;
                     self.text_box = Some((0, 0));
-                    self.recalculate = true;
                 }
             }
         }
@@ -1514,11 +1510,9 @@ impl Graph {
             match self.menu {
                 Menu::Settings => {
                     self.menu = Menu::Normal;
-                    self.recalculate = true;
                 }
                 _ => {
                     self.menu = Menu::Settings;
-                    self.recalculate = true;
                 }
             }
         }
@@ -1528,7 +1522,6 @@ impl Graph {
                 Menu::Load => {
                     self.menu = Menu::Normal;
                     self.text_box = None;
-                    self.recalculate = true;
                 }
                 _ => {
                     self.save();
@@ -1536,7 +1529,6 @@ impl Graph {
                     let n = self.save_num.unwrap_or_default();
                     self.text_box = Some((0, n));
                     self.load(n);
-                    self.recalculate = true;
                 }
             }
         }
@@ -2084,6 +2076,23 @@ impl Graph {
         if Some(i) == self.save_num {
             return;
         }
+        self.file_data_raw = Some(
+            self.file_data
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|(a, b, c, d)| {
+                    let s = |s: &str| base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(s);
+                    format!(
+                        "{}@{}@{}@{}",
+                        s(a),
+                        s(b.to_string().as_str()),
+                        s(c.to_string().as_str()),
+                        d
+                    )
+                })
+                .collect(),
+        );
         self.save();
         let (_, j, n, s) = &self.file_data.as_ref().unwrap()[i];
         let s = base64::prelude::BASE64_URL_SAFE_NO_PAD.decode(s).unwrap();

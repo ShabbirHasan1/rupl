@@ -272,12 +272,12 @@ impl Graph {
                                 let s = self.remove_str(text_box.1, a, b);
                                 text_box.0 = a;
                                 self.history_push(Change::Str(text_box, s, true));
+                                self.name_modified = true;
                             }
                             self.history_push(Change::Str(text_box, s.clone(), false));
                             for c in s.chars() {
                                 modify(self, &mut text_box, c.to_string())
                             }
-                            self.name_modified = true;
                         }
                     }
                     'x' => {
@@ -288,8 +288,8 @@ impl Graph {
                             self.clipboard.as_mut().unwrap().set_text(&text);
                             text_box.0 = a;
                             self.history_push(Change::Str(text_box, text, true));
+                            self.name_modified = true;
                         }
-                        self.name_modified = true;
                     }
                     _ => {}
                 },
