@@ -33,16 +33,15 @@ impl Graph {
     ) -> Self {
         let is_3d = is_3d(&data);
         let bound = Vec2::new(start, end);
-        Self {
-            is_3d,
-            names,
-            data,
-            is_complex,
-            is_3d_data: is_3d,
-            bound,
-            var: bound,
-            ..Default::default()
-        }
+        let mut graph = Graph::default();
+        graph.is_3d = is_3d;
+        graph.names = names;
+        graph.data = data;
+        graph.is_complex = is_complex;
+        graph.is_3d_data = is_3d;
+        graph.bound = bound;
+        graph.var = bound;
+        graph
     }
     #[cfg(feature = "skia")]
     ///sets font
@@ -2037,11 +2036,24 @@ impl Graph {
         let Some(file_data) = self.file_data_raw.as_mut() else {
             unreachable!()
         };
-        if self.names.iter().any(|n| !n.name.is_empty()) && !self.data.is_empty() {
+        let do_save = self.names.iter().any(|n| !n.name.is_empty()) && !self.data.is_empty();
+        if do_save || self.save_num.is_some() {
             if let Some(i) = self.save_num {
-                let k = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(i.to_string());
-                let s = format!("{n}@{k}@{l}@{s}");
-                file_data[i] = s
+                if do_save {
+                    let k = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(i.to_string());
+                    let s = format!("{n}@{k}@{l}@{s}");
+                    file_data[i] = s
+                } else {
+                    let Some(fd) = &mut self.file_data else {
+                        unreachable!()
+                    };
+                    fd.remove(i);
+                    for (_, i, _, _) in fd[i..].iter_mut() {
+                        *i -= 1;
+                    }
+                    self.save_num = None;
+                    update_saves(file_data, fd);
+                }
             } else {
                 let k = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(file_data.len().to_string());
                 let s = format!("{n}@{k}@{l}@{s}");
@@ -2076,23 +2088,11 @@ impl Graph {
         if Some(i) == self.save_num {
             return;
         }
-        self.file_data_raw = Some(
-            self.file_data
-                .as_ref()
-                .unwrap()
-                .iter()
-                .map(|(a, b, c, d)| {
-                    let s = |s: &str| base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(s);
-                    format!(
-                        "{}@{}@{}@{}",
-                        s(a),
-                        s(b.to_string().as_str()),
-                        s(c.to_string().as_str()),
-                        d
-                    )
-                })
-                .collect(),
-        );
+        {
+            let fd = self.file_data_raw.as_mut().unwrap();
+            let n = self.file_data.as_ref().unwrap();
+            update_saves(fd, n);
+        }
         self.save();
         let (_, j, n, s) = &self.file_data.as_ref().unwrap()[i];
         let s = base64::prelude::BASE64_URL_SAFE_NO_PAD.decode(s).unwrap();
@@ -3198,5 +3198,33 @@ fn point(
         buffer.push((depth.unwrap(), Draw::Point(point), color))
     } else if let Some(painter) = painter {
         painter.rect_filled(point, &color)
+    }
+}
+#[cfg(feature = "serde")]
+pub(crate) fn update_saves(fd: &mut Vec<String>, n: &[(String, usize, usize, String)]) {
+    *fd = n
+        .iter()
+        .map(|(a, b, c, d)| {
+            let s = |s: &str| base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(s);
+            format!(
+                "{}@{}@{}@{}",
+                s(a),
+                s(b.to_string().as_str()),
+                s(c.to_string().as_str()),
+                d
+            )
+        })
+        .collect();
+}
+impl Drop for Graph {
+    fn drop(&mut self) {
+        if self.save_num.is_some() {
+            {
+                let fd = self.file_data_raw.as_mut().unwrap();
+                let n = self.file_data.as_ref().unwrap();
+                update_saves(fd, n);
+            }
+            self.save()
+        }
     }
 }
