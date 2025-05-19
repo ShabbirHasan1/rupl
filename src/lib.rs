@@ -2092,8 +2092,10 @@ impl Graph {
                 .map(|s| {
                     let r = s.rsplitn(3, '@').collect::<Vec<&str>>();
                     let s = |s: &str| {
-                        String::try_from(base64::prelude::BASE64_URL_SAFE_NO_PAD.decode(s).unwrap())
-                            .unwrap()
+                        String::from_utf8(
+                            base64::prelude::BASE64_URL_SAFE_NO_PAD.decode(s).unwrap(),
+                        )
+                        .unwrap()
                     };
                     let a = s(r[2]);
                     let c = s(r[1]).parse::<usize>().unwrap();
