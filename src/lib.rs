@@ -1564,17 +1564,12 @@ impl Graph {
             let (x, y) = (self.screen.x as usize, self.screen.y as usize);
             let mut bytes = vec![0; x * y];
             self.update(x as u32, y as u32, &mut bytes);
-            let bytes = bytes
-                .iter()
-                .flat_map(|c| {
-                    let r = ((c >> 16) & 0xFFu32) as u8;
-                    let g = ((c >> 8) & 0xFFu32) as u8;
-                    let b = (c & 0xFFu32) as u8;
-                    let a = 255;
-                    vec![r, g, b, a]
-                })
-                .collect::<Vec<u8>>();
-            self.clipboard.as_mut().unwrap().set_image(x, y, &bytes)
+            let mut new = Vec::with_capacity(x * y * 4);
+            new.extend(bytes.iter().flat_map(|c| {
+                let [_, b1, b2, b3] = c.to_be_bytes();
+                [b1, b2, b3, 255]
+            }));
+            self.clipboard.as_mut().unwrap().set_image(x, y, &new)
         }
         if ret {
             self.keybinds = Some(keybinds);
@@ -2429,10 +2424,10 @@ impl Graph {
                 GraphType::Width3D(data, start_x, start_y, end_x, end_y) => match self.graph_mode {
                     GraphMode::Normal => {
                         let len = data.len().isqrt();
-                        let mut last = Vec::new();
-                        let mut cur = Vec::new();
-                        let mut lasti = Vec::new();
-                        let mut curi = Vec::new();
+                        let mut last = Vec::with_capacity(len);
+                        let mut cur = Vec::with_capacity(len);
+                        let mut lasti = Vec::with_capacity(len);
+                        let mut curi = Vec::with_capacity(len);
                         for (i, z) in data.iter().enumerate() {
                             let (i, j) = (i % len, i / len);
                             let x = (i as f64 / (len - 1) as f64 - 0.5) * (end_x - start_x)
@@ -2458,7 +2453,7 @@ impl Graph {
                             };
                             cur.push(p);
                             if i == len - 1 {
-                                last = std::mem::take(&mut cur);
+                                last = std::mem::replace(&mut cur, Vec::with_capacity(len));
                             }
                             let p = if !self.show.imag() || self.only_real {
                                 None
@@ -2478,16 +2473,16 @@ impl Graph {
                             };
                             curi.push(p);
                             if i == len - 1 {
-                                lasti = std::mem::take(&mut curi);
+                                lasti = std::mem::replace(&mut curi, Vec::with_capacity(len));
                             }
                         }
                     }
                     GraphMode::Polar => {
                         let len = data.len().isqrt();
-                        let mut last = Vec::new();
-                        let mut cur = Vec::new();
-                        let mut lasti = Vec::new();
-                        let mut curi = Vec::new();
+                        let mut last = Vec::with_capacity(len);
+                        let mut cur = Vec::with_capacity(len);
+                        let mut lasti = Vec::with_capacity(len);
+                        let mut curi = Vec::with_capacity(len);
                         for (i, z) in data.iter().enumerate() {
                             let (i, j) = (i % len, i / len);
                             let x = (i as f64 / (len - 1) as f64 - 0.5) * (end_x - start_x)
@@ -2515,7 +2510,7 @@ impl Graph {
                             };
                             cur.push(p);
                             if i == len - 1 {
-                                last = std::mem::take(&mut cur);
+                                last = std::mem::replace(&mut cur, Vec::with_capacity(len));
                             }
                             let p = if !self.show.imag() || self.only_real {
                                 None
@@ -2535,7 +2530,7 @@ impl Graph {
                             };
                             curi.push(p);
                             if i == len - 1 {
-                                lasti = std::mem::take(&mut curi);
+                                lasti = std::mem::replace(&mut curi, Vec::with_capacity(len));
                             }
                         }
                     }
@@ -2685,7 +2680,11 @@ impl Graph {
                         let lenx = (self.screen.x * self.prec() * self.mult) as usize + 1;
                         let leny = (self.screen.y * self.prec() * self.mult) as usize + 1;
                         if self.cache.is_none() {
-                            let mut rgb = Vec::new();
+                            #[cfg(feature = "egui")]
+                            let m = 3;
+                            #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+                            let m = 4;
+                            let mut rgb = Vec::with_capacity(lenx * leny * m);
                             for z in data {
                                 rgb.extend(self.get_color(z));
                                 #[cfg(any(feature = "skia", feature = "tiny-skia"))]
@@ -2789,10 +2788,10 @@ impl Graph {
                     GraphMode::Normal | GraphMode::Slice => {
                         let len = 17;
                         if self.is_3d {
-                            let mut last = Vec::new();
-                            let mut cur = Vec::new();
-                            let mut lasti = Vec::new();
-                            let mut curi = Vec::new();
+                            let mut last = Vec::with_capacity(len);
+                            let mut cur = Vec::with_capacity(len);
+                            let mut lasti = Vec::with_capacity(len);
+                            let mut curi = Vec::with_capacity(len);
                             let start_x = self.bound.x + self.offset3d.x;
                             let start_y = self.bound.x - self.offset3d.y;
                             let end_x = self.bound.y + self.offset3d.x;
@@ -2822,7 +2821,7 @@ impl Graph {
                                 };
                                 cur.push(p);
                                 if i == len - 1 {
-                                    last = std::mem::take(&mut cur);
+                                    last = std::mem::replace(&mut cur, Vec::with_capacity(len));
                                 }
                                 let p = if !self.show.imag() || self.only_real {
                                     None
@@ -2842,7 +2841,7 @@ impl Graph {
                                 };
                                 curi.push(p);
                                 if i == len - 1 {
-                                    lasti = std::mem::take(&mut curi);
+                                    lasti = std::mem::replace(&mut curi, Vec::with_capacity(len));
                                 }
                             }
                         } else {
