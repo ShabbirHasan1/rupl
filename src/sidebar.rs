@@ -155,22 +155,9 @@ impl Graph {
                         };
                         if let Ok(f) = name.parse::<f64>() {
                             body((f * delta).to_string())
-                        } else {
-                            let s = name
-                                .split('=')
-                                .map(|a| a.to_string())
-                                .collect::<Vec<String>>();
-                            if s.len() <= 2
-                                && !s.is_empty()
-                                && s[0].chars().all(|c| c.is_alphabetic())
-                            {
-                                if let Ok(f) = if s.len() == 2 {
-                                    s[1].parse::<f64>()
-                                } else {
-                                    s[0].parse::<f64>()
-                                } {
-                                    body(format!("{}={}", s[0], f * delta))
-                                }
+                        } else if let Some((a, b)) = name.rsplit_once('=') {
+                            if let Ok(f) = b.parse::<f64>() {
+                                body(format!("{}={}", a, f * delta))
                             }
                         }
                     }
@@ -604,26 +591,21 @@ impl Graph {
             ($o: tt, $i: tt) => {
                 let o = $o;
                 let v = o.clone();
-                if !v.contains('=') {
+                let Some(sp) = v.rsplit_once('=') else {
                     $i += 1;
                     continue;
-                }
-                let sp: Vec<&str> = v.split('=').collect();
-                if sp.len() != 2 {
-                    $i += 1;
-                    continue;
-                }
-                let mut v = sp.last().unwrap().to_string();
+                };
+                let mut v = sp.1.to_string();
                 if let Ok(a) = v.parse() {
-                    let s = sp.first().unwrap().to_string();
+                    let s = sp.0;
                     if s != "y" {
                         if !matches!(self.graph_mode, GraphMode::Polar) {
                             let a = self.to_screen(a, 0.0).x;
-                            pts.push(($i, s, Dragable::X(a)));
+                            pts.push(($i, s.to_string(), Dragable::X(a)));
                         }
                     } else {
                         let a = self.to_screen(0.0, a).y;
-                        pts.push(($i, s, Dragable::Y(a)));
+                        pts.push(($i, s.to_string(), Dragable::Y(a)));
                     }
                 } else if v.len() >= 5 && v.pop().unwrap() == '}' && v.remove(0) == '{' {
                     if v.contains("{") {
@@ -634,11 +616,10 @@ impl Graph {
                                 v.remove(0);
                             }
                             v.remove(0);
-                            let s: Vec<&str> = v.split(',').collect();
-                            if s.len() != 2 {
+                            let Some(s) = v.rsplit_once(',') else {
                                 continue;
-                            }
-                            let (Ok(mut a), Ok(mut b)) = (s[0].parse::<f64>(), s[1].parse::<f64>())
+                            };
+                            let (Ok(mut a), Ok(mut b)) = (s.0.parse::<f64>(), s.1.parse::<f64>())
                             else {
                                 continue;
                             };
@@ -648,17 +629,16 @@ impl Graph {
                             }
                             pts.push((
                                 $i,
-                                sp.first().unwrap().to_string(),
+                                sp.0.to_string(),
                                 Dragable::Points((k, self.to_screen(a, b))),
                             ));
                         }
                     } else {
-                        let s: Vec<&str> = v.split(',').collect();
-                        if s.len() != 2 {
+                        let Some(s) = v.rsplit_once(',') else {
                             $i += 1;
                             continue;
-                        }
-                        let (Ok(mut a), Ok(mut b)) = (s[0].parse::<f64>(), s[1].parse::<f64>())
+                        };
+                        let (Ok(mut a), Ok(mut b)) = (s.0.parse::<f64>(), s.1.parse::<f64>())
                         else {
                             $i += 1;
                             continue;
@@ -667,11 +647,7 @@ impl Graph {
                             let (s, c) = a.sin_cos();
                             (a, b) = (c * b, s * b);
                         }
-                        pts.push((
-                            $i,
-                            sp.first().unwrap().to_string(),
-                            Dragable::Point(self.to_screen(a, b)),
-                        ));
+                        pts.push(($i, sp.0.to_string(), Dragable::Point(self.to_screen(a, b))));
                     }
                 }
             };

@@ -1413,27 +1413,30 @@ impl Graph {
                                 Dragable::Y(_) => format!("{}={}", min.1, s.1),
                                 Dragable::Points((i, _)) => {
                                     k = Some(i);
-                                    let mut a =
-                                        self.get_name(min.0).split("=").last().unwrap().to_string();
+                                    let mut a = self
+                                        .get_name(min.0)
+                                        .rsplit_once("=")
+                                        .unwrap()
+                                        .1
+                                        .to_string();
                                     a.pop();
                                     a.pop();
                                     let mut a = a
                                         .split("}")
-                                        .map(|i| {
+                                        .filter_map(|i| {
                                             let mut i = i.to_string();
                                             i.remove(0);
                                             i.remove(0);
-                                            i.split(",")
-                                                .map(|i| i.to_string())
-                                                .collect::<Vec<String>>()
+                                            i.rsplit_once(",")
+                                                .map(|(a, b)| (a.to_string(), b.to_string()))
                                         })
-                                        .collect::<Vec<Vec<String>>>();
-                                    a[i] = vec![s.0.to_string(), s.1.to_string()];
+                                        .collect::<Vec<(String, String)>>();
+                                    a[i] = (s.0.to_string(), s.1.to_string());
                                     format!(
                                         "{}={{{}}}",
                                         min.1,
                                         a.iter()
-                                            .map(|s| format!("{{{},{}}}", s[0], s[1]))
+                                            .map(|s| format!("{{{},{}}}", s.0, s.1))
                                             .collect::<Vec<String>>()
                                             .join(",")
                                     )
@@ -1451,41 +1454,38 @@ impl Graph {
                         (a, b) = (t, r);
                     }
                     let s = (a, b);
-                    let v = self
-                        .get_name(i)
-                        .split('=')
-                        .map(|i| i.to_string())
-                        .collect::<Vec<String>>();
+                    let (c, d) = self.get_name(i).rsplit_once('=').unwrap();
                     self.replace_name(
                         i,
                         if let Some(k) = k {
-                            let mut a = v[1].to_string();
+                            let mut a = d.to_string();
                             a.pop();
                             a.pop();
                             let mut a = a
                                 .split("}")
-                                .map(|i| {
+                                .filter_map(|i| {
                                     let mut i = i.to_string();
                                     i.remove(0);
                                     i.remove(0);
-                                    i.split(",").map(|i| i.to_string()).collect::<Vec<String>>()
+                                    i.rsplit_once(",")
+                                        .map(|(a, b)| (a.to_string(), b.to_string()))
                                 })
-                                .collect::<Vec<Vec<String>>>();
-                            a[k] = vec![s.0.to_string(), s.1.to_string()];
+                                .collect::<Vec<(String, String)>>();
+                            a[k] = (s.0.to_string(), s.1.to_string());
                             format!(
                                 "{}={{{}}}",
-                                v[0],
+                                c,
                                 a.iter()
-                                    .map(|s| format!("{{{},{}}}", s[0], s[1]))
+                                    .map(|s| format!("{{{},{}}}", s.0, s.1))
                                     .collect::<Vec<String>>()
                                     .join(",")
                             )
-                        } else if v[1].contains('{') {
-                            format!("{}={{{},{}}}", v[0], s.0, s.1)
-                        } else if v[0] != "y" {
-                            format!("{}={}", v[0], s.0)
+                        } else if d.contains('{') {
+                            format!("{}={{{},{}}}", c, s.0, s.1)
+                        } else if c != "y" {
+                            format!("{}={}", c, s.0)
                         } else {
-                            format!("{}={}", v[0], s.1)
+                            format!("{}={}", c, s.1)
                         },
                     );
                     self.name_modified = true;
