@@ -828,18 +828,14 @@ impl Graph {
 impl TryFrom<&String> for GraphTiny {
     type Error = ();
     fn try_from(value: &String) -> Result<Self, Self::Error> {
-        if !value.contains('@') {
-            return Err(());
-        }
-        let (b, a) = value.rsplit_once('@').unwrap();
-        let l = String::try_from(
-            base64::prelude::BASE64_URL_SAFE_NO_PAD
-                .decode(a)
-                .map_err(|_| ())?,
-        )
-        .map_err(|_| ())?
-        .parse::<usize>()
-        .map_err(|_| ())?;
+        let (a, b) = value.rsplit_once('@').ok_or(())?;
+        let l = base64::prelude::BASE64_URL_SAFE_NO_PAD
+            .decode(a)
+            .map_err(|_| ())?;
+        let l = String::from_utf8(l)
+            .map_err(|_| ())?
+            .parse::<usize>()
+            .map_err(|_| ())?;
         let comp = base64::prelude::BASE64_URL_SAFE_NO_PAD
             .decode(b)
             .map_err(|_| ())?;
