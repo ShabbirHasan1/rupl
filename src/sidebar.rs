@@ -574,7 +574,7 @@ impl Graph {
         let d = self
             .text_scroll_pos
             .0
-            .saturating_sub(self.get_name_len() - self.last_visible());
+            .saturating_sub(self.get_name_len().saturating_sub(self.last_visible()));
         if d > 0 {
             self.text_scroll_pos.0 -= d;
             self.text_scroll_pos.1 -= d;
@@ -717,10 +717,10 @@ impl Graph {
                         break;
                     }
                 }
-                i.saturating_sub(1)
+                i + 1
             }
             #[cfg(feature = "serde")]
-            Menu::Load => self.file_data.as_ref().unwrap().len() - 1,
+            Menu::Load => self.file_data.as_ref().unwrap().len() + 1,
             Menu::Settings => todo!(),
         }
     }
