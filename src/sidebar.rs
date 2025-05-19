@@ -203,6 +203,9 @@ impl Graph {
         for key in &i.keys_pressed {
             let down = |g: &Graph, text_box: &mut (usize, usize)| {
                 text_box.1 += 1;
+                if !matches!(g.menu, Menu::Normal | Menu::Side) && text_box.1 == g.get_name_len() {
+                    text_box.1 -= 1;
+                }
                 text_box.0 = text_box.0.min(g.get_name(text_box.1).len())
             };
             let up = |g: &Graph, text_box: &mut (usize, usize)| {
@@ -666,7 +669,7 @@ impl Graph {
     }
     pub(crate) fn expand_names(&mut self, b: usize) -> usize {
         if !matches!(self.menu, Menu::Side | Menu::Normal) {
-            return b.min(self.get_name_len() - 1);
+            return b.min(self.get_name_len().saturating_sub(1));
         }
         let a = self.get_name_len();
         for i in a..=b {
@@ -825,7 +828,7 @@ impl Graph {
                 .as_ref()
                 .unwrap()
                 .get(i)
-                .map_or("", |(a, _, _, _)| a),
+                .map_or("", |(a, _, _)| a),
             Menu::Settings => todo!(),
         }
     }
@@ -905,7 +908,19 @@ impl Graph {
                 }
             }
             #[cfg(feature = "serde")]
-            Menu::Load => todo!(),
+            Menu::Load => {
+                let d = self.file_data.as_mut().unwrap();
+                d.remove(i);
+                if self.save_num == Some(i) {
+                    self.data.clear();
+                    self.save_num = None
+                }
+                if d.is_empty() {
+                    self.save_num = None;
+                    self.menu = Menu::Side
+                }
+                return Some(false);
+            }
             Menu::Settings => todo!(),
         }
         None
@@ -947,7 +962,10 @@ impl Graph {
                 }
             }
             #[cfg(feature = "serde")]
-            Menu::Load => {}
+            Menu::Load => {
+                let fd = self.file_data.as_mut().unwrap();
+                fd.insert(j, fd[j - 1].clone())
+            }
             Menu::Settings => todo!(),
         }
     }

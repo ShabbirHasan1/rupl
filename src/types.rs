@@ -399,7 +399,7 @@ pub struct Graph {
     pub(crate) save_num: Option<usize>,
     #[cfg(feature = "serde")]
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
-    pub(crate) file_data: Option<Vec<(String, usize, usize, String)>>,
+    pub(crate) file_data: Option<Vec<(String, usize, String)>>,
     #[cfg(feature = "serde")]
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
     pub(crate) file_data_raw: Option<Vec<String>>,

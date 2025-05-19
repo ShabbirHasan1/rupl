@@ -1527,10 +1527,12 @@ impl Graph {
                 }
                 _ => {
                     self.save();
-                    self.menu = Menu::Load;
-                    let n = self.save_num.unwrap_or_default();
-                    self.text_box = Some((0, n));
-                    self.load(n);
+                    if !self.file_data.as_ref().unwrap().is_empty() {
+                        self.menu = Menu::Load;
+                        let n = self.save_num.unwrap_or_default();
+                        self.text_box = Some((0, n));
+                        self.load(n);
+                    }
                 }
             }
         }
@@ -2021,7 +2023,7 @@ impl Graph {
     }
     #[cfg(feature = "serde")]
     pub(crate) fn save(&mut self) {
-        if self.save_num.is_some() {
+        if self.file_data_raw.is_some() {
             let fd = self.file_data_raw.as_mut().unwrap();
             let n = self.file_data.as_ref().unwrap();
             update_saves(fd, n);
@@ -2063,23 +2065,18 @@ impl Graph {
         if do_save || self.save_num.is_some() {
             if let Some(i) = self.save_num {
                 if do_save {
-                    let k = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(i.to_string());
-                    let s = format!("{n}@{k}@{l}@{s}");
+                    let s = format!("{n}@{l}@{s}");
                     file_data[i] = s
                 } else {
                     let Some(fd) = &mut self.file_data else {
                         unreachable!()
                     };
                     fd.remove(i);
-                    for (_, i, _, _) in fd[i..].iter_mut() {
-                        *i -= 1;
-                    }
                     self.save_num = None;
                     update_saves(file_data, fd);
                 }
             } else {
-                let k = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(file_data.len().to_string());
-                let s = format!("{n}@{k}@{l}@{s}");
+                let s = format!("{n}@{l}@{s}");
                 self.save_num = Some(file_data.len());
                 file_data.push(s);
             }
@@ -2093,30 +2090,33 @@ impl Graph {
             file_data
                 .iter()
                 .map(|s| {
-                    let r = s.rsplitn(4, '@').collect::<Vec<&str>>();
+                    let r = s.rsplitn(3, '@').collect::<Vec<&str>>();
                     let s = |s: &str| {
                         String::try_from(base64::prelude::BASE64_URL_SAFE_NO_PAD.decode(s).unwrap())
                             .unwrap()
                     };
-                    let a = s(r[3]);
-                    let b = s(r[2]).parse::<usize>().unwrap();
+                    let a = s(r[2]);
                     let c = s(r[1]).parse::<usize>().unwrap();
-                    (a, b, c, r[0].to_string())
+                    (a, c, r[0].to_string())
                 })
                 .collect(),
         );
     }
     #[cfg(feature = "serde")]
-    pub(crate) fn load(&mut self, i: usize) {
-        if Some(i) == self.save_num {
+    pub(crate) fn load(&mut self, j: usize) {
+        if Some(j) == self.save_num {
             return;
         }
         self.save();
-        let (_, j, n, s) = &self.file_data.as_ref().unwrap()[i];
+        let fd = self.file_data.as_ref().unwrap();
+        if fd.is_empty() {
+            return;
+        }
+        let (_, n, s) = &fd[j];
         let s = base64::prelude::BASE64_URL_SAFE_NO_PAD.decode(s).unwrap();
         let data = zstd::bulk::decompress(&s, *n).unwrap();
         let mut graph: Graph = bitcode::deserialize(&data).unwrap();
-        graph.save_num = Some(*j);
+        graph.save_num = Some(j);
         graph.file_data = std::mem::take(&mut self.file_data);
         graph.file_data_raw = std::mem::take(&mut self.file_data_raw);
         graph.clipboard = std::mem::take(&mut self.clipboard);
@@ -2134,6 +2134,7 @@ impl Graph {
         graph.offset = graph.get_new_offset(graph.offset);
         graph.side_bar_width = self.side_bar_width;
         graph.keybinds = self.keybinds;
+        self.save_num = None;
         *self = graph;
     }
     #[cfg(feature = "egui")]
@@ -3023,55 +3024,6 @@ impl Graph {
             while i < input.len() {
                 let c = input[i];
                 match c {
-                    /*'|' => {
-                        if !abs.is_empty()
-                            && abs[0].1 == count
-                            && input[abs[0].0 + 1..i]
-                                .iter()
-                                .filter(|c| !c.is_ascii_whitespace())
-                                .count()
-                                != 0
-                            && match input[..i].iter().rev().position(|c| !c.is_alphabetic()) {
-                                Some(n) => {
-                                    let s = input[i - n..i].iter().collect::<String>();
-                                    let sb = &(s.clone() + "(");
-                                    !(functions().contains(s.as_str())
-                                        || vars
-                                            .iter()
-                                            .any(|c| c.name.iter().collect::<String>().starts_with(sb)))
-                                }
-                                _ => true,
-                            }
-                        {
-                            count -= 1;
-                            abs.remove(0);
-                            output.push_str(&format!(
-                                "{}|{}",
-                                colors.brackets[count as usize % colors.brackets.len()],
-                                colors.text
-                            ))
-                        } else if i + 1 == input.len()
-                            || input[i + 1] != '|'
-                            || i == 0
-                            || input[0..=i - 1]
-                                .iter()
-                                .rev()
-                                .filter(|c| !c.is_ascii_whitespace())
-                                .take(1)
-                                .all(|c| matches!(c, '(' | '{' | '[' | '|'))
-                        {
-                            output.push_str(&format!(
-                                "{}|{}",
-                                colors.brackets[count as usize % colors.brackets.len()],
-                                colors.text
-                            ));
-                            count += 1;
-                            abs.insert(0, (i, count));
-                        } else {
-                            i += 1;
-                            output.push_str("||")
-                        }
-                    }*/
                     '(' | '{' | '[' => {
                         let col = self.bracket_color[count as usize % self.bracket_color.len()];
                         if color != col {
@@ -3224,18 +3176,12 @@ fn point(
     }
 }
 #[cfg(feature = "serde")]
-pub(crate) fn update_saves(fd: &mut Vec<String>, n: &[(String, usize, usize, String)]) {
+pub(crate) fn update_saves(fd: &mut Vec<String>, n: &[(String, usize, String)]) {
     *fd = n
         .iter()
-        .map(|(a, b, c, d)| {
+        .map(|(a, c, d)| {
             let s = |s: &str| base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(s);
-            format!(
-                "{}@{}@{}@{}",
-                s(a),
-                s(b.to_string().as_str()),
-                s(c.to_string().as_str()),
-                d
-            )
+            format!("{}@{}@{}", s(a), s(c.to_string().as_str()), d)
         })
         .collect();
 }
