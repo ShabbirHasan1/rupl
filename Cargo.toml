@@ -28,5 +28,5 @@ tiny-skia = { version = "0.11.4", optional = true }
 serde = { version = "1.0.219", features = ["derive"], optional = true }
 arboard = { version = "3.5.0", features = ["wayland-data-control"], optional = true }
 bitcode = { version = "0.6.6", features = ["serde"], optional = true }
-base64 = { version = "*", optional = true }
-zstd = { version = "*", optional = true }
+base64 = { version = "0.22.1", optional = true }
+zstd = { version = "0.13.3", optional = true }
