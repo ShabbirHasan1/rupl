@@ -51,6 +51,8 @@ pub enum GraphType {
     Constant(Complex, bool),
     ///a point, 2d only
     Point(Vec2),
+    ///a list of graphs, so that all graphs will be the same color
+    List(Vec<GraphType>),
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone)]
