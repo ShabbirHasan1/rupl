@@ -1222,11 +1222,15 @@ impl Graph {
                 zl = i + 1
             }
         }
-        let m = edges
-            .iter()
-            .map(|(i, j)| vertices[*i].1.unwrap() + vertices[*j].1.unwrap())
-            .sum::<f32>()
-            / edges.len() as f32;
+        let m = (!self.fast_3d())
+            .then(|| {
+                edges
+                    .iter()
+                    .map(|(i, j)| vertices[*i].1.unwrap() + vertices[*j].1.unwrap())
+                    .sum::<f32>()
+                    / edges.len() as f32
+            })
+            .unwrap_or_default();
         for (k, (i, j)) in edges.iter().enumerate() {
             let s = match k {
                 8..=11 => " \nx",
@@ -2708,7 +2712,7 @@ impl Graph {
                 GraphMode::DomainColoring => {
                     let lenx = (self.screen.x * self.prec() * self.mult) as usize + 1;
                     let leny = (self.screen.y * self.prec() * self.mult) as usize + 1;
-                    if self.cache.is_none() {
+                    if cache.is_none() {
                         #[cfg(feature = "egui")]
                         let m = 3;
                         #[cfg(any(feature = "skia", feature = "tiny-skia"))]
@@ -2721,7 +2725,7 @@ impl Graph {
                         }
                         tex(cache, lenx, leny, rgb);
                     }
-                    if let Some(texture) = &self.cache {
+                    if let Some(texture) = &cache {
                         painter.image(texture, self.screen);
                     }
                 }
