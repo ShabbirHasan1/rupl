@@ -1222,6 +1222,11 @@ impl Graph {
                 zl = i + 1
             }
         }
+        let m = edges
+            .iter()
+            .map(|(i, j)| vertices[*i].1.unwrap() + vertices[*j].1.unwrap())
+            .sum::<f32>()
+            / edges.len() as f32;
         for (k, (i, j)) in edges.iter().enumerate() {
             let s = match k {
                 8..=11 => " \nx",
@@ -1235,7 +1240,7 @@ impl Graph {
                         buffer,
                         self.fast_3d().then_some(painter),
                         (!self.fast_3d()).then(|| {
-                            if vertices[*i].1.unwrap() < 0.5 || vertices[*j].1.unwrap() < 0.5 {
+                            if vertices[*i].1.unwrap() + vertices[*j].1.unwrap() < m {
                                 0.0
                             } else {
                                 1.0
@@ -1295,7 +1300,7 @@ impl Graph {
                     buffer,
                     self.fast_3d().then_some(painter),
                     (!self.fast_3d()).then(|| {
-                        if vertices[*i].1.unwrap() < 0.5 || vertices[*j].1.unwrap() < 0.5 {
+                        if vertices[*i].1.unwrap() + vertices[*j].1.unwrap() < m {
                             0.0
                         } else {
                             1.0
@@ -1722,38 +1727,39 @@ impl Graph {
             self.cache = None;
         }
         if self.is_3d {
+            let s = (self.bound.y - self.bound.x) / 4.0;
             if i.keys_pressed(keybinds.left_3d) {
                 if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::Polar) {
                     self.recalculate = true;
                 }
-                self.offset3d.x -= 1.0
+                self.offset3d.x -= s
             }
             if i.keys_pressed(keybinds.right_3d) {
                 if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::Polar) {
                     self.recalculate = true;
                 }
-                self.offset3d.x += 1.0
+                self.offset3d.x += s
             }
             if i.keys_pressed(keybinds.down_3d) {
                 if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::Polar) {
                     self.recalculate = true;
                 }
-                self.offset3d.y += 1.0
+                self.offset3d.y += s
             }
             if i.keys_pressed(keybinds.up_3d) {
                 if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::Polar) {
                     self.recalculate = true;
                 }
-                self.offset3d.y -= 1.0
+                self.offset3d.y -= s
             }
             if i.keys_pressed(keybinds.in_3d) {
-                self.offset3d.z += 1.0;
+                self.offset3d.z += s;
                 if matches!(self.graph_mode, GraphMode::Depth | GraphMode::Polar) {
                     self.recalculate = true;
                 }
             }
             if i.keys_pressed(keybinds.out_3d) {
-                self.offset3d.z -= 1.0;
+                self.offset3d.z -= s;
                 if matches!(self.graph_mode, GraphMode::Depth | GraphMode::Polar) {
                     self.recalculate = true;
                 }
