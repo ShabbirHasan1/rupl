@@ -3,7 +3,6 @@ use base64::Engine;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
-use std::fmt::{Debug, Formatter};
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 #[derive(PartialEq, Debug, Clone, Copy)]
@@ -127,8 +126,13 @@ pub enum DepthColor {
     None,
 }
 #[cfg(feature = "egui")]
-#[derive(Debug)]
 pub(crate) struct Image(pub egui::TextureHandle);
+#[cfg(feature = "egui")]
+impl std::fmt::Debug for Image {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "eguiimage")
+    }
+}
 #[cfg(feature = "skia")]
 #[derive(Debug)]
 pub(crate) struct Image(pub skia_safe::Image);
@@ -215,8 +219,8 @@ impl Change {
 #[cfg(feature = "arboard")]
 pub(crate) struct Clipboard(pub arboard::Clipboard);
 #[cfg(feature = "arboard")]
-impl Debug for Clipboard {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl std::fmt::Debug for Clipboard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "arboard")
     }
 }
