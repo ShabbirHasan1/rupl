@@ -3,9 +3,10 @@ use base64::Engine;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
+use std::fmt::{Debug, Formatter};
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GraphMode {
     ///given a 3d data set maps in 3d, given a 2d data set maps in 2d
@@ -29,7 +30,7 @@ pub enum GraphMode {
     SlicePolar,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum GraphType {
     ///2d data set where the first element in the vector maps to the first float on the x axis,
     ///and the last element in the vector maps to the last float on the x axis, with even spacing
@@ -55,7 +56,7 @@ pub enum GraphType {
     List(Vec<GraphType>),
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Name {
     pub vars: Vec<String>,
     ///name of the function
@@ -94,7 +95,7 @@ pub enum Bound {
     Width3D(f64, f64, f64, f64, Prec),
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Show {
     Real,
     Imag,
@@ -110,14 +111,14 @@ impl Show {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy)]
+#[derive(Clone, Debug, Copy)]
 pub enum Lines {
     Points,
     LinesPoints,
     Lines,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy)]
+#[derive(Clone, Debug, Copy)]
 pub enum DepthColor {
     ///colors based off of how far on the z axis the value is
     Vertical,
@@ -126,8 +127,10 @@ pub enum DepthColor {
     None,
 }
 #[cfg(feature = "egui")]
+#[derive(Debug)]
 pub(crate) struct Image(pub egui::TextureHandle);
 #[cfg(feature = "skia")]
+#[derive(Debug)]
 pub(crate) struct Image(pub skia_safe::Image);
 #[cfg(feature = "skia")]
 impl AsRef<skia_safe::Image> for Image {
@@ -136,13 +139,13 @@ impl AsRef<skia_safe::Image> for Image {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy)]
+#[derive(Clone, Debug, Copy)]
 pub enum Angle {
     Radian,
     Degree,
     Gradian,
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Debug, Copy)]
 pub(crate) enum Dragable {
     Point(Pos),
     Points((usize, Pos)),
@@ -159,7 +162,7 @@ impl Angle {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) enum Change {
     Char((usize, usize), char, bool),
     Str((usize, usize), String, bool),
@@ -211,7 +214,14 @@ impl Change {
 }
 #[cfg(feature = "arboard")]
 pub(crate) struct Clipboard(pub arboard::Clipboard);
+#[cfg(feature = "arboard")]
+impl Debug for Clipboard {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "arboard")
+    }
+}
 #[cfg(not(feature = "arboard"))]
+#[derive(Debug)]
 pub(crate) struct Clipboard(pub(crate) String);
 impl Clipboard {
     #[cfg(feature = "arboard")]
@@ -286,7 +296,7 @@ pub struct Graph {
     ///weather bounds should be ignored in 3d mode
     pub ignore_bounds: bool,
     ///current zoom
-    pub zoom: f64,
+    pub zoom: Vec2,
     ///what slice we are currently at in any slice mode
     pub slice: isize,
     ///var range used for flatten or depth
@@ -407,7 +417,7 @@ pub struct Graph {
     pub(crate) file_data_raw: Option<Vec<String>>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 pub enum Menu {
     Normal,
     Side,
@@ -472,7 +482,7 @@ impl Default for Graph {
             is_complex: false,
             show: Show::Complex,
             ignore_bounds: false,
-            zoom: 1.0,
+            zoom: Vec2::splat(1.0),
             name_modified: false,
             draw_offset: Pos::new(0.0, 0.0),
             angle_type: Angle::Radian,
@@ -651,7 +661,7 @@ impl Clone for Graph {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Debug, Clone, PartialEq)]
 pub struct Keybinds {
     ///moves left on the x axis in 2d, rotates left in 3d
     pub left: Option<Keys>,
@@ -679,6 +689,10 @@ pub struct Keybinds {
     ///zooms the out of the data set, in 2d, away from cursor if moved since last reset,
     ///otherwise towards center of screen
     pub zoom_out: Option<Keys>,
+    pub zoom_in_x: Option<Keys>,
+    pub zoom_out_x: Option<Keys>,
+    pub zoom_in_y: Option<Keys>,
+    pub zoom_out_y: Option<Keys>,
     ///toggles non center lines in 2d, or all lines with axis aditionally disabled
     pub lines: Option<Keys>,
     ///toggles display of axis numbers, or all lines with axis aditionally disabled
@@ -755,7 +769,7 @@ pub struct Keybinds {
     pub save_png: Option<Keys>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GraphTiny {
     pub names: Vec<Name>,
     pub bound: (f32, f32),
@@ -763,7 +777,7 @@ pub struct GraphTiny {
     pub is_complex: bool,
     pub offset3d: Option<(f32, f32, f32)>,
     pub offset: Option<(f32, f32)>,
-    pub zoom: f32,
+    pub zoom: (f32, f32),
     pub slice: i8,
     pub var: (f32, f32),
     pub log_scale: bool,
@@ -793,7 +807,7 @@ impl Graph {
             is_complex: self.is_complex,
             offset3d: self.is_3d.then_some(self.offset3d.to_tuple()),
             offset: (!self.is_3d).then_some((a as f32, b as f32)),
-            zoom: self.zoom as f32,
+            zoom: self.zoom.to_tuple(),
             slice: self.slice as i8,
             var: self.var.to_tuple(),
             log_scale: self.log_scale,
@@ -810,7 +824,7 @@ impl Graph {
         self.is_complex = tiny.is_complex;
         self.prec = tiny.prec as f64;
         self.offset3d = tiny.offset3d.unwrap_or_default().into();
-        self.zoom = tiny.zoom as f64;
+        self.zoom = tiny.zoom.into();
         let o: Vec2 = tiny.offset.unwrap_or_default().into();
         self.offset = self.get_new_offset(o);
         self.slice = tiny.slice as isize;
@@ -854,6 +868,22 @@ impl Default for Keybinds {
             down: Some(Keys::new(Key::ArrowDown)),
             zoom_in: Some(Keys::new(Key::Equals)),
             zoom_out: Some(Keys::new(Key::Minus)),
+            zoom_in_x: Some(Keys::new_with_modifier(
+                Key::Equals,
+                Modifiers::default().ctrl(),
+            )),
+            zoom_out_x: Some(Keys::new_with_modifier(
+                Key::Minus,
+                Modifiers::default().ctrl(),
+            )),
+            zoom_in_y: Some(Keys::new_with_modifier(
+                Key::Plus,
+                Modifiers::default().shift(),
+            )),
+            zoom_out_y: Some(Keys::new_with_modifier(
+                Key::Underscore,
+                Modifiers::default().shift(),
+            )),
             lines: Some(Keys::new(Key::Z)),
             axis: Some(Keys::new(Key::X)),
             left_3d: Some(Keys::new_with_modifier(
@@ -1079,7 +1109,7 @@ impl InputState {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Debug, Clone, PartialEq)]
 pub struct Keys {
     ///None is equivalent to a set of false Modifiers
     modifiers: Option<Modifiers>,
@@ -1100,7 +1130,7 @@ impl Keys {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Copy, Clone, PartialEq, Default)]
+#[derive(Copy, Debug, Clone, PartialEq, Default)]
 pub struct Modifiers {
     pub alt: bool,
     pub ctrl: bool,
@@ -1158,7 +1188,7 @@ impl Modifiers {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
@@ -1190,7 +1220,7 @@ impl Color {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Debug, Clone, PartialEq)]
 pub struct Pos {
     pub x: f32,
     pub y: f32,
@@ -1221,7 +1251,7 @@ impl Pos {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Copy, Clone)]
+#[derive(Copy, Debug, Clone)]
 pub enum Complex {
     Real(f64),
     Imag(f64),
@@ -1237,7 +1267,7 @@ impl Complex {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Debug, Clone, PartialEq)]
 pub struct Vec2 {
     pub x: f64,
     pub y: f64,
@@ -1329,7 +1359,7 @@ impl MulAssign<f64> for Vec2 {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Copy, Clone)]
+#[derive(Copy, Debug, Clone)]
 pub struct Vec3 {
     pub x: f64,
     pub y: f64,
@@ -1356,6 +1386,20 @@ impl SubAssign<Vec2> for Vec2 {
     fn sub_assign(&mut self, rhs: Vec2) {
         self.x -= rhs.x;
         self.y -= rhs.y;
+    }
+}
+impl MulAssign<f64> for Vec3 {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.x *= rhs;
+        self.y *= rhs;
+        self.z *= rhs;
+    }
+}
+impl DivAssign<f64> for Vec3 {
+    fn div_assign(&mut self, rhs: f64) {
+        self.x /= rhs;
+        self.y /= rhs;
+        self.z /= rhs;
     }
 }
 impl Mul<f64> for Vec3 {
@@ -1452,7 +1496,7 @@ impl From<Align> for skia_safe::utils::text_utils::Align {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Debug, Clone, PartialEq)]
 pub enum Key {
     ArrowDown,
     ArrowLeft,

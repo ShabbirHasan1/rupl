@@ -740,23 +740,23 @@ impl Graph {
         let ox = self.screen_offset.x + self.offset.x;
         let oy = self.screen_offset.y + self.offset.y;
         Pos::new(
-            ((x * s + ox) * self.zoom) as f32,
-            ((oy - y * s) * self.zoom) as f32,
+            ((x * s + ox) * self.zoom.x) as f32,
+            ((oy - y * s) * self.zoom.y) as f32,
         )
     }
     fn to_coord(&self, p: Pos) -> (f64, f64) {
         let ox = self.offset.x + self.screen_offset.x;
         let oy = self.offset.y + self.screen_offset.y;
         let s = (self.bound.y - self.bound.x) / self.screen.x;
-        let x = (p.x as f64 / self.zoom - ox) * s;
-        let y = (oy - p.y as f64 / self.zoom) * s;
+        let x = (p.x as f64 / self.zoom.x - ox) * s;
+        let y = (oy - p.y as f64 / self.zoom.y) * s;
         (x, y)
     }
     fn get_new_offset(&self, mut o: Vec2) -> Vec2 {
         let s = (self.bound.y - self.bound.x) / self.screen.x;
         o /= s;
-        let x = self.screen.x / (self.zoom * 2.0) - o.x - self.screen_offset.x;
-        let y = o.y - self.screen_offset.y + self.screen.y / (self.zoom * 2.0);
+        let x = self.screen.x / (self.zoom.x * 2.0) - o.x - self.screen_offset.x;
+        let y = o.y - self.screen_offset.y + self.screen.y / (self.zoom.y * 2.0);
         Vec2::new(x, y)
     }
     fn draw_point(
@@ -848,14 +848,14 @@ impl Graph {
                 );
                 (s * a.min(b), a.max(b))
             };
-            let delta = 2.0f64.powf((-self.zoom.log2()).round());
+            let delta = 2.0f64.powf((-self.zoom.x.log2()).round());
             let minor = (self.line_major * self.line_minor) as f64 * self.screen.x
                 / (2.0 * self.delta * delta * (self.bound.y - self.bound.x).powi(2));
             let s = self.screen.x / (self.bound.y - self.bound.x);
             let ox = self.screen_offset.x + self.offset.x;
-            let nx = (((self.to_screen(a, 0.0).x as f64 / self.zoom - ox) / s) * 2.0 * minor).ceil()
-                as isize;
-            let mx = (((self.to_screen(b, 0.0).x as f64 / self.zoom - ox) / s) * 2.0 * minor)
+            let nx = (((self.to_screen(a, 0.0).x as f64 / self.zoom.x - ox) / s) * 2.0 * minor)
+                .ceil() as isize;
+            let mx = (((self.to_screen(b, 0.0).x as f64 / self.zoom.x - ox) / s) * 2.0 * minor)
                 .floor() as isize;
             for j in nx.max(1)..=mx {
                 if j % 4 != 0 {
@@ -864,9 +864,9 @@ impl Graph {
                 }
             }
             let minor = minor / self.line_minor as f64;
-            let nx = (((self.to_screen(a, 0.0).x as f64 / self.zoom - ox) / s) * 2.0 * minor).ceil()
-                as isize;
-            let mx = (((self.to_screen(b, 0.0).x as f64 / self.zoom - ox) / s) * 2.0 * minor)
+            let nx = (((self.to_screen(a, 0.0).x as f64 / self.zoom.x - ox) / s) * 2.0 * minor)
+                .ceil() as isize;
+            let mx = (((self.to_screen(b, 0.0).x as f64 / self.zoom.x - ox) / s) * 2.0 * minor)
                 .floor() as isize;
             for j in nx.max(1)..=mx {
                 let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
@@ -877,44 +877,48 @@ impl Graph {
         }
     }
     fn write_axis(&self, painter: &mut Painter) {
-        let delta = 2.0f64.powf((-self.zoom.log2()).round());
-        let minor = (self.line_major * self.line_minor) as f64 * self.screen.x
-            / (2.0 * self.delta * delta * (self.bound.y - self.bound.x).powi(2));
+        let deltax = 2.0f64.powf((-self.zoom.x.log2()).round());
+        let deltay = 2.0f64.powf((-self.zoom.y.log2()).round());
+        let minorx = (self.line_major * self.line_minor) as f64 * self.screen.x
+            / (2.0 * self.delta * deltax * (self.bound.y - self.bound.x).powi(2));
+        let minory = (self.line_major * self.line_minor) as f64 * self.screen.x
+            / (2.0 * self.delta * deltay * (self.bound.y - self.bound.x).powi(2));
         let s = self.screen.x / (self.bound.y - self.bound.x);
         let ox = self.screen_offset.x + self.offset.x;
         let oy = self.screen_offset.y + self.offset.y;
         if !self.disable_lines && self.graph_mode != GraphMode::DomainColoring {
-            let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
-            let ny = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
+            let nx = (((-1.0 / self.zoom.x - ox) / s) * 2.0 * minorx).ceil() as isize;
+            let ny = (((oy + 1.0 / self.zoom.y) / s) * 2.0 * minory).ceil() as isize;
             let mx =
-                ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
+                ((((self.screen.x + 1.0) / self.zoom.x - ox) / s) * 2.0 * minorx).floor() as isize;
             let my =
-                (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
+                (((oy - (self.screen.y + 1.0) / self.zoom.y) / s) * 2.0 * minory).floor() as isize;
             for j in nx..=mx {
                 if j % 4 != 0 {
-                    let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
+                    let x = self.to_screen(j as f64 / (2.0 * minorx), 0.0).x;
                     painter.vline(x, self.screen.y as f32, &self.axis_color_light);
                 }
             }
             for j in my..=ny {
                 if j % 4 != 0 {
-                    let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
+                    let y = self.to_screen(0.0, j as f64 / (2.0 * minory)).y;
                     painter.hline(self.screen.x as f32, y, &self.axis_color_light);
                 }
             }
         }
-        let minor = minor / self.line_minor as f64;
-        let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
-        let mx = ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
-        let ny = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
-        let my = (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
+        let minorx = minorx / self.line_minor as f64;
+        let minory = minory / self.line_minor as f64;
+        let nx = (((-1.0 / self.zoom.x - ox) / s) * 2.0 * minorx).ceil() as isize;
+        let mx = ((((self.screen.x + 1.0) / self.zoom.x - ox) / s) * 2.0 * minorx).floor() as isize;
+        let ny = (((oy + 1.0 / self.zoom.y) / s) * 2.0 * minory).ceil() as isize;
+        let my = (((oy - (self.screen.y + 1.0) / self.zoom.y) / s) * 2.0 * minory).floor() as isize;
         if !self.disable_lines {
             for j in nx..=mx {
-                let x = self.to_screen(j as f64 / (2.0 * minor), 0.0).x;
+                let x = self.to_screen(j as f64 / (2.0 * minorx), 0.0).x;
                 painter.vline(x, self.screen.y as f32, &self.axis_color);
             }
             for j in my..=ny {
-                let y = self.to_screen(0.0, j as f64 / (2.0 * minor)).y;
+                let y = self.to_screen(0.0, j as f64 / (2.0 * minory)).y;
                 painter.hline(self.screen.x as f32, y, &self.axis_color);
             }
         } else if !self.disable_axis {
@@ -929,16 +933,19 @@ impl Graph {
         }
     }
     fn write_text(&self, painter: &mut Painter) {
-        let delta = 2.0f64.powf((-self.zoom.log2()).round());
-        let minor = self.line_major as f64 * self.screen.x
-            / (2.0 * self.delta * delta * (self.bound.y - self.bound.x).powi(2));
+        let deltax = 2.0f64.powf((-self.zoom.x.log2()).round());
+        let deltay = 2.0f64.powf((-self.zoom.y.log2()).round());
+        let minorx = self.line_major as f64 * self.screen.x
+            / (2.0 * self.delta * deltax * (self.bound.y - self.bound.x).powi(2));
+        let minory = self.line_major as f64 * self.screen.x
+            / (2.0 * self.delta * deltay * (self.bound.y - self.bound.x).powi(2));
         let s = self.screen.x / (self.bound.y - self.bound.x);
         let ox = self.screen_offset.x + self.offset.x;
         let oy = self.screen_offset.y + self.offset.y;
-        let nx = (((-1.0 / self.zoom - ox) / s) * 2.0 * minor).ceil() as isize;
-        let mx = ((((self.screen.x + 1.0) / self.zoom - ox) / s) * 2.0 * minor).floor() as isize;
-        let ny = (((oy + 1.0 / self.zoom) / s) * 2.0 * minor).ceil() as isize;
-        let my = (((oy - (self.screen.y + 1.0) / self.zoom) / s) * 2.0 * minor).floor() as isize;
+        let nx = (((-1.0 / self.zoom.x - ox) / s) * 2.0 * minorx).ceil() as isize;
+        let mx = ((((self.screen.x + 1.0) / self.zoom.x - ox) / s) * 2.0 * minorx).floor() as isize;
+        let ny = (((oy + 1.0 / self.zoom.y) / s) * 2.0 * minory).ceil() as isize;
+        let my = (((oy - (self.screen.y + 1.0) / self.zoom.y) / s) * 2.0 * minory).floor() as isize;
         if !self.disable_axis {
             let mut align = false;
             let y = if (my..ny).contains(&0) {
@@ -953,7 +960,7 @@ impl Graph {
                 if self.is_polar() && j == 0 {
                     continue;
                 }
-                let j = j as f64 / (2.0 * minor);
+                let j = j as f64 / (2.0 * minorx);
                 let x = self.to_screen(j, 0.0).x;
                 let mut p = Pos::new(x + 2.0, y);
                 if !align {
@@ -984,7 +991,7 @@ impl Graph {
                 if j == 0 {
                     continue;
                 }
-                let j = j as f64 / (2.0 * minor);
+                let j = j as f64 / (2.0 * minory);
                 let y = self.to_screen(0.0, j).y;
                 let mut p = Pos::new(x + 2.0, y);
                 let j = j.to_string();
@@ -1599,13 +1606,13 @@ impl Graph {
                                 self.mouse_position.unwrap().x
                             } else {
                                 self.screen_offset.x
-                            } / self.zoom
+                            } / self.zoom.x
                                 * (multi.zoom_delta - 1.0);
                             self.offset.y -= if self.mouse_moved && !self.is_3d {
                                 self.mouse_position.unwrap().y
                             } else {
                                 self.screen_offset.y
-                            } / self.zoom
+                            } / self.zoom.y
                                 * (multi.zoom_delta - 1.0);
                             self.recalculate = true;
                         }
@@ -1618,13 +1625,13 @@ impl Graph {
                                 self.mouse_position.unwrap().x
                             } else {
                                 self.screen_offset.x
-                            } / self.zoom
+                            } / self.zoom.x
                                 * (multi.zoom_delta.recip() - 1.0);
                             self.offset.y += if self.mouse_moved && !self.is_3d {
                                 self.mouse_position.unwrap().y
                             } else {
                                 self.screen_offset.y
-                            } / self.zoom
+                            } / self.zoom.y
                                 * (multi.zoom_delta.recip() - 1.0);
                             self.zoom *= multi.zoom_delta;
                             self.recalculate = true;
@@ -1638,8 +1645,8 @@ impl Graph {
                     self.angle.y =
                         (self.angle.y + multi.translation_delta.y / 512.0).rem_euclid(TAU);
                 } else {
-                    self.offset.x += multi.translation_delta.x / self.zoom;
-                    self.offset.y += multi.translation_delta.y / self.zoom;
+                    self.offset.x += multi.translation_delta.x / self.zoom.x;
+                    self.offset.y += multi.translation_delta.y / self.zoom.y;
                     self.recalculate = true;
                     self.mouse_held = true;
                 }
@@ -1652,8 +1659,8 @@ impl Graph {
                             self.angle.x = (self.angle.x - delta.x / 512.0).rem_euclid(TAU);
                             self.angle.y = (self.angle.y + delta.y / 512.0).rem_euclid(TAU);
                         } else {
-                            self.offset.x += delta.x / self.zoom;
-                            self.offset.y += delta.y / self.zoom;
+                            self.offset.x += delta.x / self.zoom.x;
+                            self.offset.y += delta.y / self.zoom.y;
                             self.recalculate = true;
                             self.mouse_held = true;
                         }
@@ -1671,10 +1678,16 @@ impl Graph {
             }
         }
         self.last_interact = i.pointer_pos;
-        let (a, b, c) = (
+        let (ax, ay, b, c) = (
             self.delta
-                / if self.zoom > 1.0 {
-                    2.0 * self.zoom
+                / if self.zoom.x > 1.0 {
+                    2.0 * self.zoom.x
+                } else {
+                    1.0
+                },
+            self.delta
+                / if self.zoom.y > 1.0 {
+                    2.0 * self.zoom.y
                 } else {
                     1.0
                 },
@@ -1685,7 +1698,7 @@ impl Graph {
             if self.is_3d {
                 self.angle.x = ((self.angle.x / b - 1.0).round() * b).rem_euclid(TAU);
             } else {
-                self.offset.x += a;
+                self.offset.x += ax;
                 self.recalculate = true;
             }
         }
@@ -1693,7 +1706,7 @@ impl Graph {
             if self.is_3d {
                 self.angle.x = ((self.angle.x / b + 1.0).round() * b).rem_euclid(TAU);
             } else {
-                self.offset.x -= a;
+                self.offset.x -= ax;
                 self.recalculate = true;
             }
         }
@@ -1704,7 +1717,7 @@ impl Graph {
                 if self.graph_mode == GraphMode::DomainColoring {
                     self.recalculate = true;
                 }
-                self.offset.y += a;
+                self.offset.y += ay;
             }
         }
         if i.keys_pressed(keybinds.down) {
@@ -1714,7 +1727,7 @@ impl Graph {
                 if self.graph_mode == GraphMode::DomainColoring {
                     self.recalculate = true;
                 }
-                self.offset.y -= a;
+                self.offset.y -= ay;
             }
         }
         if i.keys_pressed(keybinds.lines) {
@@ -1816,13 +1829,13 @@ impl Graph {
                         self.mouse_position.unwrap().x
                     } else {
                         self.screen_offset.x
-                    } / self.zoom
+                    } / self.zoom.x
                         * (rt - 1.0);
                     self.offset.y -= if self.mouse_moved && !self.is_3d {
                         self.mouse_position.unwrap().y
                     } else {
                         self.screen_offset.y
-                    } / self.zoom
+                    } / self.zoom.y
                         * (rt - 1.0);
                     self.recalculate = true;
                 }
@@ -1831,13 +1844,13 @@ impl Graph {
                         self.mouse_position.unwrap().x
                     } else {
                         self.screen_offset.x
-                    } / self.zoom
+                    } / self.zoom.x
                         * (rt.recip() - 1.0);
                     self.offset.y += if self.mouse_moved && !self.is_3d {
                         self.mouse_position.unwrap().y
                     } else {
                         self.screen_offset.y
-                    } / self.zoom
+                    } / self.zoom.y
                         * (rt.recip() - 1.0);
                     self.zoom *= rt;
                     self.recalculate = true;
@@ -1845,39 +1858,69 @@ impl Graph {
                 _ => {}
             }
         }
-        if i.keys_pressed(keybinds.zoom_out) {
+        let (a, x, y) = (
+            i.keys_pressed(keybinds.zoom_out),
+            i.keys_pressed(keybinds.zoom_out_x),
+            i.keys_pressed(keybinds.zoom_out_y),
+        );
+        if a || x || y {
             if self.is_3d {
                 self.bound *= 2.0;
             } else {
-                self.offset.x += if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().x
+                if a || x {
+                    self.offset.x += if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().x
+                    } else {
+                        self.screen_offset.x
+                    } / self.zoom.x;
+                }
+                if a || y {
+                    self.offset.y += if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().y
+                    } else {
+                        self.screen_offset.y
+                    } / self.zoom.y;
+                }
+                if a {
+                    self.zoom /= 2.0;
+                } else if x {
+                    self.zoom.x /= 2.0;
                 } else {
-                    self.screen_offset.x
-                } / self.zoom;
-                self.offset.y += if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().y
-                } else {
-                    self.screen_offset.y
-                } / self.zoom;
-                self.zoom /= 2.0;
+                    self.zoom.y /= 2.0;
+                }
             }
             self.recalculate = true;
         }
-        if i.keys_pressed(keybinds.zoom_in) {
+        let (a, x, y) = (
+            i.keys_pressed(keybinds.zoom_in),
+            i.keys_pressed(keybinds.zoom_in_x),
+            i.keys_pressed(keybinds.zoom_in_y),
+        );
+        if a || x || y {
             if self.is_3d {
                 self.bound /= 2.0;
             } else {
-                self.zoom *= 2.0;
-                self.offset.x -= if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().x
+                if a {
+                    self.zoom *= 2.0;
+                } else if x {
+                    self.zoom.x *= 2.0;
                 } else {
-                    self.screen_offset.x
-                } / self.zoom;
-                self.offset.y -= if self.mouse_moved && !self.is_3d {
-                    self.mouse_position.unwrap().y
-                } else {
-                    self.screen_offset.y
-                } / self.zoom;
+                    self.zoom.y *= 2.0;
+                }
+                if a || x {
+                    self.offset.x -= if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().x
+                    } else {
+                        self.screen_offset.x
+                    } / self.zoom.x;
+                }
+                if a || y {
+                    self.offset.y -= if self.mouse_moved && !self.is_3d {
+                        self.mouse_position.unwrap().y
+                    } else {
+                        self.screen_offset.y
+                    } / self.zoom.y;
+                }
             }
             self.recalculate = true;
         }
@@ -2020,7 +2063,7 @@ impl Graph {
             self.offset3d = Vec3::splat(0.0);
             self.offset = Vec2::splat(0.0);
             self.var = self.bound;
-            self.zoom = 1.0;
+            self.zoom = Vec2::splat(1.0);
             self.slice = 0;
             self.angle = Vec2::splat(PI / 6.0);
             self.box_size = 3.0f64.sqrt();
