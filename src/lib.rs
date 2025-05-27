@@ -1,4 +1,6 @@
 mod sidebar;
+#[cfg(feature = "skia-vulkan")]
+mod skia_vulkan;
 pub mod types;
 mod ui;
 use crate::types::*;
@@ -42,6 +44,18 @@ impl Graph {
         graph.bound = bound;
         graph.var = bound;
         graph
+    }
+    #[cfg(feature = "skia-vulkan")]
+    ///needed to setup vulkan window
+    pub fn resumed(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        window: std::sync::Arc<winit::window::Window>,
+    ) {
+        self.renderer = Some(
+            self.render_ctx
+                .renderer_for_window(event_loop, window.clone()),
+        );
     }
     #[cfg(feature = "skia")]
     ///sets font
@@ -109,6 +123,10 @@ impl Graph {
         (fw, new, screen) = self.get_new_screen(width, height, offset);
         let mut c = None;
         if screen != self.screen {
+            #[cfg(feature = "skia-vulkan")]
+            if let Some(renderer) = &mut self.renderer {
+                renderer.invalidate_swapchain();
+            }
             if self.screen != Vec2::splat(0.0) && offset && reset {
                 c = Some(self.to_coord((self.screen / 2.0).to_pos()).into());
                 self.offset.x += self.reset_offset(width, height).x;
@@ -365,6 +383,7 @@ impl Graph {
         self.update_inner(&mut painter, plot, width, height);
     }
     #[cfg(feature = "skia")]
+    #[cfg(not(feature = "skia-vulkan"))]
     ///repaints the screen
     pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T)
     where
@@ -372,9 +391,10 @@ impl Graph {
     {
         self.font_width();
         self.set_screen(width as f64, height as f64, true, true);
+        let mut surface =
+            skia_safe::surfaces::raster_n32_premul((width as i32, height as i32)).unwrap();
         let mut painter = Painter::new(
-            width,
-            height,
+            &mut surface,
             self.background_color,
             self.font.clone(),
             self.fast_3d(),
@@ -388,13 +408,41 @@ impl Graph {
         painter.save(buffer);
     }
     #[cfg(feature = "skia")]
+    #[cfg(feature = "skia-vulkan")]
+    ///repaints the screen
+    pub fn update(&mut self) {
+        let Some(mut renderer) = std::mem::take(&mut self.renderer) else {
+            return;
+        };
+        renderer.prepare_swapchain();
+        self.font_width();
+        renderer.draw_and_present(|surface, size| {
+            let (width, height) = (size.width, size.height);
+            self.set_screen(width as f64, height as f64, true, true);
+            let mut painter = Painter::new(
+                surface,
+                self.background_color,
+                self.font.clone(),
+                self.fast_3d(),
+                self.max(),
+                self.anti_alias,
+                self.line_width,
+                self.draw_offset,
+            );
+            let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
+            self.update_inner(&mut painter, plot, width as f64, height as f64);
+        });
+        self.renderer = Some(renderer);
+    }
+    #[cfg(feature = "skia")]
     ///get png data
     pub fn get_png(&mut self, width: u32, height: u32) -> ui::Data {
         self.font_width();
         self.set_screen(width as f64, height as f64, true, true);
+        let mut surface =
+            skia_safe::surfaces::raster_n32_premul((width as i32, height as i32)).unwrap();
         let mut painter = Painter::new(
-            width,
-            height,
+            &mut surface,
             self.background_color,
             self.font.clone(),
             self.fast_3d(),
@@ -1578,6 +1626,7 @@ impl Graph {
         }
         #[cfg(any(feature = "skia", feature = "tiny-skia"))]
         #[cfg(feature = "arboard")]
+        #[cfg(not(feature = "skia-vulkan"))]
         if i.keys_pressed(keybinds.save_png) {
             let (x, y) = (self.screen.x as usize, self.screen.y as usize);
             let mut bytes = vec![0; x * y];

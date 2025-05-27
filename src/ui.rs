@@ -143,8 +143,8 @@ impl<'a> Painter<'a> {
     }
 }
 #[cfg(feature = "skia")]
-pub(crate) struct Painter {
-    canvas: skia_safe::Surface,
+pub(crate) struct Painter<'a> {
+    surface: &'a mut skia_safe::Surface,
     line: Line,
     font: Option<skia_safe::Font>,
     points: Point,
@@ -154,11 +154,10 @@ pub(crate) struct Painter {
     pub offset: Pos,
 }
 #[cfg(feature = "skia")]
-impl Painter {
+impl<'a> Painter<'a> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        width: u32,
-        height: u32,
+        surface: &'a mut skia_safe::Surface,
         background: Color,
         font: Option<skia_safe::Font>,
         fast: bool,
@@ -167,11 +166,9 @@ impl Painter {
         line_width: f32,
         offset: Pos,
     ) -> Self {
-        let mut canvas =
-            skia_safe::surfaces::raster_n32_premul((width as i32, height as i32)).unwrap();
-        canvas.canvas().clear(background.to_col());
+        surface.canvas().clear(background.to_col());
         Self {
-            canvas,
+            surface,
             line: if fast {
                 Line::Fast(FastLine {
                     line: Default::default(),
@@ -218,11 +215,11 @@ impl Painter {
                 if self.fast {
                     None
                 } else {
-                    Some(self.canvas.canvas())
+                    Some(self.surface.canvas())
                 },
             );
         } else {
-            self.canvas.canvas().draw_line(
+            self.surface.canvas().draw_line(
                 p0[0].to_pos2(),
                 p0[1].to_pos2(),
                 &make_paint(width, p2, true, false),
@@ -230,10 +227,10 @@ impl Painter {
         }
     }
     pub fn draw(&mut self) {
-        self.line.draw(self.canvas.canvas(), self.anti_alias);
+        self.line.draw(self.surface.canvas(), self.anti_alias);
     }
     pub fn draw_pts(&mut self) {
-        self.points.draw(self.canvas.canvas());
+        self.points.draw(self.surface.canvas());
     }
     pub fn clear(&mut self) {
         self.line.clear()
@@ -242,7 +239,7 @@ impl Painter {
         self.points.clear()
     }
     pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color, p3: f32) {
-        self.canvas.canvas().draw_circle(
+        self.surface.canvas().draw_circle(
             (self.offset + p0).to_pos2(),
             r,
             &make_paint(p3, p2, true, false),
@@ -259,14 +256,14 @@ impl Painter {
     pub(crate) fn highlight(&mut self, xi: f32, yi: f32, xf: f32, yf: f32, color: &Color) {
         let mut paint = make_paint(1.0, color, false, true);
         paint.set_style(skia_safe::PaintStyle::Fill);
-        self.canvas
+        self.surface
             .canvas()
             .draw_rect(skia_safe::Rect::from_ltrb(xi, yi, xf, yf), &paint);
     }
     pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
         let mut paint = make_paint(1.0, background, false, true);
         paint.set_style(skia_safe::PaintStyle::Fill);
-        self.canvas.canvas().draw_rect(
+        self.surface.canvas().draw_rect(
             skia_safe::Rect::from_ltrb(0.0, 0.0, self.offset.x, screen.y as f32),
             &paint,
         );
@@ -274,16 +271,17 @@ impl Painter {
     pub(crate) fn clear_below(&mut self, screen: Vec2, background: &Color) {
         let mut paint = make_paint(1.0, background, false, true);
         paint.set_style(skia_safe::PaintStyle::Fill);
-        self.canvas.canvas().draw_rect(
+        self.surface.canvas().draw_rect(
             skia_safe::Rect::from_ltrb(0.0, screen.x as f32, screen.x as f32, screen.y as f32),
             &paint,
         );
     }
+    #[cfg(not(feature = "skia-vulkan"))]
     pub(crate) fn save<T>(&mut self, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
-        if let Some(pm) = self.canvas.peek_pixels() {
+        if let Some(pm) = self.surface.canvas().peek_pixels() {
             let px = pm.pixels::<u32>().unwrap();
             buffer.copy_from_slice(px);
         }
@@ -291,7 +289,7 @@ impl Painter {
     pub(crate) fn save_img(&mut self, format: &ImageFormat) -> Data {
         Data {
             data: self
-                .canvas
+                .surface
                 .image_snapshot()
                 .encode(None, format.into(), None)
                 .unwrap(),
@@ -309,7 +307,7 @@ impl Painter {
             if self.fast {
                 None
             } else {
-                Some(self.canvas.canvas())
+                Some(self.surface.canvas())
             },
         );
     }
@@ -317,7 +315,7 @@ impl Painter {
         if self.anti_alias {
             let mut paint = skia_safe::Paint::default();
             paint.set_anti_alias(self.anti_alias);
-            self.canvas.canvas().draw_image_rect_with_sampling_options(
+            self.surface.canvas().draw_image_rect_with_sampling_options(
                 p0,
                 None,
                 skia_safe::Rect::new(
@@ -333,7 +331,7 @@ impl Painter {
                 &paint,
             );
         } else {
-            self.canvas.canvas().draw_image_rect(
+            self.surface.canvas().draw_image_rect(
                 p0,
                 None,
                 skia_safe::Rect::new(
@@ -348,7 +346,7 @@ impl Painter {
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p3: &Color) {
         if p1.is_finite() {
-            self.canvas.canvas().draw_line(
+            self.surface.canvas().draw_line(
                 (self.offset + Pos::new(0.0, p1 + 0.5)).to_pos2(),
                 (self.offset + Pos::new(p0, p1 + 0.5)).to_pos2(),
                 &make_paint(1.0, p3, false, false),
@@ -357,7 +355,7 @@ impl Painter {
     }
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p3: &Color) {
         if p0.is_finite() {
-            self.canvas.canvas().draw_line(
+            self.surface.canvas().draw_line(
                 (self.offset + Pos::new(p0 + 0.5, 0.0)).to_pos2(),
                 (self.offset + Pos::new(p0 + 0.5, p1)).to_pos2(),
                 &make_paint(1.0, p3, false, false),
@@ -396,7 +394,7 @@ impl Painter {
                     | crate::types::Align::LeftTop
                     | crate::types::Align::RightTop => pos.y += height,
                 }
-                self.canvas.canvas().draw_str(s, pos, font, &paint);
+                self.surface.canvas().draw_str(s, pos, font, &paint);
             }
             match p1 {
                 crate::types::Align::CenterTop

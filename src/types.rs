@@ -232,6 +232,7 @@ impl Clipboard {
     pub(crate) fn set_text(&mut self, text: &str) {
         self.0.set_text(text).unwrap_or_default()
     }
+    #[cfg(not(feature = "skia-vulkan"))]
     #[cfg(feature = "arboard")]
     pub(crate) fn set_image(&mut self, width: usize, height: usize, bytes: &[u8]) {
         self.0
@@ -259,6 +260,12 @@ impl Clipboard {
 pub(crate) struct Image(pub tiny_skia::Pixmap);
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Graph {
+    #[cfg(feature = "skia-vulkan")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    pub(crate) render_ctx: crate::skia_vulkan::context::VulkanRenderContext,
+    #[cfg(feature = "skia-vulkan")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    pub(crate) renderer: Option<crate::skia_vulkan::renderer::VulkanRenderer>,
     ///current data sets
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
     pub data: Vec<GraphType>,
@@ -443,6 +450,10 @@ impl Default for Graph {
         #[cfg(not(feature = "arboard"))]
         let clipboard = Some(Clipboard(String::new()));
         Self {
+            #[cfg(feature = "skia-vulkan")]
+            render_ctx: Default::default(),
+            #[cfg(feature = "skia-vulkan")]
+            renderer: None,
             is_3d: false,
             clipboard,
             #[cfg(feature = "arboard")]
@@ -566,6 +577,10 @@ impl Clone for Graph {
     fn clone(&self) -> Self {
         let offset = self.to_coord((self.screen / 2.0).to_pos()).into();
         Self {
+            #[cfg(feature = "skia-vulkan")]
+            render_ctx: Default::default(),
+            #[cfg(feature = "skia-vulkan")]
+            renderer: None,
             #[cfg(feature = "arboard")]
             wait_frame: true,
             data: Vec::new(),
