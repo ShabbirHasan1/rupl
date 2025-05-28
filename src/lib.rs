@@ -46,16 +46,28 @@ impl Graph {
         graph
     }
     #[cfg(feature = "skia-vulkan")]
+    ///closes vulkan instance
+    pub fn close(&mut self) {
+        self.renderer = None;
+    }
+    #[cfg(feature = "skia-vulkan")]
+    ///resizes window
+    pub fn resize(&mut self) {
+        if let Some(renderer) = self.renderer.as_mut() {
+            renderer.invalidate_swapchain();
+        }
+    }
+    #[cfg(feature = "skia-vulkan")]
     ///needed to setup vulkan window
     pub fn resumed(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
         window: std::sync::Arc<winit::window::Window>,
     ) {
-        self.renderer = Some(
-            self.render_ctx
-                .renderer_for_window(event_loop, window.clone()),
-        );
+        let renderer = self
+            .render_ctx
+            .renderer_for_window(event_loop, window.clone());
+        self.renderer = Some(renderer);
     }
     #[cfg(feature = "skia")]
     ///sets font
@@ -123,10 +135,6 @@ impl Graph {
         (fw, new, screen) = self.get_new_screen(width, height, offset);
         let mut c = None;
         if screen != self.screen {
-            #[cfg(feature = "skia-vulkan")]
-            if let Some(renderer) = &mut self.renderer {
-                renderer.invalidate_swapchain();
-            }
             if self.screen != Vec2::splat(0.0) && offset && reset {
                 c = Some(self.to_coord((self.screen / 2.0).to_pos()).into());
                 self.offset.x += self.reset_offset(width, height).x;

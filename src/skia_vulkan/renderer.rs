@@ -17,7 +17,10 @@ use skia_safe::{
     ColorSpace, ColorType,
     gpu::{self, backend_render_targets, direct_contexts, surfaces, vk},
 };
-
+use vulkano::format::Format;
+use vulkano::image::ImageSubresourceRange;
+use vulkano::image::view::ImageViewCreateInfo;
+use vulkano::render_pass::FramebufferCreateFlags;
 use winit::{dpi::LogicalSize, dpi::PhysicalSize, window::Window};
 
 pub struct VulkanRenderer {
@@ -67,7 +70,10 @@ impl VulkanRenderer {
             let (image_format, _) = device
                 .physical_device()
                 .surface_formats(&surface, Default::default())
-                .unwrap()[0];
+                .unwrap()
+                .into_iter()
+                .find(|a| a.0 == Format::B8G8R8A8_UNORM)
+                .unwrap();
 
             // Please take a look at the docs for the meaning of the parameters we didn't mention.
             Swapchain::new(
@@ -266,6 +272,7 @@ impl VulkanRenderer {
                 .swapchain
                 .recreate(SwapchainCreateInfo {
                     image_extent: window_size.into(),
+                    image_format: Format::B8G8R8A8_UNORM,
                     ..self.swapchain.create_info()
                 })
                 .expect("failed to recreate swapchain");
@@ -278,12 +285,16 @@ impl VulkanRenderer {
             self.framebuffers = new_images
                 .iter()
                 .map(|image| {
-                    let view = ImageView::new_default(image.clone()).unwrap();
-
+                    let mut info = ImageViewCreateInfo::default();
+                    info.format = Format::B8G8R8A8_UNORM;
+                    info.subresource_range =
+                        ImageSubresourceRange::from_parameters(info.format, 1, 1);
+                    let view = ImageView::new(image.clone(), info).unwrap();
                     Framebuffer::new(
                         self.render_pass.clone(),
                         FramebufferCreateInfo {
                             attachments: vec![view],
+                            flags: FramebufferCreateFlags::default(),
                             ..Default::default()
                         },
                     )
@@ -338,6 +349,9 @@ impl VulkanRenderer {
             // pull the appropriate framebuffer from the swapchain and attach a skia Surface to it
             let framebuffer = self.framebuffers[image_index as usize].clone();
             let mut surface = surface_for_framebuffer(&mut self.skia_ctx, framebuffer.clone());
+            let Some(surface) = surface.as_mut() else {
+                return;
+            };
             let canvas = surface.canvas();
 
             // use the display's DPI to convert the window size to logical coords and pre-scale the
@@ -353,7 +367,7 @@ impl VulkanRenderer {
             canvas.scale(scale);
 
             // pass the suface's canvas and canvas size to the user-provided callback
-            f(&mut surface, size);
+            f(surface, size);
 
             // flush the canvas's contents to the framebuffer
             self.skia_ctx.flush_and_submit();
@@ -382,7 +396,7 @@ impl VulkanRenderer {
 fn surface_for_framebuffer(
     skia_ctx: &mut gpu::DirectContext,
     framebuffer: Arc<Framebuffer>,
-) -> skia_safe::Surface {
+) -> Option<skia_safe::Surface> {
     let [width, height] = framebuffer.extent();
     let image_access = &framebuffer.attachments()[0];
     let image_object = image_access.image().handle().as_raw();
@@ -390,12 +404,10 @@ fn surface_for_framebuffer(
     let format = image_access.format();
 
     let (vk_format, color_type, color_space) = match format {
-        vulkano::format::Format::B8G8R8A8_UNORM => {
-            (vk::Format::B8G8R8A8_UNORM, ColorType::BGRA8888, None)
-        }
-        vulkano::format::Format::B8G8R8A8_SRGB => (
+        Format::B8G8R8A8_UNORM => (vk::Format::B8G8R8A8_UNORM, ColorType::BGRA8888, None),
+        Format::B8G8R8A8_SRGB => (
             vk::Format::B8G8R8A8_SRGB,
-            ColorType::SRGBA8888,
+            ColorType::BGRA8888,
             Some(ColorSpace::new_srgb()),
         ),
         _ => panic!("Unsupported color format {format:?}"),
@@ -406,7 +418,7 @@ fn surface_for_framebuffer(
         vk::ImageInfo::new(
             image_object as _,
             alloc,
-            vk::ImageTiling::OPTIMAL,
+            vk::ImageTiling::LINEAR,
             vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             vk_format,
             1,
@@ -421,14 +433,12 @@ fn surface_for_framebuffer(
         (width.try_into().unwrap(), height.try_into().unwrap()),
         image_info,
     );
-
-    let surface = surfaces::wrap_backend_render_target(
+    surfaces::wrap_backend_render_target(
         skia_ctx,
         render_target,
         gpu::SurfaceOrigin::TopLeft,
         color_type,
         color_space,
         None,
-    );
-    surface.unwrap()
+    )
 }
