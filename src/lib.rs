@@ -2246,6 +2246,11 @@ impl Graph {
         graph.offset = graph.get_new_offset(graph.offset);
         graph.side_bar_width = self.side_bar_width;
         graph.keybinds = self.keybinds;
+        #[cfg(feature = "skia-vulkan")]
+        {
+            graph.renderer = std::mem::take(&mut self.renderer);
+            graph.render_ctx = std::mem::take(&mut self.render_ctx);
+        }
         self.save_num = None;
         *self = graph;
     }
