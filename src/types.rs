@@ -232,7 +232,6 @@ impl Clipboard {
     pub(crate) fn set_text(&mut self, text: &str) {
         self.0.set_text(text).unwrap_or_default()
     }
-    #[cfg(not(feature = "skia-vulkan"))]
     #[cfg(feature = "arboard")]
     pub(crate) fn set_image(&mut self, width: usize, height: usize, bytes: &[u8]) {
         self.0

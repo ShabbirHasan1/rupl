@@ -276,7 +276,6 @@ impl<'a> Painter<'a> {
             &paint,
         );
     }
-    #[cfg(not(feature = "skia-vulkan"))]
     pub(crate) fn save<T>(&mut self, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,

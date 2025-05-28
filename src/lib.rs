@@ -443,6 +443,30 @@ impl Graph {
         self.renderer = Some(renderer);
     }
     #[cfg(feature = "skia")]
+    #[cfg(feature = "skia-vulkan")]
+    fn get_img<T>(&mut self, width: u32, height: u32, buffer: &mut T)
+    where
+        T: std::ops::DerefMut<Target = [u32]>,
+    {
+        self.font_width();
+        self.set_screen(width as f64, height as f64, true, true);
+        let mut surface =
+            skia_safe::surfaces::raster_n32_premul((width as i32, height as i32)).unwrap();
+        let mut painter = Painter::new(
+            &mut surface,
+            self.background_color,
+            self.font.clone(),
+            self.fast_3d(),
+            self.max(),
+            self.anti_alias,
+            self.line_width,
+            self.draw_offset,
+        );
+        let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
+        self.update_inner(&mut painter, plot, width as f64, height as f64);
+        painter.save(buffer);
+    }
+    #[cfg(feature = "skia")]
     ///get png data
     pub fn get_png(&mut self, width: u32, height: u32) -> ui::Data {
         self.font_width();
@@ -1634,11 +1658,13 @@ impl Graph {
         }
         #[cfg(any(feature = "skia", feature = "tiny-skia"))]
         #[cfg(feature = "arboard")]
-        #[cfg(not(feature = "skia-vulkan"))]
         if i.keys_pressed(keybinds.save_png) {
             let (x, y) = (self.screen.x as usize, self.screen.y as usize);
             let mut bytes = vec![0; x * y];
+            #[cfg(not(feature = "skia-vulkan"))]
             self.update(x as u32, y as u32, &mut bytes);
+            #[cfg(feature = "skia-vulkan")]
+            self.get_img(x as u32, y as u32, &mut bytes);
             let mut new = Vec::with_capacity(x * y * 4);
             new.extend(bytes.iter().flat_map(|c| {
                 let [_, b1, b2, b3] = c.to_be_bytes();
