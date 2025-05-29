@@ -45,10 +45,16 @@ impl Graph {
         graph.var = bound;
         graph
     }
-    #[cfg(feature = "skia-vulkan")]
-    ///closes vulkan instance
+    ///closes vulkan instance or just saves if applicable
     pub fn close(&mut self) {
-        self.renderer = None;
+        #[cfg(feature = "skia-vulkan")]
+        {
+            self.renderer = None;
+        }
+        if self.save_num.is_some() {
+            self.save_num = None;
+            self.save()
+        }
     }
     #[cfg(feature = "skia-vulkan")]
     ///resizes window

@@ -219,10 +219,7 @@ impl VulkanRenderer {
                     }
                 }
                 .map(|f| f as _)
-                .unwrap_or_else(|| {
-                    println!("Vulkan: failed to resolve {}", gpo.name().to_str().unwrap());
-                    ptr::null()
-                })
+                .unwrap_or_else(ptr::null)
             };
 
             // We then pass skia_safe references to the whole shebang, resulting in a DirectContext
@@ -425,7 +422,7 @@ fn surface_for_framebuffer(
         vk::ImageInfo::new(
             image_object as _,
             alloc,
-            vk::ImageTiling::LINEAR,
+            vk::ImageTiling::OPTIMAL,
             vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             vk_format,
             1,
