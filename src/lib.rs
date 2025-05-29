@@ -231,17 +231,17 @@ impl Graph {
             if self.is_3d_data {
                 match self.graph_mode {
                     GraphMode::Normal => Some(Bound::Width3D(
-                        self.bound.x + self.offset3d.x,
-                        self.bound.x - self.offset3d.y,
-                        self.bound.y + self.offset3d.x,
-                        self.bound.y - self.offset3d.y,
+                        self.bound.x / self.zoom_3d.x + self.offset3d.x,
+                        self.bound.x / self.zoom_3d.y - self.offset3d.y,
+                        self.bound.y / self.zoom_3d.x + self.offset3d.x,
+                        self.bound.y / self.zoom_3d.y - self.offset3d.y,
                         Prec::Mult(self.prec),
                     )),
                     GraphMode::Polar => Some(Bound::Width3D(
-                        self.bound.x + self.offset3d.x,
-                        self.bound.x - self.offset3d.y,
-                        self.bound.y + self.offset3d.x,
-                        self.bound.y - self.offset3d.y,
+                        self.bound.x / self.zoom_3d.x + self.offset3d.x,
+                        self.bound.x / self.zoom_3d.y - self.offset3d.y,
+                        self.bound.y / self.zoom_3d.x + self.offset3d.x,
+                        self.bound.y / self.zoom_3d.y - self.offset3d.y,
                         Prec::Mult(self.prec),
                     )),
                     GraphMode::DomainColoring => {
@@ -301,18 +301,18 @@ impl Graph {
                     GraphMode::Depth => {
                         if self.view_x {
                             Some(Bound::Width3D(
-                                self.bound.x - self.offset3d.z,
-                                self.bound.x,
-                                self.bound.y - self.offset3d.z,
-                                self.bound.y,
+                                self.bound.x / self.zoom_3d.x - self.offset3d.z,
+                                self.bound.x / self.zoom_3d.y,
+                                self.bound.y / self.zoom_3d.x - self.offset3d.z,
+                                self.bound.y / self.zoom_3d.y,
                                 Prec::Slice(self.prec),
                             ))
                         } else {
                             Some(Bound::Width3D(
-                                self.bound.x,
-                                self.bound.x - self.offset3d.z,
-                                self.bound.y,
-                                self.bound.y - self.offset3d.z,
+                                self.bound.x / self.zoom_3d.x,
+                                self.bound.x / self.zoom_3d.y - self.offset3d.z,
+                                self.bound.y / self.zoom_3d.x,
+                                self.bound.y / self.zoom_3d.y - self.offset3d.z,
                                 Prec::Slice(self.prec),
                             ))
                         }
@@ -339,8 +339,8 @@ impl Graph {
                 }
             } else if self.graph_mode == GraphMode::Depth {
                 Some(Bound::Width(
-                    self.bound.x - self.offset3d.z,
-                    self.bound.y - self.offset3d.z,
+                    self.bound.x / self.zoom_3d.x - self.offset3d.z,
+                    self.bound.y / self.zoom_3d.y - self.offset3d.z,
                     Prec::Mult(self.prec),
                 ))
             } else if !self.is_3d {
@@ -1102,7 +1102,10 @@ impl Graph {
             self.font_width = width;
         }
     }
-    fn vec3_to_pos_depth(&self, p: Vec3) -> (Pos, Option<f32>) {
+    fn vec3_to_pos_depth(&self, mut p: Vec3, edge: bool) -> (Pos, Option<f32>) {
+        if edge {
+            p *= self.zoom_3d;
+        }
         let x1 = p.x * self.cos_phi + p.y * self.sin_phi;
         let y1 = -p.x * self.sin_phi + p.y * self.cos_phi;
         let z2 = -p.z * self.cos_theta - y1 * self.sin_theta;
@@ -1138,14 +1141,14 @@ impl Graph {
             return None;
         }
         let v = Vec3::new(x, y, z);
-        let pos = self.vec3_to_pos_depth(v);
+        let pos = self.vec3_to_pos_depth(v, true);
         let inside = self.ignore_bounds
-            || (x >= self.bound.x
-                && x <= self.bound.y
-                && y >= self.bound.x
-                && y <= self.bound.y
-                && z >= self.bound.x
-                && z <= self.bound.y);
+            || (x >= self.bound.x / self.zoom_3d.x
+                && x <= self.bound.y / self.zoom_3d.x
+                && y >= self.bound.x / self.zoom_3d.y
+                && y <= self.bound.y / self.zoom_3d.y
+                && z >= self.bound.x / self.zoom_3d.z
+                && z <= self.bound.y / self.zoom_3d.z);
         if !matches!(self.lines, Lines::Lines) && inside {
             point(
                 buffer,
@@ -1171,24 +1174,24 @@ impl Graph {
                 } else if inside {
                     let mut vi = last.1;
                     let xi = vi.x;
-                    if xi < self.bound.x {
-                        vi = v + (vi - v) * ((self.bound.x - x) / (xi - x));
-                    } else if xi > self.bound.y {
-                        vi = v + (vi - v) * ((self.bound.y - x) / (xi - x));
+                    if xi < self.bound.x / self.zoom_3d.x {
+                        vi = v + (vi - v) * ((self.bound.x / self.zoom_3d.x - x) / (xi - x));
+                    } else if xi > self.bound.y / self.zoom_3d.x {
+                        vi = v + (vi - v) * ((self.bound.y / self.zoom_3d.x - x) / (xi - x));
                     }
                     let yi = vi.y;
-                    if yi < self.bound.x {
-                        vi = v + (vi - v) * ((self.bound.x - y) / (yi - y));
-                    } else if yi > self.bound.y {
-                        vi = v + (vi - v) * ((self.bound.y - y) / (yi - y));
+                    if yi < self.bound.x / self.zoom_3d.y {
+                        vi = v + (vi - v) * ((self.bound.x / self.zoom_3d.y - y) / (yi - y));
+                    } else if yi > self.bound.y / self.zoom_3d.y {
+                        vi = v + (vi - v) * ((self.bound.y / self.zoom_3d.y - y) / (yi - y));
                     }
                     let zi = vi.z;
-                    if zi < self.bound.x {
-                        vi = v + (vi - v) * ((self.bound.x - z) / (zi - z));
-                    } else if zi > self.bound.y {
-                        vi = v + (vi - v) * ((self.bound.y - z) / (zi - z));
+                    if zi < self.bound.x / self.zoom_3d.z {
+                        vi = v + (vi - v) * ((self.bound.x / self.zoom_3d.z - z) / (zi - z));
+                    } else if zi > self.bound.y / self.zoom_3d.z {
+                        vi = v + (vi - v) * ((self.bound.y / self.zoom_3d.z - z) / (zi - z));
                     }
-                    let last = self.vec3_to_pos_depth(vi);
+                    let last = self.vec3_to_pos_depth(vi, true);
                     let d = (!self.fast_3d()).then(|| (pos.1.unwrap() + last.1.unwrap()) * 0.5);
                     line(
                         buffer,
@@ -1203,26 +1206,26 @@ impl Graph {
                     let mut vi = v;
                     let v = last.1;
                     let (x, y, z) = (v.x, v.y, v.z);
-                    let pos = self.vec3_to_pos_depth(v);
+                    let pos = self.vec3_to_pos_depth(v, true);
                     let xi = vi.x;
-                    if xi < self.bound.x {
-                        vi = v + (vi - v) * ((self.bound.x - x) / (xi - x));
-                    } else if xi > self.bound.y {
-                        vi = v + (vi - v) * ((self.bound.y - x) / (xi - x));
+                    if xi < self.bound.x / self.zoom_3d.x {
+                        vi = v + (vi - v) * ((self.bound.x / self.zoom_3d.x - x) / (xi - x));
+                    } else if xi > self.bound.y / self.zoom_3d.x {
+                        vi = v + (vi - v) * ((self.bound.y / self.zoom_3d.x - x) / (xi - x));
                     }
                     let yi = vi.y;
-                    if yi < self.bound.x {
-                        vi = v + (vi - v) * ((self.bound.x - y) / (yi - y));
-                    } else if yi > self.bound.y {
-                        vi = v + (vi - v) * ((self.bound.y - y) / (yi - y));
+                    if yi < self.bound.x / self.zoom_3d.y {
+                        vi = v + (vi - v) * ((self.bound.x / self.zoom_3d.y - y) / (yi - y));
+                    } else if yi > self.bound.y / self.zoom_3d.y {
+                        vi = v + (vi - v) * ((self.bound.y / self.zoom_3d.y - y) / (yi - y));
                     }
                     let zi = vi.z;
-                    if zi < self.bound.x {
-                        vi = v + (vi - v) * ((self.bound.x - z) / (zi - z));
-                    } else if zi > self.bound.y {
-                        vi = v + (vi - v) * ((self.bound.y - z) / (zi - z));
+                    if zi < self.bound.x / self.zoom_3d.z {
+                        vi = v + (vi - v) * ((self.bound.x / self.zoom_3d.z - z) / (zi - z));
+                    } else if zi > self.bound.y / self.zoom_3d.z {
+                        vi = v + (vi - v) * ((self.bound.y / self.zoom_3d.z - z) / (zi - z));
                     }
-                    let last = self.vec3_to_pos_depth(vi);
+                    let last = self.vec3_to_pos_depth(vi, true);
                     let d = (!self.fast_3d()).then(|| (pos.1.unwrap() + last.1.unwrap()) * 0.5);
                     line(
                         buffer,
@@ -1253,14 +1256,14 @@ impl Graph {
     ) {
         let s = (self.bound.y - self.bound.x) * 0.5;
         let vertices = [
-            self.vec3_to_pos_depth(Vec3::new(-s, -s, -s)),
-            self.vec3_to_pos_depth(Vec3::new(-s, -s, s)),
-            self.vec3_to_pos_depth(Vec3::new(-s, s, -s)),
-            self.vec3_to_pos_depth(Vec3::new(-s, s, s)),
-            self.vec3_to_pos_depth(Vec3::new(s, -s, -s)),
-            self.vec3_to_pos_depth(Vec3::new(s, -s, s)),
-            self.vec3_to_pos_depth(Vec3::new(s, s, -s)),
-            self.vec3_to_pos_depth(Vec3::new(s, s, s)),
+            self.vec3_to_pos_depth(Vec3::new(-s, -s, -s), false),
+            self.vec3_to_pos_depth(Vec3::new(-s, -s, s), false),
+            self.vec3_to_pos_depth(Vec3::new(-s, s, -s), false),
+            self.vec3_to_pos_depth(Vec3::new(-s, s, s), false),
+            self.vec3_to_pos_depth(Vec3::new(s, -s, -s), false),
+            self.vec3_to_pos_depth(Vec3::new(s, -s, s), false),
+            self.vec3_to_pos_depth(Vec3::new(s, s, -s), false),
+            self.vec3_to_pos_depth(Vec3::new(s, s, s), false),
         ];
         let edges = [
             (0, 1),
@@ -1302,13 +1305,19 @@ impl Graph {
             })
             .unwrap_or_default();
         for (k, (i, j)) in edges.iter().enumerate() {
+            #[derive(PartialEq)]
+            enum Axis {
+                X,
+                Y,
+                Z,
+            }
             let s = match k {
-                8..=11 => " \nx",
-                1 | 3 | 5 | 7 => " \ny",
-                0 | 2 | 4 | 6 => "z",
+                8..=11 => Axis::X,
+                1 | 3 | 5 | 7 => Axis::Y,
+                0 | 2 | 4 | 6 => Axis::Z,
                 _ => unreachable!(),
             };
-            if (s == "z" && [i, j].contains(&&zl)) || (s != "z" && [i, j].contains(&&xl)) {
+            if (s == Axis::Z && [i, j].contains(&&zl)) || (s != Axis::Z && [i, j].contains(&&xl)) {
                 if !self.disable_axis || self.show_box {
                     line(
                         buffer,
@@ -1329,32 +1338,31 @@ impl Graph {
                 if !self.disable_axis {
                     let p = vertices[*i].0 + vertices[*j].0;
                     let align = match s {
-                        " \nx" => Align::CenterTop,
-                        " \ny" => Align::CenterTop,
-                        "z" => Align::RightCenter,
-                        _ => unreachable!(),
+                        Axis::X | Axis::Y => Align::CenterTop,
+                        Axis::Z => Align::RightCenter,
                     };
                     let start = vertices[*i.min(j)].0;
                     let end = vertices[*i.max(j)].0;
-                    let st = self.bound.x.ceil() as isize;
-                    let e = self.bound.y.floor() as isize;
-                    let o = if s == "z" {
-                        self.offset3d.z
-                    } else if s == " \nx" {
-                        -self.offset3d.x
-                    } else if s == " \ny" {
-                        self.offset3d.y
-                    } else {
-                        unreachable!()
+                    let m = match s {
+                        Axis::Z => self.zoom_3d.z,
+                        Axis::X => self.zoom_3d.x,
+                        Axis::Y => self.zoom_3d.y,
+                    };
+                    let st = (self.bound.x / m).ceil() as isize;
+                    let e = (self.bound.y / m).floor() as isize;
+                    let o = match s {
+                        Axis::Z => self.offset3d.z,
+                        Axis::X => -self.offset3d.x,
+                        Axis::Y => self.offset3d.y,
                     };
                     let n = ((st + (e - st) / 2) as f64 - o).to_string();
                     self.text(
                         p * 0.5,
                         align,
-                        &if s == "z" {
-                            format!("z{}", " ".repeat(n.len()))
-                        } else {
-                            s.to_string()
+                        &match s {
+                            Axis::Z => format!("z{}", " ".repeat(n.len())),
+                            Axis::X => " \nx".to_string(),
+                            Axis::Y => " \ny".to_string(),
                         },
                         &self.text_color,
                         painter,
@@ -1921,14 +1929,23 @@ impl Graph {
                 _ => {}
             }
         }
-        let (a, x, y) = (
+        let (a, x, y, z) = (
             i.keys_pressed(keybinds.zoom_out),
             i.keys_pressed(keybinds.zoom_out_x),
             i.keys_pressed(keybinds.zoom_out_y),
+            i.keys_pressed(keybinds.zoom_out_z),
         );
-        if a || x || y {
+        if a || x || y || z {
             if self.is_3d {
-                self.bound *= 2.0;
+                if a {
+                    self.zoom_3d /= 2.0;
+                } else if x {
+                    self.zoom_3d.x /= 2.0;
+                } else if y {
+                    self.zoom_3d.y /= 2.0;
+                } else {
+                    self.zoom_3d.z /= 2.0;
+                }
             } else {
                 if a || x {
                     self.offset.x += if self.mouse_moved && !self.is_3d {
@@ -1948,26 +1965,35 @@ impl Graph {
                     self.zoom /= 2.0;
                 } else if x {
                     self.zoom.x /= 2.0;
-                } else {
+                } else if y {
                     self.zoom.y /= 2.0;
                 }
             }
             self.recalculate = true;
         }
-        let (a, x, y) = (
+        let (a, x, y, z) = (
             i.keys_pressed(keybinds.zoom_in),
             i.keys_pressed(keybinds.zoom_in_x),
             i.keys_pressed(keybinds.zoom_in_y),
+            i.keys_pressed(keybinds.zoom_in_z),
         );
-        if a || x || y {
+        if a || x || y || z {
             if self.is_3d {
-                self.bound /= 2.0;
+                if a {
+                    self.zoom_3d *= 2.0;
+                } else if x {
+                    self.zoom_3d.x *= 2.0;
+                } else if y {
+                    self.zoom_3d.y *= 2.0;
+                } else {
+                    self.zoom_3d.z *= 2.0;
+                }
             } else {
                 if a {
                     self.zoom *= 2.0;
                 } else if x {
                     self.zoom.x *= 2.0;
-                } else {
+                } else if y {
                     self.zoom.y *= 2.0;
                 }
                 if a || x {
@@ -2127,6 +2153,7 @@ impl Graph {
             self.offset = Vec2::splat(0.0);
             self.var = self.bound;
             self.zoom = Vec2::splat(1.0);
+            self.zoom_3d = Vec3::splat(1.0);
             self.slice = 0;
             self.angle = Vec2::splat(PI / 6.0);
             self.box_size = 3.0f64.sqrt();

@@ -307,6 +307,8 @@ pub struct Graph {
     pub ignore_bounds: bool,
     ///current zoom
     pub zoom: Vec2,
+    ///current zoom for 3d
+    pub zoom_3d: Vec3,
     ///what slice we are currently at in any slice mode
     pub slice: isize,
     ///var range used for flatten or depth
@@ -465,6 +467,7 @@ impl Default for Graph {
             tab_complete: None,
             history_pos: 0,
             is_3d_data: false,
+            zoom_3d: Vec3::splat(1.0),
             names: Vec::new(),
             fast_3d: false,
             text_scroll_pos: (0, 0),
@@ -583,6 +586,7 @@ impl Clone for Graph {
             #[cfg(feature = "arboard")]
             wait_frame: true,
             data: Vec::new(),
+            zoom_3d: self.zoom_3d,
             names: self.names.clone(),
             cache: None,
             #[cfg(feature = "serde")]
@@ -711,6 +715,8 @@ pub struct Keybinds {
     pub zoom_out_x: Option<Keys>,
     pub zoom_in_y: Option<Keys>,
     pub zoom_out_y: Option<Keys>,
+    pub zoom_in_z: Option<Keys>,
+    pub zoom_out_z: Option<Keys>,
     ///toggles non center lines in 2d, or all lines with axis aditionally disabled
     pub lines: Option<Keys>,
     ///toggles display of axis numbers, or all lines with axis aditionally disabled
@@ -795,7 +801,8 @@ pub struct GraphTiny {
     pub is_complex: bool,
     pub offset3d: Option<(f32, f32, f32)>,
     pub offset: Option<(f32, f32)>,
-    pub zoom: (f32, f32),
+    pub zoom: Option<(f32, f32)>,
+    pub zoom_3d: Option<(f32, f32, f32)>,
     pub slice: i8,
     pub var: (f32, f32),
     pub log_scale: bool,
@@ -825,7 +832,8 @@ impl Graph {
             is_complex: self.is_complex,
             offset3d: self.is_3d.then_some(self.offset3d.to_tuple()),
             offset: (!self.is_3d).then_some((a as f32, b as f32)),
-            zoom: self.zoom.to_tuple(),
+            zoom: (!self.is_3d).then_some(self.zoom.to_tuple()),
+            zoom_3d: self.is_3d.then_some(self.zoom_3d.to_tuple()),
             slice: self.slice as i8,
             var: self.var.to_tuple(),
             log_scale: self.log_scale,
@@ -842,7 +850,8 @@ impl Graph {
         self.is_complex = tiny.is_complex;
         self.prec = tiny.prec as f64;
         self.offset3d = tiny.offset3d.unwrap_or_default().into();
-        self.zoom = tiny.zoom.into();
+        self.zoom = tiny.zoom.unwrap_or((1.0, 1.0)).into();
+        self.zoom_3d = tiny.zoom_3d.unwrap_or((1.0, 1.0, 1.0)).into();
         let o: Vec2 = tiny.offset.unwrap_or_default().into();
         self.offset = self.get_new_offset(o);
         self.slice = tiny.slice as isize;
@@ -901,6 +910,14 @@ impl Default for Keybinds {
             zoom_out_y: Some(Keys::new_with_modifier(
                 Key::Underscore,
                 Modifiers::default().shift(),
+            )),
+            zoom_in_z: Some(Keys::new_with_modifier(
+                Key::Plus,
+                Modifiers::default().shift().ctrl(),
+            )),
+            zoom_out_z: Some(Keys::new_with_modifier(
+                Key::Underscore,
+                Modifiers::default().shift().ctrl(),
             )),
             lines: Some(Keys::new(Key::Z)),
             axis: Some(Keys::new(Key::X)),
@@ -1418,6 +1435,29 @@ impl DivAssign<f64> for Vec3 {
         self.x /= rhs;
         self.y /= rhs;
         self.z /= rhs;
+    }
+}
+impl Div<Vec3> for Vec3 {
+    type Output = Vec3;
+    fn div(mut self, rhs: Vec3) -> Self::Output {
+        self.x /= rhs.x;
+        self.y /= rhs.y;
+        self.z /= rhs.z;
+        self
+    }
+}
+impl DivAssign<Vec3> for Vec3 {
+    fn div_assign(&mut self, rhs: Vec3) {
+        self.x /= rhs.x;
+        self.y /= rhs.y;
+        self.z /= rhs.z;
+    }
+}
+impl MulAssign<Vec3> for Vec3 {
+    fn mul_assign(&mut self, rhs: Vec3) {
+        self.x *= rhs.x;
+        self.y *= rhs.y;
+        self.z *= rhs.z;
     }
 }
 impl Mul<f64> for Vec3 {
