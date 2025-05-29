@@ -172,15 +172,13 @@ impl Graph {
     }
     ///resets current 3d view based on the data that is supplied
     pub fn reset_3d(&mut self) {
-        self.is_3d = is_3d(&self.data);
-        self.is_3d_data = self.is_3d;
+        self.set_is_3d(is_3d(&self.data));
     }
     ///resets current 3d view based on the data that is supplied, doesn't effect anything if data hasn't changed type
     pub fn reset_3d_if_changed(&mut self) {
         let is_3d = is_3d(&self.data);
         if is_3d != self.is_3d_data {
-            self.is_3d = is_3d;
-            self.is_3d_data = is_3d;
+            self.set_is_3d(is_3d)
         }
     }
     ///sets if the next set of data is expected to be 3d or not
@@ -435,6 +433,7 @@ impl Graph {
         self.renderer = Some(renderer);
     }
     #[cfg(feature = "skia")]
+    #[cfg(any(feature = "arboard", not(feature = "skia-vulkan")))]
     fn get_img<T>(&mut self, width: u32, height: u32, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,

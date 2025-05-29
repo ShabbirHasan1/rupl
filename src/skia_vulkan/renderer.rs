@@ -61,8 +61,8 @@ impl VulkanRenderer {
         let (swapchain, _images) = {
             // Querying the capabilities of the surface. When we create the swapchain we can only
             // pass values that are allowed by the capabilities.
-            let surface_capabilities = device
-                .physical_device()
+            let dev = device.physical_device();
+            let surface_capabilities = dev
                 .surface_capabilities(&surface, Default::default())
                 .unwrap();
 
@@ -73,6 +73,9 @@ impl VulkanRenderer {
                 .unwrap()
                 .into_iter()
                 .find(|a| a.0 == Format::B8G8R8A8_UNORM)
+                .unwrap();
+            let present_modes = dev
+                .surface_present_modes(&surface, Default::default())
                 .unwrap();
 
             // Please take a look at the docs for the meaning of the parameters we didn't mention.
@@ -112,7 +115,11 @@ impl VulkanRenderer {
                     //
                     // Only `Fifo` is guaranteed to be supported on every device. For the others, you must call
                     // [`surface_present_modes`] to see if they are supported.
-                    present_mode: PresentMode::Fifo,
+                    present_mode: if present_modes.contains(&PresentMode::Immediate) {
+                        PresentMode::Immediate
+                    } else {
+                        PresentMode::Fifo
+                    },
 
                     // The alpha mode indicates how the alpha value of the final image will behave.
                     // For example, you can choose whether the window will be
