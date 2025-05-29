@@ -45,12 +45,14 @@ impl Graph {
         graph.var = bound;
         graph
     }
+    #[cfg(any(feature = "skia-vulkan", feature = "serde"))]
     ///closes vulkan instance or just saves if applicable
     pub fn close(&mut self) {
         #[cfg(feature = "skia-vulkan")]
         {
             self.renderer = None;
         }
+        #[cfg(feature = "serde")]
         if self.save_num.is_some() {
             self.save_num = None;
             self.save()
