@@ -3179,7 +3179,9 @@ impl Graph {
     fn shift_hue(&self, diff: Option<f32>, z: f64, color: &Color) -> Color {
         match diff {
             Some(diff) => match self.color_depth {
-                DepthColor::Vertical => shift_hue((z / (2.0 * self.bound.y)) as f32, color),
+                DepthColor::Vertical => {
+                    shift_hue((z / (2.0 * self.bound.y / self.zoom_3d.z)) as f32, color)
+                }
                 DepthColor::Depth => shift_hue(diff, color),
                 DepthColor::None => *color,
             },
