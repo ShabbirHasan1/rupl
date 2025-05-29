@@ -301,18 +301,18 @@ impl Graph {
                     GraphMode::Depth => {
                         if self.view_x {
                             Some(Bound::Width3D(
-                                self.bound.x / self.zoom_3d.x - self.offset3d.z,
-                                self.bound.x / self.zoom_3d.y,
-                                self.bound.y / self.zoom_3d.x - self.offset3d.z,
-                                self.bound.y / self.zoom_3d.y,
+                                self.bound.x / self.zoom_3d.z - self.offset3d.z,
+                                self.bound.x,
+                                self.bound.y / self.zoom_3d.z - self.offset3d.z,
+                                self.bound.y,
                                 Prec::Slice(self.prec),
                             ))
                         } else {
                             Some(Bound::Width3D(
-                                self.bound.x / self.zoom_3d.x,
-                                self.bound.x / self.zoom_3d.y - self.offset3d.z,
-                                self.bound.y / self.zoom_3d.x,
-                                self.bound.y / self.zoom_3d.y - self.offset3d.z,
+                                self.bound.x,
+                                self.bound.x / self.zoom_3d.z - self.offset3d.z,
+                                self.bound.y,
+                                self.bound.y / self.zoom_3d.z - self.offset3d.z,
                                 Prec::Slice(self.prec),
                             ))
                         }
@@ -339,8 +339,8 @@ impl Graph {
                 }
             } else if self.graph_mode == GraphMode::Depth {
                 Some(Bound::Width(
-                    self.bound.x / self.zoom_3d.x - self.offset3d.z,
-                    self.bound.y / self.zoom_3d.y - self.offset3d.z,
+                    self.bound.x / self.zoom_3d.z - self.offset3d.z,
+                    self.bound.y / self.zoom_3d.z - self.offset3d.z,
                     Prec::Mult(self.prec),
                 ))
             } else if !self.is_3d {
