@@ -175,6 +175,14 @@ impl Graph {
         self.is_3d = is_3d(&self.data);
         self.is_3d_data = self.is_3d;
     }
+    ///resets current 3d view based on the data that is supplied, doesn't effect anything if data hasn't changed type
+    pub fn reset_3d_if_changed(&mut self) {
+        let is_3d = is_3d(&self.data);
+        if is_3d != self.is_3d_data {
+            self.is_3d = is_3d;
+            self.is_3d_data = is_3d;
+        }
+    }
     ///sets if the next set of data is expected to be 3d or not
     pub fn set_is_3d(&mut self, new: bool) {
         self.is_3d_data = new;
