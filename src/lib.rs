@@ -1588,6 +1588,7 @@ impl Graph {
                 Menu::Side => {
                     self.menu = Menu::Normal;
                     self.text_box = None;
+                    self.select = None;
                 }
                 _ => {
                     self.menu = Menu::Side;
@@ -1599,6 +1600,8 @@ impl Graph {
             match self.menu {
                 Menu::Settings => {
                     self.menu = Menu::Normal;
+                    self.text_box = None;
+                    self.select = None;
                 }
                 _ => {
                     self.menu = Menu::Settings;
@@ -1611,6 +1614,7 @@ impl Graph {
                 Menu::Load => {
                     self.menu = Menu::Normal;
                     self.text_box = None;
+                    self.select = None;
                 }
                 _ => {
                     self.save();
