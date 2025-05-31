@@ -602,17 +602,17 @@ impl Graph {
             #[cfg(feature = "skia")]
             painter.finish(draw);
             #[cfg(feature = "tiny-skia")]
-            painter.draw();
+            painter.draw(draw);
             #[cfg(feature = "egui")]
             painter.save();
         };
-        finish(painter);
         if !self.is_3d {
             self.write_coord(painter);
         } else {
             self.write_angle(painter);
         }
         self.write_label(painter);
+        finish(painter);
         if draw {
             self.set_screen(width, height, false, false);
             if painter.offset.x == painter.offset.y && painter.offset.x == 0.0 {
@@ -622,8 +622,8 @@ impl Graph {
             }
             self.write_side(painter);
             self.set_screen(width, height, true, false);
+            finish(painter);
         }
-        finish(painter);
     }
     fn write_label(&self, painter: &mut Painter) {
         let mut pos = Pos::new(self.screen.x as f32 - 48.0, 0.0);
@@ -655,7 +655,7 @@ impl Graph {
                             Pos::new(pos.x + 4.0, y),
                             Pos::new(self.screen.x as f32 - 4.0, y),
                         ],
-                        3.0,
+                        self.line_width,
                         &self.main_colors[i % self.main_colors.len()],
                     );
                 }
@@ -668,7 +668,7 @@ impl Graph {
                                     Pos::new(pos.x + 4.0, y),
                                     Pos::new(self.screen.x as f32 - 4.0, y),
                                 ],
-                                3.0,
+                                self.line_width,
                                 &self.main_colors[i % self.main_colors.len()],
                             );
                         }
@@ -679,7 +679,7 @@ impl Graph {
                                     Pos::new(pos.x + 4.0, y),
                                     Pos::new(self.screen.x as f32 - 4.0, y),
                                 ],
-                                3.0,
+                                self.line_width,
                                 &self.alt_colors[i % self.alt_colors.len()],
                             );
                         }
@@ -690,7 +690,7 @@ impl Graph {
                                     Pos::new(pos.x + 4.0, y),
                                     Pos::new(self.screen.x as f32 - 4.0, y),
                                 ],
-                                3.0,
+                                self.line_width,
                                 &self.main_colors[i % self.main_colors.len()],
                             );
                             pos.y += self.font_size;
@@ -701,7 +701,7 @@ impl Graph {
                                     Pos::new(pos.x + 4.0, y),
                                     Pos::new(self.screen.x as f32 - 4.0, y),
                                 ],
-                                3.0,
+                                self.line_width,
                                 &self.alt_colors[i % self.alt_colors.len()],
                             );
                         }
@@ -866,7 +866,7 @@ impl Graph {
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
                 if is_in || self.in_screen(last) {
-                    painter.line_segment([last, pos], 3.0, color);
+                    painter.line_segment([last, pos], self.line_width, color);
                 }
             }
             Some(pos)

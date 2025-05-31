@@ -527,8 +527,26 @@ impl Painter {
             )
         }
     }
-    pub fn draw(&mut self) {
-        std::mem::replace(&mut self.line, Line::None).draw(&mut self.canvas, self.anti_alias);
+    pub fn draw(&mut self, draw: bool) {
+        let new = if draw {
+            match self.line {
+                Line::Fast(_) => Line::Fast(FastLine {
+                    line: Default::default(),
+                    line_width: self.line_width,
+                }),
+                Line::Slow(_) => Line::Slow(SlowLine {
+                    line: Default::default(),
+                    line_width: self.line_width,
+                    color: Color::new(0, 0, 0),
+                    last: None,
+                }),
+                Line::None => Line::None,
+            }
+        } else {
+            Line::None
+        };
+        let line = std::mem::replace(&mut self.line, new);
+        line.draw(&mut self.canvas, self.anti_alias);
     }
     pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color, width: f32) {
         let mut path = tiny_skia::PathBuilder::new();
@@ -653,7 +671,8 @@ impl Painter {
             None,
         );
         let pm = pixmap.as_ref();
-        let (mut pxi, pyi) = (pos.x as i32, pos.y as i32);
+        let (mut pxi, pyi) = (pos.x.round() as i32, pos.y.round() as i32);
+        let pyi = pyi + 2;
         let paint = tiny_skia::PixmapPaint::default();
         let transform = tiny_skia::Transform::default();
         for c in s.chars() {
