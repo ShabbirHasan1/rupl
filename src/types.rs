@@ -276,6 +276,9 @@ pub struct Graph {
     #[cfg(feature = "skia")]
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
     pub(crate) font: Option<skia_safe::Font>,
+    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    #[cfg(feature = "tiny-skia")]
+    pub(crate) font: Option<bdf2::Font>,
     pub(crate) font_size: f32,
     pub(crate) font_width: f32,
     #[allow(clippy::type_complexity)]
@@ -442,9 +445,11 @@ impl Default for Graph {
     fn default() -> Self {
         #[cfg(feature = "skia")]
         let typeface = skia_safe::FontMgr::default()
-            .new_from_data(include_bytes!("../terminus.otb"), None)
+            .new_from_data(include_bytes!("../terminus.bdf"), None)
             .unwrap();
         let font_size = 18.0;
+        #[cfg(feature = "tiny-skia")]
+        let font = bdf2::read(&include_bytes!("../terminus.bdf")[..]).ok();
         #[cfg(feature = "skia")]
         let font = Some(skia_safe::Font::new(typeface, font_size));
         #[cfg(feature = "arboard")]
@@ -480,7 +485,7 @@ impl Default for Graph {
             cache: None,
             blacklist_graphs: Vec::new(),
             line_width: 3.0,
-            #[cfg(feature = "skia")]
+            #[cfg(any(feature = "skia", feature = "tiny-skia"))]
             font,
             font_size,
             font_width: 0.0,
@@ -603,7 +608,7 @@ impl Clone for Graph {
             clipboard: None,
             menu: Menu::Normal,
             history_pos: self.history_pos,
-            #[cfg(feature = "skia")]
+            #[cfg(any(feature = "skia", feature = "tiny-skia"))]
             font: None,
             font_size: self.font_size,
             font_width: self.font_width,

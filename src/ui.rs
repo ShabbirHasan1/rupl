@@ -363,7 +363,9 @@ impl<'a> Painter<'a> {
         }
     }
     pub(crate) fn text(&mut self, p0: Pos, p1: crate::types::Align, p2: &str, p4: &Color) -> f32 {
-        let Some(font) = &self.font else { return 0.0 };
+        let Some(font) = std::mem::take(&mut self.font) else {
+            return 0.0;
+        };
         let mut pos = (self.offset + p0).to_pos2();
         let paint = make_paint(1.0, p4, false, false);
         let strs = p2.split('\n').collect::<Vec<&str>>();
@@ -394,7 +396,7 @@ impl<'a> Painter<'a> {
                     | crate::types::Align::LeftTop
                     | crate::types::Align::RightTop => pos.y += height,
                 }
-                self.surface.canvas().draw_str(s, pos, font, &paint);
+                self.surface.canvas().draw_str(s, pos, &font, &paint);
             }
             match p1 {
                 crate::types::Align::CenterTop
@@ -437,16 +439,15 @@ impl<'a> Painter<'a> {
                 }
             }
         }
-        if let Some(f) = &self.font {
-            f.measure_str(p2, None).0
-        } else {
-            0.0
-        }
+        let w = font.measure_str(p2, None).0;
+        self.font = Some(font);
+        w
     }
 }
 #[cfg(feature = "tiny-skia")]
 pub(crate) struct Painter {
     canvas: tiny_skia::Pixmap,
+    font: Option<bdf2::Font>,
     line: Line,
     fast: bool,
     anti_alias: bool,
@@ -455,6 +456,7 @@ pub(crate) struct Painter {
 }
 #[cfg(feature = "tiny-skia")]
 impl Painter {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         width: u32,
         height: u32,
@@ -463,11 +465,13 @@ impl Painter {
         anti_alias: bool,
         line_width: f32,
         offset: Pos,
+        font: Option<bdf2::Font>,
     ) -> Self {
         let mut canvas = tiny_skia::Pixmap::new(width, height).unwrap();
         canvas.fill(background.to_col());
         Self {
             canvas,
+            font,
             line: if fast {
                 Line::Fast(FastLine {
                     line: Default::default(),
@@ -569,7 +573,7 @@ impl Painter {
     pub(crate) fn highlight(&mut self, xi: f32, yi: f32, xf: f32, yf: f32, color: &Color) {
         self.canvas.fill_rect(
             tiny_skia::Rect::from_ltrb(xi, yi, xf, yf).unwrap(),
-            &make_paint(&color, false),
+            &make_paint(color, false),
             tiny_skia::Transform::default(),
             None,
         );
@@ -577,7 +581,7 @@ impl Painter {
     pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
         self.canvas.fill_rect(
             tiny_skia::Rect::from_ltrb(0.0, 0.0, self.offset.x, screen.y as f32).unwrap(),
-            &make_paint(&background, false),
+            &make_paint(background, false),
             tiny_skia::Transform::default(),
             None,
         );
@@ -586,7 +590,7 @@ impl Painter {
         self.canvas.fill_rect(
             tiny_skia::Rect::from_ltrb(0.0, screen.x as f32, screen.x as f32, screen.y as f32)
                 .unwrap(),
-            &make_paint(&background, false),
+            &make_paint(background, false),
             tiny_skia::Transform::default(),
             None,
         );
@@ -638,15 +642,147 @@ impl Painter {
             );
         }
     }
+    fn draw_str(&mut self, s: &str, pos: Pos, font: &bdf2::Font, paint: &tiny_skia::Paint) {
+        let (w, _) = char_dimen(font);
+        let w = w as i32;
+        let mut pixmap = tiny_skia::Pixmap::new(1, 1).unwrap();
+        pixmap.fill_rect(
+            tiny_skia::Rect::from_ltrb(0.0, 0.0, 1.0, 1.0).unwrap(),
+            paint,
+            tiny_skia::Transform::default(),
+            None,
+        );
+        let pm = pixmap.as_ref();
+        let (mut pxi, pyi) = (pos.x as i32, pos.y as i32);
+        let paint = tiny_skia::PixmapPaint::default();
+        let transform = tiny_skia::Transform::default();
+        for c in s.chars() {
+            let mut py = pyi;
+            let glyph = font.glyphs().get(&c).unwrap();
+            for y in (0..glyph.height()).rev() {
+                let mut px = pxi;
+                for x in 0..glyph.width() {
+                    if glyph.get(x, y) {
+                        self.canvas.draw_pixmap(px, py, pm, &paint, transform, None)
+                    }
+                    px += 1;
+                }
+                py -= 1;
+            }
+            pxi += w;
+        }
+    }
+    pub(crate) fn text(&mut self, p0: Pos, p1: crate::types::Align, p2: &str, p4: &Color) -> f32 {
+        let Some(font) = std::mem::take(&mut self.font) else {
+            return 0.0;
+        };
+        let mut pos = self.offset + p0;
+        let paint = make_paint(p4, false);
+        let strs = p2.split('\n').collect::<Vec<&str>>();
+        let mut body = |s: &str| {
+            let (width, height) = get_bounds(&font, s);
+            if !s.is_empty() {
+                let mut pos = pos;
+                match p1 {
+                    crate::types::Align::CenterBottom
+                    | crate::types::Align::CenterCenter
+                    | crate::types::Align::CenterTop => pos.x -= width / 2.0,
+                    crate::types::Align::LeftBottom
+                    | crate::types::Align::LeftCenter
+                    | crate::types::Align::LeftTop => {}
+                    crate::types::Align::RightBottom
+                    | crate::types::Align::RightCenter
+                    | crate::types::Align::RightTop => pos.x -= width,
+                }
+                match p1 {
+                    crate::types::Align::CenterCenter
+                    | crate::types::Align::LeftCenter
+                    | crate::types::Align::RightCenter => pos.y += height / 2.0,
+                    crate::types::Align::CenterBottom
+                    | crate::types::Align::LeftBottom
+                    | crate::types::Align::RightBottom => {}
+                    crate::types::Align::CenterTop
+                    | crate::types::Align::LeftTop
+                    | crate::types::Align::RightTop => pos.y += height,
+                }
+                self.draw_str(s, pos, &font, &paint);
+            }
+            match p1 {
+                crate::types::Align::CenterTop
+                | crate::types::Align::RightTop
+                | crate::types::Align::LeftTop => {
+                    pos.y += height;
+                }
+                crate::types::Align::CenterBottom
+                | crate::types::Align::RightBottom
+                | crate::types::Align::LeftBottom => {
+                    pos.y -= height;
+                }
+                crate::types::Align::CenterCenter
+                | crate::types::Align::RightCenter
+                | crate::types::Align::LeftCenter => {
+                    pos.y += height / 2.0;
+                }
+            }
+        };
+        match p1 {
+            crate::types::Align::CenterTop
+            | crate::types::Align::RightTop
+            | crate::types::Align::LeftTop => {
+                for s in strs {
+                    body(s)
+                }
+            }
+            crate::types::Align::CenterBottom
+            | crate::types::Align::RightBottom
+            | crate::types::Align::LeftBottom => {
+                for s in strs.iter().rev() {
+                    body(s)
+                }
+            }
+            crate::types::Align::CenterCenter
+            | crate::types::Align::RightCenter
+            | crate::types::Align::LeftCenter => {
+                for s in strs {
+                    body(s)
+                }
+            }
+        }
+        let w = get_bounds(&font, p2).0;
+        self.font = Some(font);
+        w
+    }
+}
+#[cfg(feature = "tiny-skia")]
+fn get_bounds(font: &bdf2::Font, s: &str) -> (f32, f32) {
+    let (w, h) = char_dimen(font);
+    let vec = s.split('\n').collect::<Vec<&str>>();
+    let len = vec.iter().map(|a| a.len()).max().unwrap_or(0);
+    ((w * len) as f32, (h * vec.len()) as f32)
+}
+#[cfg(feature = "tiny-skia")]
+pub(crate) fn char_dimen(font: &bdf2::Font) -> (usize, usize) {
+    let a = font.glyphs().get(&'a').unwrap();
+    (a.width() as usize, a.height() as usize)
 }
 #[cfg(feature = "skia")]
 pub struct Data {
-    data: skia_safe::Data,
+    pub data: skia_safe::Data,
+}
+#[cfg(feature = "tiny-skia")]
+pub struct Data {
+    pub data: Vec<u8>,
 }
 #[cfg(feature = "skia")]
 impl Data {
     pub fn as_bytes(&self) -> &[u8] {
         self.data.as_bytes()
+    }
+}
+#[cfg(feature = "tiny-skia")]
+impl Data {
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.data
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

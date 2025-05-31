@@ -4,7 +4,7 @@ pub mod skia_vulkan;
 pub mod types;
 mod ui;
 use crate::types::*;
-use crate::ui::Painter;
+use crate::ui::{Painter, char_dimen};
 #[cfg(feature = "serde")]
 use base64::Engine;
 #[cfg(feature = "rayon")]
@@ -26,6 +26,7 @@ impl Graph {
     ///will change what graph modes are available
     ///
     ///start,end are the initial visual bounds of the box
+    #[allow(clippy::field_reassign_with_default)]
     pub fn new(
         data: Vec<GraphType>,
         names: Vec<Name>,
@@ -498,6 +499,7 @@ impl Graph {
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
+        self.font_width();
         self.set_screen(width as f64, height as f64, true, true);
         let mut painter = Painter::new(
             width,
@@ -507,6 +509,7 @@ impl Graph {
             self.anti_alias,
             self.line_width,
             self.draw_offset,
+            self.font.clone(),
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
@@ -514,7 +517,8 @@ impl Graph {
     }
     #[cfg(feature = "tiny-skia")]
     ///get png data
-    pub fn get_png(&mut self, width: u32, height: u32) -> Vec<u8> {
+    pub fn get_png(&mut self, width: u32, height: u32) -> ui::Data {
+        self.font_width();
         self.set_screen(width as f64, height as f64, true, true);
         let mut painter = Painter::new(
             width,
@@ -524,10 +528,13 @@ impl Graph {
             self.anti_alias,
             self.line_width,
             self.draw_offset,
+            self.font.clone(),
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
-        painter.save_png()
+        ui::Data {
+            data: painter.save_png(),
+        }
     }
     fn update_inner<F>(&mut self, painter: &mut Painter, plot: F, width: f64, height: f64)
     where
@@ -776,7 +783,7 @@ impl Graph {
             }
         }
     }
-    #[cfg(feature = "skia")]
+    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
     fn text(&self, pos: Pos, align: Align, text: &str, col: &Color, painter: &mut Painter) -> f32 {
         painter.text(pos, align, text, col)
     }
@@ -798,10 +805,6 @@ impl Graph {
     #[cfg(feature = "egui")]
     fn text(&self, pos: Pos, align: Align, text: &str, col: &Color, painter: &mut Painter) -> f32 {
         painter.text(pos, align, text, col, self.font_size)
-    }
-    #[cfg(feature = "tiny-skia")]
-    fn text(&self, _: Pos, _: Align, _: &str, _: &Color, _: &mut Painter) -> f32 {
-        0.0
     }
     fn write_angle(&self, painter: &mut Painter) {
         if !self.disable_coord {
@@ -1100,6 +1103,14 @@ impl Graph {
     }
     fn is_polar(&self) -> bool {
         matches!(self.graph_mode, GraphMode::Polar | GraphMode::SlicePolar)
+    }
+    #[cfg(feature = "tiny-skia")]
+    fn font_width(&mut self) {
+        if self.font_width == 0.0 {
+            if let Some(font) = &self.font {
+                self.font_width = char_dimen(font).0 as f32;
+            }
+        }
     }
     #[cfg(feature = "skia")]
     fn font_width(&mut self) {
@@ -2302,7 +2313,7 @@ impl Graph {
         graph.file_data_raw = std::mem::take(&mut self.file_data_raw);
         graph.clipboard = std::mem::take(&mut self.clipboard);
         graph.menu = self.menu;
-        #[cfg(feature = "skia")]
+        #[cfg(any(feature = "skia", feature = "tiny-skia"))]
         {
             graph.font = std::mem::take(&mut self.font);
         }
