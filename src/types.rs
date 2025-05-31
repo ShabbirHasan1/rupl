@@ -262,9 +262,10 @@ pub struct Graph {
     #[cfg(feature = "skia-vulkan")]
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
     pub(crate) render_ctx: crate::skia_vulkan::context::VulkanRenderContext,
+    ///vulkan surface
     #[cfg(feature = "skia-vulkan")]
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
-    pub(crate) renderer: Option<crate::skia_vulkan::renderer::VulkanRenderer>,
+    pub renderer: Option<crate::skia_vulkan::renderer::VulkanRenderer>,
     ///current data sets
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
     pub data: Vec<GraphType>,

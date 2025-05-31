@@ -1,6 +1,6 @@
 mod sidebar;
 #[cfg(feature = "skia-vulkan")]
-mod skia_vulkan;
+pub mod skia_vulkan;
 pub mod types;
 mod ui;
 use crate::types::*;

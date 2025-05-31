@@ -42,6 +42,9 @@ impl Drop for VulkanRenderer {
 }
 
 impl VulkanRenderer {
+    pub fn window(&self) -> &Arc<Window> {
+        &self.window
+    }
     pub fn new(window: Arc<Window>, queue: Arc<Queue>) -> Self {
         // Extract references to key structs from the queue
         let library = queue.device().instance().library();
