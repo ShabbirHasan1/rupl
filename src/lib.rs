@@ -4,7 +4,7 @@ pub mod skia_vulkan;
 pub mod types;
 mod ui;
 use crate::types::*;
-use crate::ui::{Painter, char_dimen};
+use crate::ui::Painter;
 #[cfg(feature = "serde")]
 use base64::Engine;
 #[cfg(feature = "rayon")]
@@ -1108,7 +1108,7 @@ impl Graph {
     fn font_width(&mut self) {
         if self.font_width == 0.0 {
             if let Some(font) = &self.font {
-                self.font_width = char_dimen(font).0 as f32;
+                self.font_width = ui::char_dimen(font).0 as f32;
             }
         }
     }
