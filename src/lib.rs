@@ -139,7 +139,6 @@ impl Graph {
     }
     ///sets screen dimensions
     pub fn set_screen(&mut self, width: f64, height: f64, offset: bool, reset: bool) {
-        //TODO
         let (fw, new, screen);
         (fw, new, screen) = self.get_new_screen(width, height, offset);
         let mut c = None;
@@ -489,6 +488,13 @@ impl Graph {
     #[cfg(feature = "tiny-skia")]
     ///repaints the screen
     pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T)
+    where
+        T: std::ops::DerefMut<Target = [u32]>,
+    {
+        self.get_img(width, height, buffer)
+    }
+    #[cfg(feature = "tiny-skia")]
+    fn get_img<T>(&mut self, width: u32, height: u32, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {

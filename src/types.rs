@@ -1022,7 +1022,7 @@ impl Default for Keybinds {
                 Modifiers::default().shift().ctrl(),
             )),
             only_real: Some(Keys::new_with_modifier(
-                Key::R,
+                Key::O,
                 Modifiers::default().shift().ctrl(),
             )),
         }
