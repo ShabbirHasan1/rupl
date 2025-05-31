@@ -778,19 +778,27 @@ pub struct Keybinds {
     pub side: Option<Keys>,
     ///toggles using faster logic in 2d/3d
     pub fast: Option<Keys>,
+    #[cfg(feature = "serde")]
     ///copys tiny serialized data to clipboard
     pub save: Option<Keys>,
+    #[cfg(feature = "serde")]
     ///full saves the graph into the Graph.save_file directory
     pub full_save: Option<Keys>,
+    #[cfg(feature = "serde")]
     ///applys tiny serialized data from clipboard
     pub paste: Option<Keys>,
     ///settings menu
     pub settings: Option<Keys>,
+    #[cfg(feature = "serde")]
     ///load from full saves
     pub load: Option<Keys>,
     #[cfg(any(feature = "skia", feature = "tiny-skia"))]
     ///save screen to clipboard
     pub save_png: Option<Keys>,
+    ///only shows real values, and ignores real values if they have an imaginary part
+    pub only_real: Option<Keys>,
+    ///toggles dark mode
+    pub toggle_dark_mode: Option<Keys>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
@@ -811,6 +819,7 @@ pub struct GraphTiny {
     pub blacklist_graphs: Vec<u8>,
     pub view_x: bool,
     pub graph_mode: GraphMode,
+    pub only_real: bool,
 }
 impl Graph {
     pub fn to_tiny(&self) -> GraphTiny {
@@ -842,6 +851,7 @@ impl Graph {
             blacklist_graphs: self.blacklist_graphs.iter().map(|i| *i as u8).collect(),
             view_x: self.view_x,
             graph_mode: self.graph_mode,
+            only_real: self.only_real,
         }
     }
     pub fn apply_tiny(&mut self, tiny: GraphTiny) {
@@ -862,6 +872,7 @@ impl Graph {
         self.blacklist_graphs = tiny.blacklist_graphs.iter().map(|i| *i as usize).collect();
         self.view_x = tiny.view_x;
         self.graph_mode = tiny.graph_mode;
+        self.only_real = tiny.only_real;
         self.recalculate = true;
         self.name_modified = true;
         self.text_box = Some((0, 0));
@@ -945,11 +956,14 @@ impl Default for Keybinds {
                 Key::ArrowUp,
                 Modifiers::default().ctrl().alt(),
             )),
+            #[cfg(feature = "serde")]
             save: Some(Keys::new_with_modifier(Key::S, Modifiers::default().ctrl())),
+            #[cfg(feature = "serde")]
             full_save: Some(Keys::new_with_modifier(
                 Key::S,
                 Modifiers::default().ctrl().shift(),
             )),
+            #[cfg(feature = "serde")]
             paste: Some(Keys::new_with_modifier(Key::P, Modifiers::default().ctrl())),
             coord: Some(Keys::new(Key::C)),
             anti_alias: Some(Keys::new(Key::R)),
@@ -996,12 +1010,21 @@ impl Default for Keybinds {
                 Key::Escape,
                 Modifiers::default().ctrl(),
             )),
+            #[cfg(feature = "serde")]
             load: Some(Keys::new_with_modifier(
                 Key::Escape,
                 Modifiers::default().shift(),
             )),
             #[cfg(any(feature = "skia", feature = "tiny-skia"))]
             save_png: Some(Keys::new_with_modifier(Key::S, Modifiers::default().alt())),
+            toggle_dark_mode: Some(Keys::new_with_modifier(
+                Key::D,
+                Modifiers::default().shift().ctrl(),
+            )),
+            only_real: Some(Keys::new_with_modifier(
+                Key::R,
+                Modifiers::default().shift().ctrl(),
+            )),
         }
     }
 }
