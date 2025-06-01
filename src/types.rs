@@ -5,10 +5,11 @@ use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone, Copy, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum GraphMode {
     ///given a 3d data set maps in 3d, given a 2d data set maps in 2d
+    #[default]
     Normal,
     ///takes a slice of the 3d data set and displays it in 2d,
     ///what slice is depended on Graph.view_x and Graph.slice
@@ -94,10 +95,11 @@ pub enum Bound {
     Width3D(f64, f64, f64, f64, Prec),
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub enum Show {
     Real,
     Imag,
+    #[default]
     Complex,
     None,
 }
@@ -110,19 +112,21 @@ impl Show {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, Default)]
 pub enum Lines {
     Points,
     LinesPoints,
+    #[default]
     Lines,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, Default)]
 pub enum DepthColor {
     ///colors based off of how far on the z axis the value is
     Vertical,
     ///colors based off of how close to the camera it is
     Depth,
+    #[default]
     None,
 }
 #[cfg(feature = "egui")]
@@ -143,8 +147,9 @@ impl AsRef<skia_safe::Image> for Image {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, Default)]
 pub enum Angle {
+    #[default]
     Radian,
     Degree,
     Gradian,
@@ -260,182 +265,265 @@ pub(crate) struct Image(pub tiny_skia::Pixmap);
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Graph {
     #[cfg(feature = "skia-vulkan")]
-    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) render_ctx: crate::skia_vulkan::context::VulkanRenderContext,
     ///vulkan surface
     #[cfg(feature = "skia-vulkan")]
-    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub renderer: Option<crate::skia_vulkan::renderer::VulkanRenderer>,
     ///current data sets
-    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub data: Vec<GraphType>,
     ///current data sets names for labeling, ordered by data
+    #[cfg_attr(feature = "serde", serde(default))]
     pub names: Vec<Name>,
-    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) cache: Option<Image>,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) name_updated: Option<usize>,
     #[cfg(feature = "skia")]
-    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) font: Option<skia_safe::Font>,
-    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    #[cfg_attr(feature = "serde", serde(skip))]
     #[cfg(feature = "tiny-skia")]
     pub(crate) font: Option<bdf2::Font>,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) font_size: f32,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) font_width: f32,
     #[allow(clippy::type_complexity)]
-    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    #[cfg_attr(feature = "serde", serde(skip))]
     ///for tab completion,will tab complete upto a "(" if it exists,
     /// so you may give info about which variables will be accepted
     pub tab_complete: Option<Box<dyn Fn(&str) -> Vec<String>>>,
     ///width of function lines
+    #[cfg_attr(feature = "serde", serde(default))]
     pub line_width: f32,
     #[cfg(feature = "skia")]
     ///if Some, then returns bytes of an image format from update
+    #[cfg_attr(feature = "serde", serde(default))]
     pub image_format: crate::ui::ImageFormat,
     ///a fast 3d mode ignoring depth
+    #[cfg_attr(feature = "serde", serde(default))]
     pub fast_3d: bool,
     ///enable fast 3d only when moving with a mouse
+    #[cfg_attr(feature = "serde", serde(default))]
     pub fast_3d_move: bool,
     ///request less data when moving with a mouse
+    #[cfg_attr(feature = "serde", serde(default))]
     pub reduced_move: bool,
     ///current initial bound of window
+    #[cfg_attr(feature = "serde", serde(default))]
     pub bound: Vec2,
     ///weather data is complex or not, changes graph mode options from keybinds
+    #[cfg_attr(feature = "serde", serde(default))]
     pub is_complex: bool,
     ///offset in 3d mode
+    #[cfg_attr(feature = "serde", serde(default))]
     pub offset3d: Vec3,
     ///offset in 2d mode
+    #[cfg_attr(feature = "serde", serde(default))]
     pub offset: Vec2,
     ///view angle in 3d mode
+    #[cfg_attr(feature = "serde", serde(default))]
     pub angle: Vec2,
     ///weather bounds should be ignored in 3d mode
+    #[cfg_attr(feature = "serde", serde(default))]
     pub ignore_bounds: bool,
     ///current zoom
+    #[cfg_attr(feature = "serde", serde(default))]
     pub zoom: Vec2,
     ///current zoom for 3d
+    #[cfg_attr(feature = "serde", serde(default))]
     pub zoom_3d: Vec3,
     ///what slice we are currently at in any slice mode
+    #[cfg_attr(feature = "serde", serde(default))]
     pub slice: isize,
     ///var range used for flatten or depth
+    #[cfg_attr(feature = "serde", serde(default))]
     pub var: Vec2,
     ///log scale for domain coloring
+    #[cfg_attr(feature = "serde", serde(default))]
     pub log_scale: bool,
     ///how large the box should be in 3d
+    #[cfg_attr(feature = "serde", serde(default))]
     pub box_size: f64,
     ///alternate domain coloring mode
+    #[cfg_attr(feature = "serde", serde(default))]
     pub domain_alternate: bool,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) screen: Vec2,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) screen_offset: Vec2,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) delta: f64,
     ///if real/imag should be displayed
+    #[cfg_attr(feature = "serde", serde(default))]
     pub show: Show,
     ///weather some elements should be anti aliased or not
+    #[cfg_attr(feature = "serde", serde(default))]
     pub anti_alias: bool,
     ///what color depth mode is currently enabled for 3d
+    #[cfg_attr(feature = "serde", serde(default))]
     pub color_depth: DepthColor,
     ///weather all box lines should be displayed
+    #[cfg_attr(feature = "serde", serde(default))]
     pub show_box: bool,
     ///colors of data sets for real part, ordered by data
+    #[cfg_attr(feature = "serde", serde(default))]
     pub main_colors: Vec<Color>,
     ///colors of data sets for imag part, ordered by data
+    #[cfg_attr(feature = "serde", serde(default))]
     pub alt_colors: Vec<Color>,
     ///major ticks axis color
+    #[cfg_attr(feature = "serde", serde(default))]
     pub axis_color: Color,
     ///do not show graph with these indices
+    #[cfg_attr(feature = "serde", serde(default))]
     pub blacklist_graphs: Vec<usize>,
     ///minor ticks axis color
+    #[cfg_attr(feature = "serde", serde(default))]
     pub axis_color_light: Color,
     ///background color
+    #[cfg_attr(feature = "serde", serde(default))]
     pub background_color: Color,
     ///text color
+    #[cfg_attr(feature = "serde", serde(default))]
     pub text_color: Color,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) mouse_position: Option<Vec2>,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) mouse_moved: bool,
     ///weather non origin lines are disabled or not
+    #[cfg_attr(feature = "serde", serde(default))]
     pub disable_lines: bool,
     ///weather axis text is disabled or not
+    #[cfg_attr(feature = "serde", serde(default))]
     pub disable_axis: bool,
     ///weather mouse position is disabled or not
+    #[cfg_attr(feature = "serde", serde(default))]
     pub disable_coord: bool,
     ///is slice viewing the x part or y part
+    #[cfg_attr(feature = "serde", serde(default))]
     pub view_x: bool,
     ///current graph mode
+    #[cfg_attr(feature = "serde", serde(default))]
     pub graph_mode: GraphMode,
     ///weather we are displaying a 3d plot or 2d
+    #[cfg_attr(feature = "serde", serde(default))]
     pub is_3d: bool,
     ///weather the data type supplied is naturally 3d or not
+    #[cfg_attr(feature = "serde", serde(default))]
     pub is_3d_data: bool,
     ///what angle type will be displayed
+    #[cfg_attr(feature = "serde", serde(default))]
     pub angle_type: Angle,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) last_interact: Option<Vec2>,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) last_right_interact: Option<Vec2>,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) recalculate: bool,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) name_modified: bool,
     ///current line style
+    #[cfg_attr(feature = "serde", serde(default))]
     pub lines: Lines,
     ///current ruler position
+    #[cfg_attr(feature = "serde", serde(default))]
     pub ruler_pos: Option<Vec2>,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) prec: f64,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) mouse_held: bool,
     ///how much extra reduced precision domain coloring should have
+    #[cfg_attr(feature = "serde", serde(default))]
     pub mult: f64,
     ///how many major lines to display
+    #[cfg_attr(feature = "serde", serde(default))]
     pub line_major: usize,
     ///how many minor lines inbetween major lines to display
+    #[cfg_attr(feature = "serde", serde(default))]
     pub line_minor: usize,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) draw_offset: Pos,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) cos_phi: f64,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) sin_phi: f64,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) cos_theta: f64,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) sin_theta: f64,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) select: Option<(usize, usize, Option<bool>)>,
     ///where in side panel the cursor is at
+    #[cfg_attr(feature = "serde", serde(default))]
     pub text_box: Option<(usize, usize)>,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) side_slider: Option<usize>,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) side_drag: Option<(usize, Option<usize>)>,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) last_multi: bool,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) side_bar_width: f64,
-    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) clipboard: Option<Clipboard>,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) history: Vec<Change>,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) history_pos: usize,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) text_scroll_pos: (usize, usize),
     ///do not show anything if it contains an imaginary part
+    #[cfg_attr(feature = "serde", serde(default))]
     pub only_real: bool,
     ///what menu should be drawn
+    #[cfg_attr(feature = "serde", serde(default))]
     pub menu: Menu,
     ///current keybinds, always some, besides during deserialization
-    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub keybinds: Option<Keybinds>,
     ///side bar height per line
+    #[cfg_attr(feature = "serde", serde(default))]
     pub side_height: f32,
     ///in horizontal view, minimum width side bar will be in pixels
+    #[cfg_attr(feature = "serde", serde(default))]
     pub min_side_width: f64,
     ///in horizontal view, maximum width main graph will be in pixels in side bar view
+    #[cfg_attr(feature = "serde", serde(default))]
     pub min_screen_width: f64,
     ///in horizontal view, minimum ratio of the main screen will be targeted
+    #[cfg_attr(feature = "serde", serde(default))]
     pub target_side_ratio: f64,
     /// bracket color based on depth of brackets
+    #[cfg_attr(feature = "serde", serde(default))]
     pub bracket_color: Vec<Color>,
     /// what color the text drag select will be
+    #[cfg_attr(feature = "serde", serde(default))]
     pub select_color: Color,
     #[cfg(feature = "arboard")]
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) wait_frame: bool,
     #[cfg(feature = "serde")]
     /// which file will save the serialization data
+    #[cfg_attr(feature = "serde", serde(default))]
     pub save_file: String,
     #[cfg(feature = "serde")]
+    #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) save_num: Option<usize>,
     #[cfg(feature = "serde")]
-    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) file_data: Option<Vec<(String, usize, String)>>,
     #[cfg(feature = "serde")]
-    #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) file_data_raw: Option<Vec<String>>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy, PartialEq)]
+#[derive(Clone, Debug, Copy, PartialEq, Default)]
 pub enum Menu {
+    #[default]
     Normal,
     Side,
     Settings,
@@ -810,7 +898,8 @@ pub struct Keybinds {
     pub toggle_dark_mode: Option<Keys>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", serde(default))]
+#[derive(Clone, Debug, Default)]
 pub struct GraphTiny {
     pub names: Vec<Name>,
     pub bound: (f32, f32),
@@ -1255,7 +1344,7 @@ impl Modifiers {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Copy, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
@@ -1287,7 +1376,7 @@ impl Color {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Copy, Debug, Clone, PartialEq)]
+#[derive(Copy, Debug, Clone, PartialEq, Default)]
 pub struct Pos {
     pub x: f32,
     pub y: f32,
@@ -1334,7 +1423,7 @@ impl Complex {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Copy, Debug, Clone, PartialEq)]
+#[derive(Copy, Debug, Clone, PartialEq, Default)]
 pub struct Vec2 {
     pub x: f64,
     pub y: f64,
@@ -1426,7 +1515,7 @@ impl MulAssign<f64> for Vec2 {
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Copy, Debug, Clone)]
+#[derive(Copy, Debug, Clone, Default)]
 pub struct Vec3 {
     pub x: f64,
     pub y: f64,

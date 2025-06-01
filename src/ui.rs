@@ -806,12 +806,13 @@ impl Data {
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg(feature = "skia")]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, Default)]
 pub enum ImageFormat {
     Bmp,
     Gif,
     Ico,
     Jpeg,
+    #[default]
     Png,
     Wbmp,
     Webp,
