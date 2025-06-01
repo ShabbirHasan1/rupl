@@ -2456,7 +2456,7 @@ impl Graph {
             GraphType::List(a) => a
                 .iter()
                 .for_each(|data| self.plot_type(painter, tex, buffer, k, data, cache)),
-            GraphType::Width(data, start, end) => match self.graph_mode {
+            GraphType::Width(data, start, end) if !self.is_3d => match self.graph_mode {
                 GraphMode::DomainColoring | GraphMode::Slice | GraphMode::SlicePolar => {}
                 GraphMode::Normal => {
                     for (i, y) in data.iter().enumerate() {
@@ -2579,7 +2579,8 @@ impl Graph {
                     }
                 }
             },
-            GraphType::Coord(data) => match self.graph_mode {
+            GraphType::Width(_, _, _) => {}
+            GraphType::Coord(data) if !self.is_3d => match self.graph_mode {
                 GraphMode::DomainColoring | GraphMode::Slice | GraphMode::SlicePolar => {}
                 GraphMode::Normal => {
                     for (x, y) in data {
@@ -2696,7 +2697,10 @@ impl Graph {
                     }
                 }
             },
-            GraphType::Width3D(data, start_x, start_y, end_x, end_y) => match self.graph_mode {
+            GraphType::Coord(_) => {}
+            GraphType::Width3D(data, start_x, start_y, end_x, end_y) if self.is_3d => match self
+                .graph_mode
+            {
                 GraphMode::Normal => {
                     let len = data.len().isqrt();
                     let mut last = Vec::with_capacity(len);
@@ -3010,7 +3014,8 @@ impl Graph {
                     }
                 }
             },
-            GraphType::Coord3D(data) => match self.graph_mode {
+            GraphType::Width3D(_, _, _, _, _) => {}
+            GraphType::Coord3D(data) if self.is_3d => match self.graph_mode {
                 GraphMode::Slice
                 | GraphMode::DomainColoring
                 | GraphMode::Flatten
@@ -3113,6 +3118,7 @@ impl Graph {
                     }
                 }
             },
+            GraphType::Coord3D(_) => {}
             GraphType::Constant(c, on_x) => match self.graph_mode {
                 GraphMode::Normal | GraphMode::Slice => {
                     let len = 17;
@@ -3287,7 +3293,7 @@ impl Graph {
                                 if r != 0.0 {
                                     return;
                                 }
-                            } else {
+                            } else if r.is_finite() {
                                 painter.circle(
                                     s,
                                     self.to_screen(r.abs(), 0.0).x - s.x,
@@ -3297,12 +3303,14 @@ impl Graph {
                             }
                         }
                         if let Some(r) = y {
-                            painter.circle(
-                                s,
-                                self.to_screen(r.abs(), 0.0).x - s.x,
-                                &self.main_colors[k % self.main_colors.len()],
-                                self.line_width,
-                            )
+                            if r.is_finite() {
+                                painter.circle(
+                                    s,
+                                    self.to_screen(r.abs(), 0.0).x - s.x,
+                                    &self.main_colors[k % self.main_colors.len()],
+                                    self.line_width,
+                                )
+                            }
                         }
                     }
                 }
