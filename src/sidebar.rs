@@ -151,7 +151,7 @@ impl Graph {
                         let mut body = |s: String| {
                             self.side_slider = Some(new);
                             self.replace_name(new, s);
-                            self.name_modified = true;
+                            self.name_modified(Some(new));
                         };
                         if let Ok(f) = name.parse::<f64>() {
                             body((f * delta).to_string())
@@ -179,18 +179,18 @@ impl Graph {
                 {
                     self.blacklist_graphs.remove(n);
                     if self.index_to_name(new as usize, true).0.is_some() {
-                        self.recalculate = true;
+                        self.recalculate(Some(new as usize));
                     } else {
-                        self.name_modified = true;
+                        self.name_modified(Some(n));
                     }
                 } else if let (Some(i), _) = self.index_to_name(new as usize, true) {
                     if !matches!(self.names[i].show, Show::None) {
                         self.blacklist_graphs.push(new as usize);
-                        self.recalculate = true;
+                        self.recalculate(Some(new as usize));
                     }
                 } else {
                     self.blacklist_graphs.push(new as usize);
-                    self.name_modified = true;
+                    self.name_modified(Some(new as usize));
                 }
             }
         }
@@ -213,7 +213,7 @@ impl Graph {
                 text_box.0 = text_box.0.min(g.get_name(text_box.1).len())
             };
             let modify = |g: &mut Graph, text_box: &mut (usize, usize), c: String| {
-                g.modify_name(
+                if !g.modify_name(
                     text_box.1,
                     text_box.0,
                     if i.modifiers.shift {
@@ -221,9 +221,12 @@ impl Graph {
                     } else {
                         c
                     },
-                );
+                ) {
+                    g.name_modified(Some(text_box.1));
+                } else {
+                    g.name_modified(None);
+                }
                 text_box.0 += 1;
-                g.name_modified = true;
             };
             match key.into() {
                 KeyStr::Character(c) if !i.modifiers.ctrl && !i.modifiers.alt => {
@@ -243,20 +246,20 @@ impl Graph {
                         && self.history_pos != self.history.len()
                         && matches!(self.menu, Menu::Side) =>
                     {
-                        self.name_modified = true;
                         self.history[self.history.len() - self.history_pos - 1]
                             .clone()
                             .revert(self, &mut text_box, modify, false);
+                        self.name_modified(None);
                         self.history_pos += 1;
                     }
                     'y' if !self.history.is_empty()
                         && self.history_pos != 0
                         && matches!(self.menu, Menu::Side) =>
                     {
-                        self.name_modified = true;
                         self.history[self.history.len() - self.history_pos]
                             .clone()
                             .revert(self, &mut text_box, modify, true);
+                        self.name_modified(None);
                         self.history_pos -= 1;
                     }
                     'c' => {
@@ -275,7 +278,7 @@ impl Graph {
                                 let s = self.remove_str(text_box.1, a, b);
                                 text_box.0 = a;
                                 self.history_push(Change::Str(text_box, s, true));
-                                self.name_modified = true;
+                                self.name_modified(Some(text_box.1));
                             }
                             self.history_push(Change::Str(text_box, s.clone(), false));
                             for c in s.chars() {
@@ -291,7 +294,7 @@ impl Graph {
                             self.clipboard.as_mut().unwrap().set_text(&text);
                             text_box.0 = a;
                             self.history_push(Change::Str(text_box, text, true));
-                            self.name_modified = true;
+                            self.name_modified(Some(text_box.1));
                         }
                     }
                     _ => {}
@@ -451,7 +454,7 @@ impl Graph {
                                 text_box.0 += 1;
                             }
                             self.replace_name(text_box.1, nc.iter().collect::<String>());
-                            self.name_modified = true;
+                            self.name_modified(Some(text_box.1));
                         }
                     }
                     NamedKey::Backspace => {
@@ -461,6 +464,7 @@ impl Graph {
                             let s = self.remove_str(text_box.1, a, b);
                             text_box.0 = a;
                             self.history_push(Change::Str(text_box, s, true));
+                            self.name_modified(Some(text_box.1));
                         } else if text_box.0 != 0 {
                             let name = self.get_name(text_box.1).chars().collect::<Vec<char>>();
                             if i.modifiers.ctrl && !end_word(name[text_box.0 - 1]) {
@@ -485,6 +489,7 @@ impl Graph {
                                 text_box.0 -= 1;
                                 self.history_push(Change::Char(text_box, c, true));
                             }
+                            self.name_modified(Some(text_box.1));
                         } else if self.get_name(text_box.1).is_empty() {
                             let b = self.remove_name(text_box.1).unwrap_or(false);
                             self.history_push(Change::Line(text_box.1, b, true));
@@ -492,12 +497,12 @@ impl Graph {
                                 text_box.1 = text_box.1.saturating_sub(1);
                                 text_box.0 = self.get_name(text_box.1).len()
                             }
+                            self.name_modified(None);
                         }
-                        self.name_modified = true;
                     }
                     NamedKey::Enter => {
                         if i.modifiers.ctrl {
-                            self.name_modified = true;
+                            self.name_modified(None);
                             if i.modifiers.shift {
                                 match self.index_to_name(text_box.1, true) {
                                     (Some(i), _) => {
@@ -876,8 +881,11 @@ impl Graph {
             Menu::Settings => todo!(),
         }
     }
-    pub(crate) fn modify_name(&mut self, i: usize, j: usize, char: String) {
-        self.get_mut_name(i).insert_str(j, &char);
+    pub(crate) fn modify_name(&mut self, i: usize, j: usize, char: String) -> bool {
+        let s = self.get_mut_name(i);
+        let is_empty = s.is_empty();
+        s.insert_str(j, &char);
+        is_empty
     }
     pub(crate) fn replace_name(&mut self, i: usize, new: String) {
         *self.get_mut_name(i) = new;

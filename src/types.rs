@@ -273,6 +273,7 @@ pub struct Graph {
     pub names: Vec<Name>,
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
     pub(crate) cache: Option<Image>,
+    pub(crate) name_updated: Option<usize>,
     #[cfg(feature = "skia")]
     #[cfg_attr(feature = "serde", serde(skip_serializing, skip_deserializing))]
     pub(crate) font: Option<skia_safe::Font>,
@@ -461,6 +462,7 @@ impl Default for Graph {
             render_ctx: Default::default(),
             #[cfg(feature = "skia-vulkan")]
             renderer: None,
+            name_updated: None,
             is_3d: false,
             clipboard,
             #[cfg(feature = "arboard")]
@@ -591,6 +593,7 @@ impl Clone for Graph {
             renderer: None,
             #[cfg(feature = "arboard")]
             wait_frame: true,
+            name_updated: self.name_updated,
             data: Vec::new(),
             zoom_3d: self.zoom_3d,
             names: self.names.clone(),
@@ -879,8 +882,8 @@ impl Graph {
         self.view_x = tiny.view_x;
         self.graph_mode = tiny.graph_mode;
         self.only_real = tiny.only_real;
-        self.recalculate = true;
-        self.name_modified = true;
+        self.recalculate(None);
+        self.name_modified(None);
         self.text_box = Some((0, 0));
     }
 }

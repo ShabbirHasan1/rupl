@@ -107,9 +107,21 @@ impl Graph {
         self.font_width = 0.0;
     }
     ///sets data and resets domain coloring cache
-    pub fn set_data(&mut self, data: Vec<GraphType>) {
-        self.data = data;
-        self.cache = None;
+    pub fn set_data(&mut self, data: Vec<GraphType>, n: Option<usize>) {
+        if let Some(n) = n {
+            let d = data.into_iter().next().unwrap_or(GraphType::Constant(
+                Complex::Complex(f64::NAN, f64::NAN),
+                false,
+            ));
+            if self.data.len() == n {
+                self.data.push(d)
+            } else {
+                self.data[n] = d
+            }
+        } else {
+            self.data = data;
+            self.cache = None;
+        }
     }
     pub(crate) fn reset_offset(&self, width: f64, height: f64) -> Vec2 {
         let (_, _, screen) = self.get_new_screen(width, height, true);
@@ -166,7 +178,7 @@ impl Graph {
         );
         if t != self.screen_offset && offset {
             if self.graph_mode == GraphMode::DomainColoring {
-                self.recalculate = true;
+                self.recalculate(None);
             }
             self.screen_offset = t;
         }
@@ -215,7 +227,7 @@ impl Graph {
             }
         }
         self.graph_mode = mode;
-        self.recalculate = true;
+        self.recalculate(None);
     }
     fn fast_3d(&self) -> bool {
         self.is_3d && (self.fast_3d || (self.fast_3d_move && self.mouse_held))
@@ -235,140 +247,162 @@ impl Graph {
             None
         }
     }
+    pub(crate) fn recalculate(&mut self, name: Option<usize>) {
+        if let Some(n) = self.name_updated.as_mut() {
+            *n = usize::MAX
+        } else {
+            self.name_updated = name;
+        }
+        self.recalculate = true;
+    }
+    pub(crate) fn name_modified(&mut self, name: Option<usize>) {
+        if let Some(n) = self.name_updated.as_mut() {
+            *n = usize::MAX
+        } else {
+            self.name_updated = name;
+        }
+        self.name_modified = true;
+    }
     ///if keybinds does something that requires more data to be generated,
     ///will return a corrosponding UpdateResult asking for more data,
     ///meant to be ran before update()
-    pub fn update_res(&mut self) -> Option<Bound> {
+    pub fn update_res(&mut self) -> Option<(Bound, Option<usize>)> {
         if self.recalculate || self.name_modified {
             self.recalculate = false;
             self.name_modified = false;
             let prec = self.prec();
-            if self.is_3d_data {
-                match self.graph_mode {
-                    GraphMode::Normal => Some(Bound::Width3D(
-                        self.bound.x / self.zoom_3d.x + self.offset3d.x,
-                        self.bound.x / self.zoom_3d.y - self.offset3d.y,
-                        self.bound.y / self.zoom_3d.x + self.offset3d.x,
-                        self.bound.y / self.zoom_3d.y - self.offset3d.y,
+            Some((
+                if self.is_3d_data {
+                    match self.graph_mode {
+                        GraphMode::Normal => Bound::Width3D(
+                            self.bound.x / self.zoom_3d.x + self.offset3d.x,
+                            self.bound.x / self.zoom_3d.y - self.offset3d.y,
+                            self.bound.y / self.zoom_3d.x + self.offset3d.x,
+                            self.bound.y / self.zoom_3d.y - self.offset3d.y,
+                            Prec::Mult(self.prec),
+                        ),
+                        GraphMode::Polar => Bound::Width3D(
+                            self.bound.x / self.zoom_3d.x + self.offset3d.x,
+                            self.bound.x / self.zoom_3d.y - self.offset3d.y,
+                            self.bound.y / self.zoom_3d.x + self.offset3d.x,
+                            self.bound.y / self.zoom_3d.y - self.offset3d.y,
+                            Prec::Mult(self.prec),
+                        ),
+                        GraphMode::DomainColoring => {
+                            let c = self.to_coord(Pos::new(0.0, 0.0));
+                            let cf = self.to_coord(self.screen.to_pos());
+                            Bound::Width3D(
+                                c.0,
+                                c.1,
+                                cf.0,
+                                cf.1,
+                                Prec::Dimension(
+                                    (self.screen.x * prec * self.mult) as usize,
+                                    (self.screen.y * prec * self.mult) as usize,
+                                ),
+                            )
+                        }
+                        GraphMode::Slice => {
+                            let c = self.to_coord(Pos::new(0.0, 0.0));
+                            let cf = self.to_coord(self.screen.to_pos());
+                            if self.view_x {
+                                Bound::Width3D(
+                                    c.0,
+                                    self.bound.x,
+                                    cf.0,
+                                    self.bound.y,
+                                    Prec::Slice(prec),
+                                )
+                            } else {
+                                Bound::Width3D(
+                                    self.bound.x,
+                                    c.0,
+                                    self.bound.y,
+                                    cf.0,
+                                    Prec::Slice(prec),
+                                )
+                            }
+                        }
+                        GraphMode::Flatten => {
+                            if self.view_x {
+                                Bound::Width3D(
+                                    self.var.x,
+                                    self.bound.x,
+                                    self.var.y,
+                                    self.bound.y,
+                                    Prec::Slice(self.prec),
+                                )
+                            } else {
+                                Bound::Width3D(
+                                    self.bound.x,
+                                    self.var.x,
+                                    self.bound.y,
+                                    self.var.y,
+                                    Prec::Slice(self.prec),
+                                )
+                            }
+                        }
+                        GraphMode::Depth => {
+                            if self.view_x {
+                                Bound::Width3D(
+                                    self.bound.x / self.zoom_3d.z - self.offset3d.z,
+                                    self.bound.x,
+                                    self.bound.y / self.zoom_3d.z - self.offset3d.z,
+                                    self.bound.y,
+                                    Prec::Slice(self.prec),
+                                )
+                            } else {
+                                Bound::Width3D(
+                                    self.bound.x,
+                                    self.bound.x / self.zoom_3d.z - self.offset3d.z,
+                                    self.bound.y,
+                                    self.bound.y / self.zoom_3d.z - self.offset3d.z,
+                                    Prec::Slice(self.prec),
+                                )
+                            }
+                        }
+                        GraphMode::SlicePolar => {
+                            if self.view_x {
+                                Bound::Width3D(
+                                    self.var.x,
+                                    self.bound.x,
+                                    self.var.y,
+                                    self.bound.y,
+                                    Prec::Slice(self.prec),
+                                )
+                            } else {
+                                Bound::Width3D(
+                                    self.bound.x,
+                                    self.var.x,
+                                    self.bound.y,
+                                    self.var.y,
+                                    Prec::Slice(self.prec),
+                                )
+                            }
+                        }
+                    }
+                } else if self.graph_mode == GraphMode::Depth {
+                    Bound::Width(
+                        self.bound.x / self.zoom_3d.z - self.offset3d.z,
+                        self.bound.y / self.zoom_3d.z - self.offset3d.z,
                         Prec::Mult(self.prec),
-                    )),
-                    GraphMode::Polar => Some(Bound::Width3D(
-                        self.bound.x / self.zoom_3d.x + self.offset3d.x,
-                        self.bound.x / self.zoom_3d.y - self.offset3d.y,
-                        self.bound.y / self.zoom_3d.x + self.offset3d.x,
-                        self.bound.y / self.zoom_3d.y - self.offset3d.y,
-                        Prec::Mult(self.prec),
-                    )),
-                    GraphMode::DomainColoring => {
+                    )
+                } else if !self.is_3d {
+                    if self.graph_mode == GraphMode::Flatten || self.graph_mode == GraphMode::Polar
+                    {
+                        Bound::Width(self.var.x, self.var.y, Prec::Mult(prec))
+                    } else {
                         let c = self.to_coord(Pos::new(0.0, 0.0));
                         let cf = self.to_coord(self.screen.to_pos());
-                        Some(Bound::Width3D(
-                            c.0,
-                            c.1,
-                            cf.0,
-                            cf.1,
-                            Prec::Dimension(
-                                (self.screen.x * prec * self.mult) as usize,
-                                (self.screen.y * prec * self.mult) as usize,
-                            ),
-                        ))
+                        Bound::Width(c.0, cf.0, Prec::Mult(prec))
                     }
-                    GraphMode::Slice => {
-                        let c = self.to_coord(Pos::new(0.0, 0.0));
-                        let cf = self.to_coord(self.screen.to_pos());
-                        if self.view_x {
-                            Some(Bound::Width3D(
-                                c.0,
-                                self.bound.x,
-                                cf.0,
-                                self.bound.y,
-                                Prec::Slice(prec),
-                            ))
-                        } else {
-                            Some(Bound::Width3D(
-                                self.bound.x,
-                                c.0,
-                                self.bound.y,
-                                cf.0,
-                                Prec::Slice(prec),
-                            ))
-                        }
-                    }
-                    GraphMode::Flatten => {
-                        if self.view_x {
-                            Some(Bound::Width3D(
-                                self.var.x,
-                                self.bound.x,
-                                self.var.y,
-                                self.bound.y,
-                                Prec::Slice(self.prec),
-                            ))
-                        } else {
-                            Some(Bound::Width3D(
-                                self.bound.x,
-                                self.var.x,
-                                self.bound.y,
-                                self.var.y,
-                                Prec::Slice(self.prec),
-                            ))
-                        }
-                    }
-                    GraphMode::Depth => {
-                        if self.view_x {
-                            Some(Bound::Width3D(
-                                self.bound.x / self.zoom_3d.z - self.offset3d.z,
-                                self.bound.x,
-                                self.bound.y / self.zoom_3d.z - self.offset3d.z,
-                                self.bound.y,
-                                Prec::Slice(self.prec),
-                            ))
-                        } else {
-                            Some(Bound::Width3D(
-                                self.bound.x,
-                                self.bound.x / self.zoom_3d.z - self.offset3d.z,
-                                self.bound.y,
-                                self.bound.y / self.zoom_3d.z - self.offset3d.z,
-                                Prec::Slice(self.prec),
-                            ))
-                        }
-                    }
-                    GraphMode::SlicePolar => {
-                        if self.view_x {
-                            Some(Bound::Width3D(
-                                self.var.x,
-                                self.bound.x,
-                                self.var.y,
-                                self.bound.y,
-                                Prec::Slice(self.prec),
-                            ))
-                        } else {
-                            Some(Bound::Width3D(
-                                self.bound.x,
-                                self.var.x,
-                                self.bound.y,
-                                self.var.y,
-                                Prec::Slice(self.prec),
-                            ))
-                        }
-                    }
-                }
-            } else if self.graph_mode == GraphMode::Depth {
-                Some(Bound::Width(
-                    self.bound.x / self.zoom_3d.z - self.offset3d.z,
-                    self.bound.y / self.zoom_3d.z - self.offset3d.z,
-                    Prec::Mult(self.prec),
-                ))
-            } else if !self.is_3d {
-                if self.graph_mode == GraphMode::Flatten || self.graph_mode == GraphMode::Polar {
-                    Some(Bound::Width(self.var.x, self.var.y, Prec::Mult(prec)))
                 } else {
-                    let c = self.to_coord(Pos::new(0.0, 0.0));
-                    let cf = self.to_coord(self.screen.to_pos());
-                    Some(Bound::Width(c.0, cf.0, Prec::Mult(prec)))
-                }
-            } else {
-                None
-            }
+                    return None;
+                },
+                std::mem::take(&mut self.name_updated)
+                    .map(|n| if n == usize::MAX { None } else { Some(n) })
+                    .unwrap_or(None),
+            ))
         } else {
             None
         }
@@ -1564,7 +1598,7 @@ impl Graph {
                             },
                         );
                         self.side_drag = Some((min.0, k));
-                        self.name_modified = true;
+                        self.name_modified(Some(min.0));
                     }
                 } else if let Some((i, k)) = self.side_drag {
                     let (mut a, mut b) = self.to_coord(mpos.to_pos());
@@ -1608,7 +1642,7 @@ impl Graph {
                             format!("{}={}", c, s.1)
                         },
                     );
-                    self.name_modified = true;
+                    self.name_modified(Some(i));
                 } else {
                     self.side_drag = None
                 }
@@ -1732,7 +1766,7 @@ impl Graph {
                                 self.screen_offset.y
                             } / self.zoom.y
                                 * (multi.zoom_delta - 1.0);
-                            self.recalculate = true;
+                            self.recalculate(None);
                         }
                     }
                     std::cmp::Ordering::Less => {
@@ -1752,7 +1786,7 @@ impl Graph {
                             } / self.zoom.y
                                 * (multi.zoom_delta.recip() - 1.0);
                             self.zoom *= multi.zoom_delta;
-                            self.recalculate = true;
+                            self.recalculate(None);
                         }
                     }
                     _ => {}
@@ -1765,7 +1799,7 @@ impl Graph {
                 } else {
                     self.offset.x += multi.translation_delta.x / self.zoom.x;
                     self.offset.y += multi.translation_delta.y / self.zoom.y;
-                    self.recalculate = true;
+                    self.recalculate(None);
                     self.mouse_held = true;
                 }
             }
@@ -1779,7 +1813,7 @@ impl Graph {
                         } else {
                             self.offset.x += delta.x / self.zoom.x;
                             self.offset.y += delta.y / self.zoom.y;
-                            self.recalculate = true;
+                            self.recalculate(None);
                             self.mouse_held = true;
                         }
                     }
@@ -1789,7 +1823,7 @@ impl Graph {
             _ if self.mouse_held => {
                 self.last_multi = false;
                 self.mouse_held = false;
-                self.recalculate = true;
+                self.recalculate(None);
             }
             _ => {
                 self.last_multi = false;
@@ -1817,7 +1851,7 @@ impl Graph {
                 self.angle.x = ((self.angle.x / b - 1.0).round() * b).rem_euclid(TAU);
             } else {
                 self.offset.x += ax;
-                self.recalculate = true;
+                self.recalculate(None);
             }
         }
         if i.keys_pressed(keybinds.right) {
@@ -1825,7 +1859,7 @@ impl Graph {
                 self.angle.x = ((self.angle.x / b + 1.0).round() * b).rem_euclid(TAU);
             } else {
                 self.offset.x -= ax;
-                self.recalculate = true;
+                self.recalculate(None);
             }
         }
         if i.keys_pressed(keybinds.up) {
@@ -1833,7 +1867,7 @@ impl Graph {
                 self.angle.y = ((self.angle.y / b - 1.0).round() * b).rem_euclid(TAU);
             } else {
                 if self.graph_mode == GraphMode::DomainColoring {
-                    self.recalculate = true;
+                    self.recalculate(None);
                 }
                 self.offset.y += ay;
             }
@@ -1843,7 +1877,7 @@ impl Graph {
                 self.angle.y = ((self.angle.y / b + 1.0).round() * b).rem_euclid(TAU);
             } else {
                 if self.graph_mode == GraphMode::DomainColoring {
-                    self.recalculate = true;
+                    self.recalculate(None);
                 }
                 self.offset.y -= ay;
             }
@@ -1865,38 +1899,38 @@ impl Graph {
             let s = (self.bound.y - self.bound.x) / 4.0;
             if i.keys_pressed(keybinds.left_3d) {
                 if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::Polar) {
-                    self.recalculate = true;
+                    self.recalculate(None);
                 }
                 self.offset3d.x -= s
             }
             if i.keys_pressed(keybinds.right_3d) {
                 if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::Polar) {
-                    self.recalculate = true;
+                    self.recalculate(None);
                 }
                 self.offset3d.x += s
             }
             if i.keys_pressed(keybinds.down_3d) {
                 if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::Polar) {
-                    self.recalculate = true;
+                    self.recalculate(None);
                 }
                 self.offset3d.y += s
             }
             if i.keys_pressed(keybinds.up_3d) {
                 if !matches!(self.graph_mode, GraphMode::Depth | GraphMode::Polar) {
-                    self.recalculate = true;
+                    self.recalculate(None);
                 }
                 self.offset3d.y -= s
             }
             if i.keys_pressed(keybinds.in_3d) {
                 self.offset3d.z += s;
                 if matches!(self.graph_mode, GraphMode::Depth | GraphMode::Polar) {
-                    self.recalculate = true;
+                    self.recalculate(None);
                 }
             }
             if i.keys_pressed(keybinds.out_3d) {
                 self.offset3d.z -= s;
                 if matches!(self.graph_mode, GraphMode::Depth | GraphMode::Polar) {
-                    self.recalculate = true;
+                    self.recalculate(None);
                 }
             }
             if i.keys_pressed(keybinds.ignore_bounds) {
@@ -1955,7 +1989,7 @@ impl Graph {
                         self.screen_offset.y
                     } / self.zoom.y
                         * (rt - 1.0);
-                    self.recalculate = true;
+                    self.recalculate(None);
                 }
                 std::cmp::Ordering::Less => {
                     self.offset.x += if self.mouse_moved && !self.is_3d {
@@ -1971,7 +2005,7 @@ impl Graph {
                     } / self.zoom.y
                         * (rt.recip() - 1.0);
                     self.zoom *= rt;
-                    self.recalculate = true;
+                    self.recalculate(None);
                 }
                 _ => {}
             }
@@ -2016,7 +2050,7 @@ impl Graph {
                     self.zoom.y /= 2.0;
                 }
             }
-            self.recalculate = true;
+            self.recalculate(None);
         }
         let (a, x, y, z) = (
             i.keys_pressed(keybinds.zoom_in),
@@ -2058,7 +2092,7 @@ impl Graph {
                     } / self.zoom.y;
                 }
             }
-            self.recalculate = true;
+            self.recalculate(None);
         }
         if self.is_3d_data
             && matches!(
@@ -2071,15 +2105,15 @@ impl Graph {
             )
         {
             if i.keys_pressed(keybinds.slice_up) {
-                self.recalculate = true;
+                self.recalculate(None);
                 self.slice += c
             }
             if i.keys_pressed(keybinds.slice_down) {
-                self.recalculate = true;
+                self.recalculate(None);
                 self.slice -= c
             }
             if i.keys_pressed(keybinds.slice_view) {
-                self.recalculate = true;
+                self.recalculate(None);
                 self.view_x = !self.view_x
             }
         }
@@ -2094,47 +2128,38 @@ impl Graph {
                 Lines::LinesPoints => Lines::Lines,
             };
         }
-        if matches!(
-            self.graph_mode,
-            GraphMode::Slice
-                | GraphMode::Flatten
-                | GraphMode::Depth
-                | GraphMode::Polar
-                | GraphMode::SlicePolar
-        ) {
-            let s = (self.var.y - self.var.x) / 4.0;
-            if i.keys_pressed(keybinds.var_down) {
-                self.var.x -= s;
-                self.var.y -= s;
-                self.recalculate = true;
-            }
-            if i.keys_pressed(keybinds.var_up) {
-                self.var.x += s;
-                self.var.y += s;
-                self.recalculate = true;
-            }
-            if i.keys_pressed(keybinds.var_in) {
-                (self.var.x, self.var.y) = (
-                    (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x) / 4.0,
-                    (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x) / 4.0,
-                );
-                self.recalculate = true;
-            }
-            if i.keys_pressed(keybinds.var_out) {
-                (self.var.x, self.var.y) = (
-                    (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x),
-                    (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x),
-                );
-                self.recalculate = true;
-            }
+        let s = (self.var.y - self.var.x) / 4.0;
+        if i.keys_pressed(keybinds.var_down) {
+            self.var.x -= s;
+            self.var.y -= s;
+            self.recalculate(None);
+        }
+        if i.keys_pressed(keybinds.var_up) {
+            self.var.x += s;
+            self.var.y += s;
+            self.recalculate(None);
+        }
+        if i.keys_pressed(keybinds.var_in) {
+            (self.var.x, self.var.y) = (
+                (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x) / 4.0,
+                (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x) / 4.0,
+            );
+            self.recalculate(None);
+        }
+        if i.keys_pressed(keybinds.var_out) {
+            (self.var.x, self.var.y) = (
+                (self.var.x + self.var.y) * 0.5 - (self.var.y - self.var.x),
+                (self.var.x + self.var.y) * 0.5 + (self.var.y - self.var.x),
+            );
+            self.recalculate(None);
         }
         if i.keys_pressed(keybinds.prec_up) {
-            self.recalculate = true;
+            self.recalculate(None);
             self.prec *= 0.5;
             self.slice /= 2;
         }
         if i.keys_pressed(keybinds.prec_down) {
-            self.recalculate = true;
+            self.recalculate(None);
             self.prec *= 2.0;
             self.slice *= 2;
         }
@@ -2193,7 +2218,7 @@ impl Graph {
         if i.keys_pressed(keybinds.fast) {
             self.fast_3d = !self.fast_3d;
             self.reduced_move = !self.reduced_move;
-            self.recalculate = true;
+            self.recalculate(None);
         }
         if i.keys_pressed(keybinds.reset) {
             self.offset3d = Vec3::splat(0.0);
@@ -2207,7 +2232,7 @@ impl Graph {
             self.prec = 1.0;
             self.mouse_position = None;
             self.mouse_moved = false;
-            self.recalculate = true;
+            self.recalculate(None);
         }
         self.keybinds = Some(keybinds)
     }
@@ -2317,8 +2342,8 @@ impl Graph {
         {
             graph.font = std::mem::take(&mut self.font);
         }
-        graph.recalculate = true;
-        graph.name_modified = true;
+        graph.recalculate(None);
+        graph.name_modified(None);
         graph.text_box = self.text_box;
         graph.screen = self.screen;
         graph.screen_offset = self.screen_offset;
