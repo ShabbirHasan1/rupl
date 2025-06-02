@@ -78,13 +78,25 @@ impl Graph {
             .renderer_for_window(event_loop, window.clone());
         self.renderer = Some(renderer);
     }
-    #[cfg(feature = "skia")]
+    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+    ///is cursor dragging a value or not
+    pub fn is_drag(&self) -> bool {
+        self.side_drag.is_some()
+    }
+    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
     ///sets font
     pub fn set_font(&mut self, bytes: &[u8]) {
-        let typeface = skia_safe::FontMgr::default()
-            .new_from_data(bytes, None)
-            .unwrap();
-        self.font = Some(skia_safe::Font::new(typeface, self.font_size));
+        #[cfg(feature = "skia")]
+        {
+            let typeface = skia_safe::FontMgr::default()
+                .new_from_data(bytes, None)
+                .unwrap();
+            self.font = Some(skia_safe::Font::new(typeface, self.font_size));
+        }
+        #[cfg(feature = "tiny-skia")]
+        {
+            self.font = bdf2::read(bytes).ok();
+        }
         self.font_width = 0.0;
     }
     //use dark mode default colors
