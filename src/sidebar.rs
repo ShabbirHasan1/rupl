@@ -72,6 +72,7 @@ impl Graph {
         };
     }
     pub(crate) fn keybinds_side(&mut self, i: &InputState) -> bool {
+        let l = self.get_name_non_empty_len();
         let mut stop_keybinds = false;
         if let Some(mpos) = i.pointer_pos {
             let x = mpos.x - 4.0;
@@ -484,7 +485,7 @@ impl Graph {
                                     }
                                 }
                             } else {
-                                let (c, is_empty) = self.remove_char(text_box.1, text_box.0 - 1);
+                                let c = self.remove_char(text_box.1, text_box.0 - 1);
                                 text_box.0 -= 1;
                                 self.history_push(Change::Char(text_box, c, true));
                             }
@@ -589,6 +590,9 @@ impl Graph {
         #[cfg(feature = "serde")]
         if matches!(self.menu, Menu::Load) {
             self.load(text_box.1)
+        }
+        if l != self.get_name_non_empty_len() && (self.recalculate || self.name_modified) {
+            self.name_updated = Some(usize::MAX)
         }
         true
     }
@@ -1005,10 +1009,8 @@ impl Graph {
             Menu::Settings => (None, None),
         }
     }
-    pub(crate) fn remove_char(&mut self, i: usize, j: usize) -> (char, bool) {
-        let s = self.get_mut_name(i);
-        let is_empty = s.len() == 1;
-        (s.remove(j), is_empty)
+    pub(crate) fn remove_char(&mut self, i: usize, j: usize) -> char {
+        self.get_mut_name(i).remove(j)
     }
     pub(crate) fn remove_str(&mut self, i: usize, j: usize, k: usize) -> String {
         self.get_mut_name(i).drain(j..k).collect()
@@ -1019,6 +1021,22 @@ impl Graph {
                 let mut i = 0;
                 for name in &self.names {
                     i += 1 + name.vars.len()
+                }
+                i
+            }
+            #[cfg(feature = "serde")]
+            Menu::Load => self.file_data.as_ref().unwrap().len(),
+            Menu::Settings => todo!(),
+        }
+    }
+    pub(crate) fn get_name_non_empty_len(&self) -> usize {
+        match self.menu {
+            Menu::Side | Menu::Normal => {
+                let mut i = 0;
+                for name in &self.names {
+                    if !name.name.is_empty() {
+                        i += 1 + name.vars.len()
+                    }
                 }
                 i
             }
