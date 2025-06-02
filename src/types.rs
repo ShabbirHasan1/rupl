@@ -901,6 +901,7 @@ pub struct Keybinds {
     ///toggles dark mode
     pub toggle_dark_mode: Option<Keys>,
 }
+#[cfg(feature = "serde")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(default))]
 #[derive(Clone, Debug, Default)]
@@ -923,6 +924,7 @@ pub struct GraphTiny {
     pub graph_mode: GraphMode,
     pub only_real: bool,
 }
+#[cfg(feature = "serde")]
 impl Graph {
     pub fn to_tiny(&self) -> GraphTiny {
         let (a, b) = self.to_coord((self.screen / 2.0).to_pos());
@@ -1448,7 +1450,7 @@ impl Vec2 {
             y: self.y as f32,
         }
     }
-    pub(crate) fn to_tuple(self) -> (f32, f32) {
+    pub fn to_tuple(self) -> (f32, f32) {
         (self.x as f32, self.y as f32)
     }
 }
@@ -1532,7 +1534,7 @@ impl Vec3 {
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
     }
-    pub(crate) fn to_tuple(self) -> (f32, f32, f32) {
+    pub fn to_tuple(self) -> (f32, f32, f32) {
         (self.x as f32, self.y as f32, self.z as f32)
     }
 }
