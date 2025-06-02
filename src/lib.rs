@@ -1753,7 +1753,7 @@ impl Graph {
             }));
             self.clipboard.as_mut().unwrap().set_image(x, y, &new)
         }
-        if ret {
+        if !self.mouse_held && ret {
             self.keybinds = Some(keybinds);
             return;
         }
@@ -1808,6 +1808,7 @@ impl Graph {
                         (self.angle.x - multi.translation_delta.x / 512.0).rem_euclid(TAU);
                     self.angle.y =
                         (self.angle.y + multi.translation_delta.y / 512.0).rem_euclid(TAU);
+                    self.mouse_held = true;
                 } else {
                     self.offset.x += multi.translation_delta.x / self.zoom.x;
                     self.offset.y += multi.translation_delta.y / self.zoom.y;
@@ -1822,6 +1823,7 @@ impl Graph {
                         if self.is_3d {
                             self.angle.x = (self.angle.x - delta.x / 512.0).rem_euclid(TAU);
                             self.angle.y = (self.angle.y + delta.y / 512.0).rem_euclid(TAU);
+                            self.mouse_held = true;
                         } else {
                             self.offset.x += delta.x / self.zoom.x;
                             self.offset.y += delta.y / self.zoom.y;
@@ -1835,13 +1837,19 @@ impl Graph {
             _ if self.mouse_held => {
                 self.last_multi = false;
                 self.mouse_held = false;
-                self.recalculate(None);
+                if !self.is_3d {
+                    self.recalculate(None);
+                }
             }
             _ => {
                 self.last_multi = false;
             }
         }
         self.last_interact = i.pointer_pos;
+        if ret {
+            self.keybinds = Some(keybinds);
+            return;
+        }
         let (ax, ay, b, c) = (
             self.delta
                 / if self.zoom.x > 1.0 {

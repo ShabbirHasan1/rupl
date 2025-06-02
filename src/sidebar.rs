@@ -72,6 +72,9 @@ impl Graph {
         };
     }
     pub(crate) fn keybinds_side(&mut self, i: &InputState) -> bool {
+        if self.mouse_held {
+            return false;
+        }
         let l = self.get_name_non_empty_len();
         let mut stop_keybinds = false;
         if let Some(mpos) = i.pointer_pos {
