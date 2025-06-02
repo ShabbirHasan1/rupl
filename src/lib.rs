@@ -1981,42 +1981,64 @@ impl Graph {
             self.angle.x = (self.angle.x - i.raw_scroll_delta.x / 512.0).rem_euclid(TAU);
             self.angle.y = (self.angle.y + i.raw_scroll_delta.y / 512.0).rem_euclid(TAU);
         } else {
-            let rt = 1.0 + i.raw_scroll_delta.y / 512.0;
+            let rt = (i.raw_scroll_delta.y / 512.0).exp();
             if i.keys_pressed(keybinds.domain_alternate) {
                 self.cache = None;
                 self.domain_alternate = !self.domain_alternate
             }
+            let (x, y) = (i.modifiers.ctrl, i.modifiers.shift);
+            let a = !x && !y;
             match rt.total_cmp(&1.0) {
                 std::cmp::Ordering::Greater => {
-                    self.zoom *= rt;
-                    self.offset.x -= if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().x
-                    } else {
-                        self.screen_offset.x
-                    } / self.zoom.x
-                        * (rt - 1.0);
-                    self.offset.y -= if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().y
-                    } else {
-                        self.screen_offset.y
-                    } / self.zoom.y
-                        * (rt - 1.0);
+                    if a {
+                        self.zoom *= rt;
+                    } else if x {
+                        self.zoom.x *= rt;
+                    } else if y {
+                        self.zoom.y *= rt;
+                    }
+                    if a || x {
+                        self.offset.x -= if self.mouse_moved && !self.is_3d {
+                            self.mouse_position.unwrap().x
+                        } else {
+                            self.screen_offset.x
+                        } / self.zoom.x
+                            * (rt - 1.0);
+                    }
+                    if a || y {
+                        self.offset.y -= if self.mouse_moved && !self.is_3d {
+                            self.mouse_position.unwrap().y
+                        } else {
+                            self.screen_offset.y
+                        } / self.zoom.y
+                            * (rt - 1.0);
+                    }
                     self.recalculate(None);
                 }
                 std::cmp::Ordering::Less => {
-                    self.offset.x += if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().x
-                    } else {
-                        self.screen_offset.x
-                    } / self.zoom.x
-                        * (rt.recip() - 1.0);
-                    self.offset.y += if self.mouse_moved && !self.is_3d {
-                        self.mouse_position.unwrap().y
-                    } else {
-                        self.screen_offset.y
-                    } / self.zoom.y
-                        * (rt.recip() - 1.0);
-                    self.zoom *= rt;
+                    if a || x {
+                        self.offset.x += if self.mouse_moved && !self.is_3d {
+                            self.mouse_position.unwrap().x
+                        } else {
+                            self.screen_offset.x
+                        } / self.zoom.x
+                            * (rt.recip() - 1.0);
+                    }
+                    if a || y {
+                        self.offset.y += if self.mouse_moved && !self.is_3d {
+                            self.mouse_position.unwrap().y
+                        } else {
+                            self.screen_offset.y
+                        } / self.zoom.y
+                            * (rt.recip() - 1.0);
+                    }
+                    if a {
+                        self.zoom *= rt;
+                    } else if x {
+                        self.zoom.x *= rt;
+                    } else if y {
+                        self.zoom.y *= rt;
+                    }
                     self.recalculate(None);
                 }
                 _ => {}
