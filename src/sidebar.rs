@@ -3,7 +3,6 @@ use crate::types::*;
 use crate::ui::Painter;
 impl Graph {
     pub(crate) fn write_side(&mut self, painter: &mut Painter) {
-        //TODO display different things on load/settings
         let offset = std::mem::replace(&mut painter.offset, Pos::new(0.0, 0.0));
         let is_portrait = offset.x == offset.y && offset.x == 0.0;
         if is_portrait {
@@ -485,7 +484,7 @@ impl Graph {
                                     }
                                 }
                             } else {
-                                let c = self.remove_char(text_box.1, text_box.0 - 1);
+                                let (c, is_empty) = self.remove_char(text_box.1, text_box.0 - 1);
                                 text_box.0 -= 1;
                                 self.history_push(Change::Char(text_box, c, true));
                             }
@@ -859,6 +858,7 @@ impl Graph {
     }
     pub(crate) fn get_longest(&self) -> usize {
         match self.menu {
+            //TODO make work with constant_eval
             Menu::Side | Menu::Normal => self
                 .names
                 .iter()
@@ -1005,8 +1005,10 @@ impl Graph {
             Menu::Settings => (None, None),
         }
     }
-    pub(crate) fn remove_char(&mut self, i: usize, j: usize) -> char {
-        self.get_mut_name(i).remove(j)
+    pub(crate) fn remove_char(&mut self, i: usize, j: usize) -> (char, bool) {
+        let s = self.get_mut_name(i);
+        let is_empty = s.len() == 1;
+        (s.remove(j), is_empty)
     }
     pub(crate) fn remove_str(&mut self, i: usize, j: usize, k: usize) -> String {
         self.get_mut_name(i).drain(j..k).collect()

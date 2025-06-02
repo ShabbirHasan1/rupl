@@ -519,6 +519,8 @@ pub struct Graph {
     #[cfg(feature = "serde")]
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) file_data_raw: Option<Vec<String>>,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(crate) constant_eval: Vec<(usize, String)>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Copy, PartialEq, Default)]
@@ -563,6 +565,7 @@ impl Default for Graph {
             tab_complete: None,
             history_pos: 0,
             is_3d_data: false,
+            constant_eval: Vec::new(),
             zoom_3d: Vec3::splat(1.0),
             names: Vec::new(),
             fast_3d: false,
@@ -685,6 +688,7 @@ impl Clone for Graph {
             data: Vec::new(),
             zoom_3d: self.zoom_3d,
             names: self.names.clone(),
+            constant_eval: self.constant_eval.clone(),
             cache: None,
             #[cfg(feature = "serde")]
             file_data: None,

@@ -263,6 +263,10 @@ impl Graph {
         }
         self.name_modified = true;
     }
+    ///will print the string to the right of the function/var
+    pub fn set_constant_eval(&mut self, eval: Vec<(usize, String)>) {
+        self.constant_eval = eval
+    }
     ///if keybinds does something that requires more data to be generated,
     ///will return a corrosponding UpdateResult asking for more data,
     ///meant to be ran before update()
@@ -761,7 +765,7 @@ impl Graph {
                                 let (x, y) = data[ind].to_options();
                                 let (x, y) = (x.unwrap_or(0.0), y.unwrap_or(0.0));
                                 format!(
-                                    "{:e}\n{:e}\n{:e}\n{:e}\n{:e}\n{}",
+                                    "{:E}\n{:E}\n{:E}\n{:E}\n{:E}\n{}",
                                     p.0,
                                     p.1,
                                     x,
@@ -770,19 +774,19 @@ impl Graph {
                                     self.angle_type.to_val(y.atan2(x))
                                 )
                             } else {
-                                format!("{:e}\n{:e}", p.0, p.1)
+                                format!("{:E}\n{:E}", p.0, p.1)
                             }
                         } else {
-                            format!("{:e}\n{:e}", p.0, p.1)
+                            format!("{:E}\n{:E}", p.0, p.1)
                         }
                     } else if matches!(self.graph_mode, GraphMode::Polar | GraphMode::SlicePolar) {
                         format!(
-                            "{:e}\n{}",
+                            "{:E}\n{}",
                             p.1.hypot(p.0),
                             self.angle_type.to_val(p.1.atan2(p.0))
                         )
                     } else {
-                        format!("{:e}\n{:e}", p.0, p.1)
+                        format!("{:E}\n{:E}", p.0, p.1)
                     };
                     self.text(
                         Pos::new(0.0, self.screen.y as f32),
@@ -799,7 +803,7 @@ impl Graph {
                         self.screen.to_pos(),
                         Align::RightBottom,
                         &format!(
-                            "{:e}\n{:e}\n{:e}\n{}",
+                            "{:E}\n{:E}\n{:E}\n{}",
                             dx,
                             dy,
                             dy.hypot(dx),
@@ -1088,6 +1092,10 @@ impl Graph {
                 if !align {
                     p.y = p.y.min(self.screen.y as f32 - self.font_size)
                 }
+                let mut s = j.to_string();
+                if s.len() > 8 {
+                    s = format!("{:E}", j)
+                }
                 self.text(
                     p,
                     if align {
@@ -1095,7 +1103,7 @@ impl Graph {
                     } else {
                         Align::LeftTop
                     },
-                    &j.to_string(),
+                    &s,
                     &self.text_color,
                     painter,
                 );
@@ -1116,10 +1124,13 @@ impl Graph {
                 let j = j as f64 / (2.0 * minory);
                 let y = self.to_screen(0.0, j).y;
                 let mut p = Pos::new(x + 2.0, y);
-                let j = j.to_string();
+                let mut s = j.to_string();
+                if s.len() > 8 {
+                    s = format!("{:E}", j)
+                }
                 if !align {
                     p.x =
-                        p.x.min(self.screen.x as f32 - self.font_width * j.len() as f32)
+                        p.x.min(self.screen.x as f32 - self.font_width * s.len() as f32)
                 }
                 self.text(
                     p,
@@ -1128,7 +1139,7 @@ impl Graph {
                     } else {
                         Align::LeftTop
                     },
-                    &j.to_string(),
+                    &s,
                     &self.text_color,
                     painter,
                 );
@@ -1371,6 +1382,7 @@ impl Graph {
                     / edges.len() as f32
             })
             .unwrap_or_default();
+        //TODO make text not just on ints
         for (k, (i, j)) in edges.iter().enumerate() {
             #[derive(PartialEq)]
             enum Axis {
