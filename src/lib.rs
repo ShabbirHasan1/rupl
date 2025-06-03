@@ -443,6 +443,7 @@ impl Graph {
                 GraphType::Constant(_, _) => 1,
                 GraphType::Point(_) => 1,
                 GraphType::List(a) => a.iter().map(mx).sum(),
+                GraphType::None => 0,
             }
         }
         self.data.iter().map(mx).max().unwrap_or(0)
@@ -2499,6 +2500,7 @@ impl Graph {
                     GraphType::Constant(_, _) => 0,
                     GraphType::Point(_) => 0,
                     GraphType::List(a) => a.iter().map(su).sum(),
+                    GraphType::None => 0,
                 }
             }
             let n = self.data.iter().map(su).sum::<usize>()
@@ -2534,6 +2536,7 @@ impl Graph {
     {
         let (mut a, mut b, mut c) = (None, None, None);
         match data {
+            GraphType::None => {}
             GraphType::List(a) => a
                 .iter()
                 .for_each(|data| self.plot_type(painter, tex, buffer, k, data, cache)),
