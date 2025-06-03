@@ -522,6 +522,9 @@ pub struct Graph {
     pub(crate) file_data_raw: Option<Vec<String>>,
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) constant_eval: Vec<(usize, String)>,
+    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub request_redraw: bool,
     #[cfg_attr(feature = "serde", serde(skip))]
     #[cfg(feature = "tiny-skia")]
     pub(crate) font_cache: std::collections::HashMap<char, tiny_skia::Pixmap>,
@@ -624,6 +627,8 @@ impl Default for Graph {
             lines: Lines::Lines,
             domain_alternate: true,
             var: Vec2::new(-2.0, 2.0),
+            #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+            request_redraw: false,
             last_interact: None,
             last_right_interact: None,
             min_screen_width: 256.0,
@@ -789,6 +794,8 @@ impl Clone for Graph {
             min_side_width: self.min_side_width,
             min_screen_width: self.min_screen_width,
             target_side_ratio: self.target_side_ratio,
+            #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+            request_redraw: self.request_redraw,
         }
     }
 }
@@ -1119,7 +1126,7 @@ impl Default for Keybinds {
             reset: Some(Keys::new(Key::T)),
             side: Some(Keys::new(Key::Escape)),
             fast: Some(Keys::new(Key::F)),
-            settings: None, /*Some(Keys::new_with_modifier(
+            settings: None, /*Some(Keys::new_with_modifier( TODO
                                 Key::Escape,
                                 Modifiers::default().ctrl(),
                             ))*/

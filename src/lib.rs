@@ -1531,6 +1531,10 @@ impl Graph {
         self.keybinds_inner(i)
     }
     fn keybinds_inner(&mut self, i: &InputState) {
+        #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+        {
+            self.request_redraw = false;
+        }
         let Some(keybinds) = std::mem::take(&mut self.keybinds) else {
             unreachable!()
         };
@@ -1650,11 +1654,14 @@ impl Graph {
                         );
                         self.side_drag = Some((min.0, k));
                         self.name_modified(Some(min.0));
+                        if self.menu == Menu::Side {
+                            self.request_redraw = true;
+                        }
                     }
                 } else if let Some((i, k)) = self.side_drag {
                     let (mut a, mut b) = self.to_coord(mpos.to_pos());
                     if matches!(self.graph_mode, GraphMode::Polar) {
-                        let r = b.hypot(a);
+                        let r = b.hypot(a); //TODO fix
                         let t = b.atan2(a);
                         (a, b) = (t, r);
                     }
@@ -1730,9 +1737,11 @@ impl Graph {
                     self.menu = Menu::Normal;
                     self.text_box = None;
                     self.select = None;
+                    self.side_drag = None;
                 }
                 _ => {
                     self.menu = Menu::Settings;
+                    self.side_drag = None;
                 }
             }
         }
@@ -1743,6 +1752,7 @@ impl Graph {
                     self.menu = Menu::Normal;
                     self.text_box = None;
                     self.select = None;
+                    self.side_drag = None;
                 }
                 _ => {
                     self.save();
@@ -1752,6 +1762,7 @@ impl Graph {
                         self.text_box = Some((0, n));
                         self.load(n);
                     }
+                    self.side_drag = None;
                 }
             }
         }
@@ -3398,7 +3409,12 @@ impl Graph {
                 GraphMode::DomainColoring | GraphMode::Depth | GraphMode::Flatten => {}
             },
             GraphType::Point(p) => match self.graph_mode {
-                GraphMode::Polar | GraphMode::SlicePolar | GraphMode::Normal | GraphMode::Slice => {
+                GraphMode::DomainColoring //TODO fix dc
+                | GraphMode::Flatten
+                | GraphMode::Polar
+                | GraphMode::SlicePolar
+                | GraphMode::Normal
+                | GraphMode::Slice => {
                     if !self.is_3d {
                         painter.rect_filled(
                             self.to_screen(p.x, p.y),
@@ -3406,7 +3422,7 @@ impl Graph {
                         )
                     }
                 }
-                GraphMode::DomainColoring | GraphMode::Flatten | GraphMode::Depth => {}
+                GraphMode::Depth => {}
             },
         }
     }
