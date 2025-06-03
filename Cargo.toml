@@ -19,11 +19,12 @@ rayon = ["dep:rayon"]
 serde = ["dep:serde", "dep:bitcode", "dep:base64", "dep:zstd"]
 arboard = ["dep:arboard"]
 skia-vulkan = ["skia-safe/vulkan", "skia", "skia-safe/vulkan-window", "dep:ash", "dep:vulkano"]
+vulkano-x11 = ["vulkano/x11"]
 
 [dependencies]
 rayon = { version = "1.10.0", optional = true }
-winit = { version = "0.30.9", optional = true }
-egui = { version = "0.31.1", optional = true }
+winit = { version = "0.30.9", default-features=false, optional = true }
+egui = { version = "0.31.1", default-features = false, optional = true }
 skia-safe = { version = "0.86.0", optional = true }
 tiny-skia = { version = "0.11.4", optional = true }
 bdf2 = { version = "0.7.1", optional = true }
@@ -33,4 +34,4 @@ bitcode = { version = "0.6.6", features = ["serde"], optional = true }
 base64 = { version = "0.22.1", optional = true }
 zstd = { version = "0.13.3", optional = true }
 ash = { version = "0.38.0", optional = true }
-vulkano = { version = "0.35.1", optional = true }
+vulkano = { version = "0.35.1", default-features = false, optional = true }
