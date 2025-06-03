@@ -10,7 +10,7 @@ repository = "https://github.com/bgkillas/rupl"
 homepage = "https://github.com/bgkillas/rupl"
 
 [features]
-default = ["skia", "skia-vulkan", "winit", "rayon", "serde", "arboard"]
+default = ["skia-vulkan", "winit", "rayon", "serde", "arboard"]
 egui = ["dep:egui"]
 skia = ["dep:skia-safe"]
 tiny-skia = ["dep:tiny-skia", "dep:bdf2"]
@@ -18,7 +18,7 @@ winit = ["dep:winit"]
 rayon = ["dep:rayon"]
 serde = ["dep:serde", "dep:bitcode", "dep:base64", "dep:zstd"]
 arboard = ["dep:arboard"]
-skia-vulkan = ["skia-safe/vulkan", "skia-safe/vulkan-window", "dep:ash", "dep:vulkano"]
+skia-vulkan = ["skia-safe/vulkan", "skia", "skia-safe/vulkan-window", "dep:ash", "dep:vulkano"]
 
 [dependencies]
 rayon = { version = "1.10.0", optional = true }

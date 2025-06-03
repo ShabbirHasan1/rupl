@@ -146,7 +146,7 @@ impl<'a> Painter<'a> {
 pub(crate) struct Painter<'a> {
     surface: &'a mut skia_safe::Surface,
     line: Line,
-    font: Option<skia_safe::Font>,
+    font: &'a Option<skia_safe::Font>,
     points: Point,
     fast: bool,
     anti_alias: bool,
@@ -159,7 +159,7 @@ impl<'a> Painter<'a> {
     pub(crate) fn new(
         surface: &'a mut skia_safe::Surface,
         background: Color,
-        font: Option<skia_safe::Font>,
+        font: &'a Option<skia_safe::Font>,
         fast: bool,
         size: usize,
         anti_alias: bool,
@@ -363,7 +363,7 @@ impl<'a> Painter<'a> {
         }
     }
     pub(crate) fn text(&mut self, p0: Pos, p1: crate::types::Align, p2: &str, p4: &Color) -> f32 {
-        let Some(font) = std::mem::take(&mut self.font) else {
+        let Some(font) = self.font else {
             return 0.0;
         };
         let mut pos = (self.offset + p0).to_pos2();
@@ -396,7 +396,7 @@ impl<'a> Painter<'a> {
                     | crate::types::Align::LeftTop
                     | crate::types::Align::RightTop => pos.y += height,
                 }
-                self.surface.canvas().draw_str(s, pos, &font, &paint);
+                self.surface.canvas().draw_str(s, pos, font, &paint);
             }
             match p1 {
                 crate::types::Align::CenterTop
@@ -439,15 +439,13 @@ impl<'a> Painter<'a> {
                 }
             }
         }
-        let w = font.measure_str(p2, None).0;
-        self.font = Some(font);
-        w
+        font.measure_str(p2, None).0
     }
 }
 #[cfg(feature = "tiny-skia")]
-pub(crate) struct Painter {
+pub(crate) struct Painter<'a> {
     canvas: tiny_skia::Pixmap,
-    font: Option<bdf2::Font>,
+    font: &'a Option<bdf2::Font>,
     line: Line,
     fast: bool,
     anti_alias: bool,
@@ -455,7 +453,7 @@ pub(crate) struct Painter {
     pub offset: Pos,
 }
 #[cfg(feature = "tiny-skia")]
-impl Painter {
+impl<'a> Painter<'a> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         width: u32,
@@ -465,7 +463,7 @@ impl Painter {
         anti_alias: bool,
         line_width: f32,
         offset: Pos,
-        font: Option<bdf2::Font>,
+        font: &'a Option<bdf2::Font>,
     ) -> Self {
         let mut canvas = tiny_skia::Pixmap::new(width, height).unwrap();
         canvas.fill(background.to_col());
@@ -660,46 +658,43 @@ impl Painter {
             );
         }
     }
-    fn draw_str(&mut self, s: &str, pos: Pos, font: &bdf2::Font, paint: &tiny_skia::Paint) {
-        let (w, _) = char_dimen(font);
-        let w = w as i32;
-        let mut pixmap = tiny_skia::Pixmap::new(1, 1).unwrap();
-        pixmap.fill_rect(
-            tiny_skia::Rect::from_ltrb(0.0, 0.0, 1.0, 1.0).unwrap(),
-            paint,
-            tiny_skia::Transform::default(),
-            None,
-        );
-        let pm = pixmap.as_ref();
+    fn draw_str(
+        &mut self,
+        s: &str,
+        pos: Pos,
+        fc: &std::collections::HashMap<char, tiny_skia::Pixmap>,
+    ) {
         let (mut pxi, pyi) = (pos.x.round() as i32, pos.y.round() as i32);
-        let pyi = pyi + 2;
+        let pyi = pyi + 3;
         let paint = tiny_skia::PixmapPaint::default();
         let transform = tiny_skia::Transform::default();
         for c in s.chars() {
-            let mut py = pyi;
-            let glyph = font.glyphs().get(&c).unwrap();
-            for y in (0..glyph.height()).rev() {
-                let mut px = pxi;
-                for x in 0..glyph.width() {
-                    if glyph.get(x, y) {
-                        self.canvas.draw_pixmap(px, py, pm, &paint, transform, None)
-                    }
-                    px += 1;
-                }
-                py -= 1;
-            }
-            pxi += w;
+            let pm = fc.get(&c).unwrap();
+            self.canvas.draw_pixmap(
+                pxi,
+                pyi - pm.height() as i32,
+                pm.as_ref(),
+                &paint,
+                transform,
+                None,
+            );
+            pxi += pm.width() as i32;
         }
     }
-    pub(crate) fn text(&mut self, p0: Pos, p1: crate::types::Align, p2: &str, p4: &Color) -> f32 {
-        let Some(font) = std::mem::take(&mut self.font) else {
+    pub(crate) fn text(
+        &mut self,
+        p0: Pos,
+        p1: crate::types::Align,
+        p2: &str,
+        fc: &std::collections::HashMap<char, tiny_skia::Pixmap>,
+    ) -> f32 {
+        let Some(font) = self.font else {
             return 0.0;
         };
         let mut pos = self.offset + p0;
-        let paint = make_paint(p4, false);
         let strs = p2.split('\n').collect::<Vec<&str>>();
         let mut body = |s: &str| {
-            let (width, height) = get_bounds(&font, s);
+            let (width, height) = get_bounds(font, s);
             if !s.is_empty() {
                 let mut pos = pos;
                 match p1 {
@@ -724,7 +719,7 @@ impl Painter {
                     | crate::types::Align::LeftTop
                     | crate::types::Align::RightTop => pos.y += height,
                 }
-                self.draw_str(s, pos, &font, &paint);
+                self.draw_str(s, pos, fc);
             }
             match p1 {
                 crate::types::Align::CenterTop
@@ -767,9 +762,7 @@ impl Painter {
                 }
             }
         }
-        let w = get_bounds(&font, p2).0;
-        self.font = Some(font);
-        w
+        get_bounds(font, p2).0
     }
 }
 #[cfg(feature = "tiny-skia")]

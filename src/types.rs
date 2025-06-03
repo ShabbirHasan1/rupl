@@ -389,7 +389,7 @@ pub struct Graph {
     pub background_color: Color,
     ///text color
     #[cfg_attr(feature = "serde", serde(default))]
-    pub text_color: Color,
+    pub(crate) text_color: Color,
     #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) mouse_position: Option<Vec2>,
     #[cfg_attr(feature = "serde", serde(default))]
@@ -521,6 +521,9 @@ pub struct Graph {
     pub(crate) file_data_raw: Option<Vec<String>>,
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) constant_eval: Vec<(usize, String)>,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    #[cfg(feature = "tiny-skia")]
+    pub(crate) font_cache: std::collections::HashMap<char, tiny_skia::Pixmap>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Copy, PartialEq, Default)]
@@ -538,6 +541,7 @@ impl Default for Graph {
         let typeface = skia_safe::FontMgr::default()
             .new_from_data(include_bytes!("../terminus.bdf"), None)
             .unwrap();
+        let text_color = Color::splat(0);
         let font_size = 18.0;
         #[cfg(feature = "tiny-skia")]
         let font = bdf2::read(&include_bytes!("../terminus.bdf")[..]).ok();
@@ -548,6 +552,8 @@ impl Default for Graph {
         #[cfg(not(feature = "arboard"))]
         let clipboard = Some(Clipboard(String::new()));
         Self {
+            #[cfg(feature = "tiny-skia")]
+            font_cache: crate::build_cache(&font, text_color),
             #[cfg(feature = "skia-vulkan")]
             render_ctx: Default::default(),
             #[cfg(feature = "skia-vulkan")]
@@ -638,7 +644,7 @@ impl Default for Graph {
             ],
             axis_color: Color::splat(0),
             axis_color_light: Color::splat(220),
-            text_color: Color::splat(0),
+            text_color,
             background_color: Color::splat(255),
             mouse_position: None,
             mouse_moved: false,
@@ -678,6 +684,8 @@ impl Clone for Graph {
     fn clone(&self) -> Self {
         let offset = self.to_coord((self.screen / 2.0).to_pos()).into();
         Self {
+            #[cfg(feature = "tiny-skia")]
+            font_cache: std::collections::HashMap::new(),
             #[cfg(feature = "skia-vulkan")]
             render_ctx: Default::default(),
             #[cfg(feature = "skia-vulkan")]

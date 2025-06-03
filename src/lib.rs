@@ -96,21 +96,30 @@ impl Graph {
         #[cfg(feature = "tiny-skia")]
         {
             self.font = bdf2::read(bytes).ok();
+            self.font_cache = build_cache(&self.font, self.text_color);
         }
         self.font_width = 0.0;
+    }
+    ///sets the font color
+    pub fn set_text_color(&mut self, color: Color) {
+        self.text_color = color;
+        #[cfg(feature = "tiny-skia")]
+        {
+            self.font_cache = build_cache(&self.font, self.text_color)
+        }
     }
     //use dark mode default colors
     pub fn set_dark_mode(&mut self) {
         self.axis_color = Color::splat(220);
         self.axis_color_light = Color::splat(35);
-        self.text_color = Color::splat(255);
+        self.set_text_color(Color::splat(255));
         self.background_color = Color::splat(0);
     }
     //use light mode default colors
     pub fn set_light_mode(&mut self) {
         self.axis_color = Color::splat(0);
         self.axis_color_light = Color::splat(220);
-        self.text_color = Color::splat(0);
+        self.set_text_color(Color::splat(0));
         self.background_color = Color::splat(255);
     }
     ///sets font size
@@ -476,10 +485,11 @@ impl Graph {
         renderer.draw_and_present(|surface, size| {
             let (width, height) = (size.width, size.height);
             self.set_screen(width as f64, height as f64, true, true);
+            let font = std::mem::take(&mut self.font);
             let mut painter = Painter::new(
                 surface,
                 self.background_color,
-                self.font.clone(),
+                &font,
                 self.fast_3d(),
                 self.max(),
                 self.anti_alias,
@@ -488,6 +498,7 @@ impl Graph {
             );
             let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
             self.update_inner(&mut painter, plot, width as f64, height as f64);
+            self.font = font;
         });
         self.renderer = Some(renderer);
     }
@@ -501,10 +512,11 @@ impl Graph {
         self.set_screen(width as f64, height as f64, true, true);
         let mut surface =
             skia_safe::surfaces::raster_n32_premul((width as i32, height as i32)).unwrap();
+        let font = std::mem::take(&mut self.font);
         let mut painter = Painter::new(
             &mut surface,
             self.background_color,
-            self.font.clone(),
+            &font,
             self.fast_3d(),
             self.max(),
             self.anti_alias,
@@ -514,6 +526,7 @@ impl Graph {
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
         painter.save(buffer);
+        self.font = font;
     }
     #[cfg(feature = "skia")]
     ///get png data
@@ -522,10 +535,11 @@ impl Graph {
         self.set_screen(width as f64, height as f64, true, true);
         let mut surface =
             skia_safe::surfaces::raster_n32_premul((width as i32, height as i32)).unwrap();
+        let font = std::mem::take(&mut self.font);
         let mut painter = Painter::new(
             &mut surface,
             self.background_color,
-            self.font.clone(),
+            &font,
             self.fast_3d(),
             self.max(),
             self.anti_alias,
@@ -534,7 +548,9 @@ impl Graph {
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
-        painter.save_img(&self.image_format)
+        let img = painter.save_img(&self.image_format);
+        self.font = font;
+        img
     }
     #[cfg(feature = "tiny-skia")]
     ///repaints the screen
@@ -551,6 +567,7 @@ impl Graph {
     {
         self.font_width();
         self.set_screen(width as f64, height as f64, true, true);
+        let font = std::mem::take(&mut self.font);
         let mut painter = Painter::new(
             width,
             height,
@@ -559,17 +576,19 @@ impl Graph {
             self.anti_alias,
             self.line_width,
             self.draw_offset,
-            self.font.clone(),
+            &font,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
         painter.save(buffer);
+        self.font = font;
     }
     #[cfg(feature = "tiny-skia")]
     ///get png data
     pub fn get_png(&mut self, width: u32, height: u32) -> ui::Data {
         self.font_width();
         self.set_screen(width as f64, height as f64, true, true);
+        let font = std::mem::take(&mut self.font);
         let mut painter = Painter::new(
             width,
             height,
@@ -578,13 +597,13 @@ impl Graph {
             self.anti_alias,
             self.line_width,
             self.draw_offset,
-            self.font.clone(),
+            &font,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
-        ui::Data {
-            data: painter.save_png(),
-        }
+        let data = painter.save_png();
+        self.font = font;
+        ui::Data { data }
     }
     fn update_inner<F>(&mut self, painter: &mut Painter, plot: F, width: f64, height: f64)
     where
@@ -833,9 +852,13 @@ impl Graph {
             }
         }
     }
-    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+    #[cfg(feature = "skia")]
     fn text(&self, pos: Pos, align: Align, text: &str, col: &Color, painter: &mut Painter) -> f32 {
         painter.text(pos, align, text, col)
+    }
+    #[cfg(feature = "tiny-skia")]
+    fn text(&self, pos: Pos, align: Align, text: &str, _: &Color, painter: &mut Painter) -> f32 {
+        painter.text(pos, align, text, &self.font_cache)
     }
     fn text_color(&self, mut pos: Pos, align: Align, text: String, painter: &mut Painter) {
         match align {
@@ -2396,6 +2419,10 @@ impl Graph {
         {
             graph.font = std::mem::take(&mut self.font);
         }
+        #[cfg(feature = "tiny-skia")]
+        {
+            graph.font_cache = build_cache(&self.font, self.text_color);
+        }
         graph.recalculate(None);
         graph.name_modified(None);
         graph.text_box = self.text_box;
@@ -3519,6 +3546,41 @@ fn get_lch(color: [f32; 3]) -> (f32, f32, f32) {
     let c = (color[1].powi(2) + color[2].powi(2)).sqrt();
     let h = color[2].atan2(color[1]);
     (color[0], c, h)
+}
+#[cfg(feature = "tiny-skia")]
+fn build_cache(
+    font: &Option<bdf2::Font>,
+    color: Color,
+) -> std::collections::HashMap<char, tiny_skia::Pixmap> {
+    if let Some(font) = font {
+        let mut paint = tiny_skia::Paint::default();
+        paint.set_color(color.to_col());
+        let mut pm = tiny_skia::Pixmap::new(1, 1).unwrap();
+        pm.fill_rect(
+            tiny_skia::Rect::from_ltrb(0.0, 0.0, 1.0, 1.0).unwrap(),
+            &paint,
+            tiny_skia::Transform::default(),
+            None,
+        );
+        let pm = pm.as_ref();
+        let paint = tiny_skia::PixmapPaint::default();
+        let transform = tiny_skia::Transform::default();
+        let mut map = std::collections::HashMap::new();
+        for (k, glyph) in font.glyphs() {
+            let mut pixmap = tiny_skia::Pixmap::new(glyph.width(), glyph.height()).unwrap();
+            for y in 0..glyph.height() {
+                for x in 0..glyph.width() {
+                    if glyph.get(x, y) {
+                        pixmap.draw_pixmap(x as i32, y as i32, pm, &paint, transform, None)
+                    }
+                }
+            }
+            map.insert(*k, pixmap);
+        }
+        map
+    } else {
+        Default::default()
+    }
 }
 #[allow(clippy::excessive_precision)]
 fn rgb_to_oklch(color: &mut [f32; 3]) {
