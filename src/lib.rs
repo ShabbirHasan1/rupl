@@ -127,22 +127,22 @@ impl Graph {
         self.font_size = size;
         self.font_width = 0.0;
     }
-    ///sets data and resets domain coloring cache
-    pub fn set_data(&mut self, data: Vec<GraphType>, n: Option<usize>) {
-        if let Some(n) = n {
-            let d = data.into_iter().next().unwrap_or(GraphType::Constant(
-                Complex::Complex(f64::NAN, f64::NAN),
-                false,
-            ));
-            if self.data.len() == n {
-                self.data.push(d)
-            } else {
-                self.data[n] = d
-            }
+    ///removes data in nth slot
+    pub fn remove_data(&mut self, n: usize) {
+        self.data.remove(n);
+    }
+    ///insert and replace data into nth slot
+    pub fn insert_data(&mut self, data: GraphType, n: usize) {
+        if self.data.len() == n {
+            self.data.push(data)
         } else {
-            self.data = data;
-            self.cache = None;
+            self.data[n] = data
         }
+    }
+    ///sets data and resets domain coloring cache
+    pub fn set_data(&mut self, data: Vec<GraphType>) {
+        self.data = data;
+        self.cache = None;
     }
     pub(crate) fn reset_offset(&self, width: f64, height: f64) -> Vec2 {
         let (_, _, screen) = self.get_new_screen(width, height, true);

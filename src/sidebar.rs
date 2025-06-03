@@ -75,8 +75,6 @@ impl Graph {
         if self.mouse_held {
             return false;
         }
-        let l1 = self.get_name_non_empty_len();
-        let l2 = self.blacklist_graphs.len();
         let mut stop_keybinds = false;
         if let Some(mpos) = i.pointer_pos {
             let x = mpos.x - 4.0;
@@ -595,11 +593,6 @@ impl Graph {
         if matches!(self.menu, Menu::Load) {
             self.load(text_box.1)
         }
-        if (l1 != self.get_name_non_empty_len() || l2 != self.blacklist_graphs.len())
-            && (self.recalculate || self.name_modified)
-        {
-            self.name_updated = Some(usize::MAX)
-        }
         true
     }
     pub(crate) fn get_points(&self) -> Vec<(usize, String, Dragable)> {
@@ -1027,22 +1020,6 @@ impl Graph {
                 let mut i = 0;
                 for name in &self.names {
                     i += 1 + name.vars.len()
-                }
-                i
-            }
-            #[cfg(feature = "serde")]
-            Menu::Load => self.file_data.as_ref().unwrap().len(),
-            Menu::Settings => todo!(),
-        }
-    }
-    pub(crate) fn get_name_non_empty_len(&self) -> usize {
-        match self.menu {
-            Menu::Side | Menu::Normal => {
-                let mut i = 0;
-                for name in &self.names {
-                    if !name.name.is_empty() {
-                        i += 1 + name.vars.len()
-                    }
                 }
                 i
             }
