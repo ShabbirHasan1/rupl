@@ -234,6 +234,9 @@ impl Graph {
             GraphMode::Depth => {}
             _ => {}
         }
+        if let Some(n) = self.name_updated.as_mut() {
+            *n = usize::MAX
+        }
     }
     ///sets the current graph_mode and reprocesses is_3d
     pub fn set_mode(&mut self, mode: GraphMode) {
@@ -2540,7 +2543,7 @@ impl Graph {
             GraphType::List(a) => a
                 .iter()
                 .for_each(|data| self.plot_type(painter, tex, buffer, k, data, cache)),
-            GraphType::Width(data, start, end) if !self.is_3d => match self.graph_mode {
+            GraphType::Width(data, start, end) => match self.graph_mode {
                 GraphMode::DomainColoring | GraphMode::Slice | GraphMode::SlicePolar => {}
                 GraphMode::Normal => {
                     for (i, y) in data.iter().enumerate() {
@@ -2663,8 +2666,7 @@ impl Graph {
                     }
                 }
             },
-            GraphType::Width(_, _, _) => {}
-            GraphType::Coord(data) if !self.is_3d => match self.graph_mode {
+            GraphType::Coord(data) => match self.graph_mode {
                 GraphMode::DomainColoring | GraphMode::Slice | GraphMode::SlicePolar => {}
                 GraphMode::Normal => {
                     for (x, y) in data {
@@ -2781,10 +2783,7 @@ impl Graph {
                     }
                 }
             },
-            GraphType::Coord(_) => {}
-            GraphType::Width3D(data, start_x, start_y, end_x, end_y) if self.is_3d => match self
-                .graph_mode
-            {
+            GraphType::Width3D(data, start_x, start_y, end_x, end_y) => match self.graph_mode {
                 GraphMode::Normal => {
                     let len = data.len().isqrt();
                     let mut last = Vec::with_capacity(len);
@@ -3098,8 +3097,7 @@ impl Graph {
                     }
                 }
             },
-            GraphType::Width3D(_, _, _, _, _) => {}
-            GraphType::Coord3D(data) if self.is_3d => match self.graph_mode {
+            GraphType::Coord3D(data) => match self.graph_mode {
                 GraphMode::Slice
                 | GraphMode::DomainColoring
                 | GraphMode::Flatten
@@ -3202,7 +3200,6 @@ impl Graph {
                     }
                 }
             },
-            GraphType::Coord3D(_) => {}
             GraphType::Constant(c, on_x) => match self.graph_mode {
                 GraphMode::Normal | GraphMode::Slice => {
                     let len = 17;
