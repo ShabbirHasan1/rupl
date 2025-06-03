@@ -1119,10 +1119,10 @@ impl Default for Keybinds {
             reset: Some(Keys::new(Key::T)),
             side: Some(Keys::new(Key::Escape)),
             fast: Some(Keys::new(Key::F)),
-            settings: Some(Keys::new_with_modifier(
-                Key::Escape,
-                Modifiers::default().ctrl(),
-            )),
+            settings: None, /*Some(Keys::new_with_modifier(
+                                Key::Escape,
+                                Modifiers::default().ctrl(),
+                            ))*/
             #[cfg(feature = "serde")]
             load: Some(Keys::new_with_modifier(
                 Key::Escape,
