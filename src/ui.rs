@@ -565,9 +565,9 @@ impl<'a> Painter<'a> {
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
-        for (dst, p) in buffer.iter_mut().zip(self.canvas.pixels()) {
-            *dst = (p.red() as u32) << 16 | (p.green() as u32) << 8 | p.blue() as u32;
-        }
+        let slice: &[tiny_skia::PremultipliedColorU8] = self.canvas.pixels();
+        let slice: &[u32] = bytemuck::cast_slice(slice);
+        buffer.copy_from_slice(slice);
     }
     pub(crate) fn save_png(&mut self) -> Vec<u8> {
         self.canvas.encode_png().unwrap_or_default()

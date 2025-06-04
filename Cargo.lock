@@ -1558,6 +1558,7 @@ dependencies = [
  "base64",
  "bdf2",
  "bitcode",
+ "bytemuck",
  "egui",
  "rayon",
  "serde",
