@@ -3412,13 +3412,21 @@ impl Graph {
             GraphType::Point(p) => match self.graph_mode {
                 GraphMode::DomainColoring //TODO fix dc
                 | GraphMode::Flatten
-                | GraphMode::Polar
-                | GraphMode::SlicePolar
                 | GraphMode::Normal
                 | GraphMode::Slice => {
                     if !self.is_3d {
                         painter.rect_filled(
                             self.to_screen(p.x, p.y),
+                            &self.main_colors[k % self.main_colors.len()],
+                        )
+                    }
+                }
+                GraphMode::Polar
+                | GraphMode::SlicePolar=>{
+                    if !self.is_3d {
+                        let (s,c) = p.x.sin_cos();
+                        painter.rect_filled(
+                            self.to_screen(c*p.y, s*p.y),
                             &self.main_colors[k % self.main_colors.len()],
                         )
                     }
