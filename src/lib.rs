@@ -108,6 +108,18 @@ impl Graph {
             self.font_cache = build_cache(&self.font, self.text_color)
         }
     }
+    ///sets if complex graph or not
+    pub fn set_is_complex(&mut self, new: bool) {
+        self.is_complex = new;
+        match self.graph_mode {
+            GraphMode::Depth | GraphMode::DomainColoring | GraphMode::Flatten => {
+                self.graph_mode = GraphMode::Normal;
+                self.is_3d = self.is_3d_data;
+                self.recalculate(None);
+            }
+            _ => {}
+        }
+    }
     //use dark mode default colors
     pub fn set_dark_mode(&mut self) {
         self.axis_color = Color::splat(220);
