@@ -148,10 +148,9 @@ impl Graph {
             if i.pointer_right.is_some() {
                 if let Some(last) = self.last_right_interact {
                     if let Some(new) = self.side_slider {
-                        let delta = 2.0f64.powf((mpos.x - last.x) / 32.0);
+                        let delta = ((mpos.x - last.x) / 64.0).exp();
                         let name = self.get_name(new).to_string();
                         let mut body = |s: String| {
-                            self.side_slider = Some(new);
                             self.replace_name(new, s);
                             self.name_modified(Some(new));
                         };

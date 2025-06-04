@@ -81,7 +81,7 @@ impl Graph {
     #[cfg(any(feature = "skia", feature = "tiny-skia"))]
     ///is cursor dragging a value or not
     pub fn is_drag(&self) -> bool {
-        self.side_drag.is_some()
+        self.side_drag.is_some() || self.side_slider.is_some()
     }
     #[cfg(any(feature = "skia", feature = "tiny-skia"))]
     ///sets font
@@ -1611,7 +1611,6 @@ impl Graph {
                         }
                         let s = (a, b);
                         let mut k = None;
-                        //TODO fix drag name
                         self.replace_name(
                             min.0,
                             match min.2 {
@@ -1659,7 +1658,7 @@ impl Graph {
                 } else if let Some((i, k)) = self.side_drag {
                     let (mut a, mut b) = self.to_coord(mpos.to_pos());
                     if matches!(self.graph_mode, GraphMode::Polar) {
-                        let r = b.hypot(a); //TODO fix
+                        let r = b.hypot(a);
                         let t = b.atan2(a);
                         (a, b) = (t, r);
                     }
