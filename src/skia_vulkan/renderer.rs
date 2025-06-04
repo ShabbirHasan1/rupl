@@ -50,7 +50,7 @@ impl VulkanRenderer {
         let library = queue.device().instance().library();
         let instance = queue.device().instance();
         let device = queue.device();
-        let queue = queue.clone();
+        //let queue = queue.clone();
 
         // Before we can render to a window, we must first create a `vulkano::swapchain::Surface`
         // object from it, which represents the drawable surface of a window. For that we must wrap
@@ -355,7 +355,7 @@ impl VulkanRenderer {
         if let Some((image_index, acquire_future)) = next_frame {
             // pull the appropriate framebuffer from the swapchain and attach a skia Surface to it
             let framebuffer = self.framebuffers[image_index as usize].clone();
-            let mut surface = surface_for_framebuffer(&mut self.skia_ctx, framebuffer.clone());
+            let mut surface = surface_for_framebuffer(&mut self.skia_ctx, framebuffer);
             let Some(surface) = surface.as_mut() else {
                 return;
             };

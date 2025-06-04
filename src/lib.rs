@@ -263,10 +263,14 @@ impl Graph {
             self.prec
         }
     }
+    //has a name modification taken place
+    pub fn is_name_modified(&self) -> bool {
+        self.name_modified
+    }
     ///run before update_res to support switching if a plot is 2d or 3d
-    pub fn update_res_name(&mut self) -> Option<Vec<Name>> {
+    pub fn update_res_name(&self) -> Option<&[Name]> {
         if self.name_modified {
-            Some(self.names.clone())
+            Some(&self.names)
         } else {
             None
         }
@@ -722,7 +726,7 @@ impl Graph {
             match self.graph_mode {
                 GraphMode::DomainColoring => {}
                 GraphMode::Flatten | GraphMode::Depth => {
-                    self.text_color(pos, Align::RightTop, name.clone(), painter);
+                    self.text_color(pos, Align::RightTop, name, painter);
                     painter.line_segment(
                         [
                             Pos::new(pos.x + 4.0, y),
@@ -735,7 +739,7 @@ impl Graph {
                 GraphMode::SlicePolar | GraphMode::Polar | GraphMode::Normal | GraphMode::Slice => {
                     match show {
                         Show::Real => {
-                            self.text_color(pos, Align::RightTop, name.clone(), painter);
+                            self.text_color(pos, Align::RightTop, name, painter);
                             painter.line_segment(
                                 [
                                     Pos::new(pos.x + 4.0, y),
@@ -746,7 +750,7 @@ impl Graph {
                             );
                         }
                         Show::Imag => {
-                            self.text_color(pos, Align::RightTop, format!("im:{name}"), painter);
+                            self.text_color(pos, Align::RightTop, &format!("im:{name}"), painter);
                             painter.line_segment(
                                 [
                                     Pos::new(pos.x + 4.0, y),
@@ -757,7 +761,7 @@ impl Graph {
                             );
                         }
                         Show::Complex => {
-                            self.text_color(pos, Align::RightTop, format!("re:{name}"), painter);
+                            self.text_color(pos, Align::RightTop, &format!("re:{name}"), painter);
                             painter.line_segment(
                                 [
                                     Pos::new(pos.x + 4.0, y),
@@ -768,7 +772,7 @@ impl Graph {
                             );
                             pos.y += self.font_size;
                             let y = y + self.font_size;
-                            self.text_color(pos, Align::RightTop, format!("im:{name}"), painter);
+                            self.text_color(pos, Align::RightTop, &format!("im:{name}"), painter);
                             painter.line_segment(
                                 [
                                     Pos::new(pos.x + 4.0, y),
@@ -864,11 +868,11 @@ impl Graph {
     fn text(&self, pos: Pos, align: Align, text: &str, _: &Color, painter: &mut Painter) -> f32 {
         painter.text(pos, align, text, &self.font_cache)
     }
-    fn text_color(&self, mut pos: Pos, align: Align, text: String, painter: &mut Painter) {
+    fn text_color(&self, mut pos: Pos, align: Align, text: &str, painter: &mut Painter) {
         match align {
             Align::LeftCenter | Align::LeftBottom | Align::LeftTop => {
                 for (c, s) in self.color_string(text) {
-                    pos.x += self.text(pos, align, &s, &c, painter);
+                    pos.x += self.text(pos, align, s, &c, painter);
                 }
             }
             Align::RightCenter | Align::RightBottom | Align::RightTop => {
@@ -1586,23 +1590,16 @@ impl Graph {
                             }
                         }
                     };
-                    let pts: Vec<(usize, String, Dragable)> = self
-                        .get_points()
-                        .into_iter()
-                        .filter(|(_, _, p)| {
-                            let v = 32.0;
-                            get_d(p) <= v * v
-                        })
-                        .collect();
-                    if !pts.is_empty() {
-                        let mut min: (f32, (usize, String, Dragable)) =
-                            (get_d(&pts[0].2), pts[0].clone());
-                        if pts.len() > 1 {
-                            for (a, b, p) in pts {
-                                let d = get_d(&p);
-                                if d < min.0 {
-                                    min = (d, (a, b, p))
-                                }
+                    let mut pts = self.get_points().into_iter().filter(|(_, _, p)| {
+                        let v = 32.0;
+                        get_d(p) <= v * v
+                    });
+                    if let Some(min) = pts.next() {
+                        let mut min: (f32, (usize, String, Dragable)) = (get_d(&min.2), min);
+                        for (a, b, p) in pts {
+                            let d = get_d(&p);
+                            if d < min.0 {
+                                min = (d, (a, b, p))
                             }
                         }
                         let min = min.1;
@@ -1614,6 +1611,7 @@ impl Graph {
                         }
                         let s = (a, b);
                         let mut k = None;
+                        //TODO fix drag name
                         self.replace_name(
                             min.0,
                             match min.2 {
@@ -2335,7 +2333,10 @@ impl Graph {
             let n = self.file_data.as_ref().unwrap();
             update_saves(fd, n);
         }
-        let seri = bitcode::serialize(&self.clone()).unwrap();
+        let offset = self.to_coord((self.screen / 2.0).to_pos()).into();
+        let offset = std::mem::replace(&mut self.offset, offset);
+        let seri = bitcode::serialize(&self).unwrap();
+        self.offset = offset;
         let l = seri.len();
         let comp = zstd::bulk::compress(&seri, 22).unwrap();
         let s = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(&comp);
@@ -3473,10 +3474,11 @@ impl Graph {
             None => *color,
         }
     }
-    fn color_string(&self, input: String) -> Vec<(Color, String)> {
+    fn color_string<'a>(&self, input: &'a str) -> Vec<(Color, &'a str)> {
         if self.bracket_color.is_empty() {
             vec![(self.text_color, input)]
         } else {
+            let inputi = input;
             let input = input.chars().collect::<Vec<char>>();
             let mut vec = Vec::new();
             let mut count: isize = (input
@@ -3488,9 +3490,8 @@ impl Graph {
                     .filter(|a| matches!(a, '(' | '{' | '['))
                     .count() as isize)
                 .max(0);
-            let mut output = String::new();
-            //let mut abs: Vec<(usize, isize)> = Vec::new();
             let mut i = 0;
+            let mut j = 0;
             let mut color = self.text_color;
             while i < input.len() {
                 let c = input[i];
@@ -3498,40 +3499,41 @@ impl Graph {
                     '(' | '{' | '[' => {
                         let col = self.bracket_color[count as usize % self.bracket_color.len()];
                         if color != col {
-                            if !output.is_empty() {
-                                vec.push((color, std::mem::take(&mut output)));
+                            if j != i {
+                                vec.push((color, &inputi[j..i]));
                             }
                             color = col;
                         }
-                        vec.push((col, c.to_string()));
+                        vec.push((col, &inputi[i..=i]));
+                        j = i + 1;
                         count += 1
                     }
                     ')' | '}' | ']' => {
                         count -= 1;
                         let col = self.bracket_color[count as usize % self.bracket_color.len()];
                         if color != col {
-                            if !output.is_empty() {
-                                vec.push((color, std::mem::take(&mut output)));
+                            if j != i {
+                                vec.push((color, &inputi[j..i]));
                             }
                             color = col;
                         }
-                        vec.push((col, c.to_string()))
+                        vec.push((col, &inputi[i..=i]));
+                        j = i + 1;
                     }
-                    '@' => {}
                     _ => {
                         if color != self.text_color {
-                            if !output.is_empty() {
-                                vec.push((color, std::mem::take(&mut output)));
+                            if j != i {
+                                vec.push((color, &inputi[j..i]));
+                                j = i;
                             }
                             color = self.text_color;
                         }
-                        output.push(c)
                     }
                 }
                 i += 1;
             }
-            if !output.is_empty() {
-                vec.push((color, std::mem::take(&mut output)));
+            if j != i {
+                vec.push((color, &inputi[j..i]));
             }
             vec
         }

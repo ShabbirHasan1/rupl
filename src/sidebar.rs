@@ -248,9 +248,12 @@ impl Graph {
                         && self.history_pos != self.history.len()
                         && matches!(self.menu, Menu::Side) =>
                     {
-                        self.history[self.history.len() - self.history_pos - 1]
-                            .clone()
-                            .revert(self, &mut text_box, modify, false);
+                        self.revert(
+                            self.history.len() - self.history_pos - 1,
+                            &mut text_box,
+                            modify,
+                            false,
+                        );
                         self.name_modified(None);
                         self.history_pos += 1;
                     }
@@ -258,9 +261,12 @@ impl Graph {
                         && self.history_pos != 0
                         && matches!(self.menu, Menu::Side) =>
                     {
-                        self.history[self.history.len() - self.history_pos]
-                            .clone()
-                            .revert(self, &mut text_box, modify, true);
+                        self.revert(
+                            self.history.len() - self.history_pos,
+                            &mut text_box,
+                            modify,
+                            true,
+                        );
                         self.name_modified(None);
                         self.history_pos -= 1;
                     }
@@ -525,7 +531,7 @@ impl Graph {
                                     }
                                     (_, Some((i, j))) => {
                                         let name = Name {
-                                            name: self.names[i].vars.remove(j).clone(),
+                                            name: self.names[i].vars.remove(j),
                                             vars: self.names[i].vars.drain(..j).collect(),
                                             show: Show::None,
                                         };
@@ -600,8 +606,7 @@ impl Graph {
         macro_rules! register {
             ($o: tt, $i: tt) => {
                 let o = $o;
-                let v = o.clone();
-                let Some(sp) = v.rsplit_once('=') else {
+                let Some(sp) = o.rsplit_once('=') else {
                     $i += 1;
                     continue;
                 };
@@ -674,6 +679,51 @@ impl Graph {
         }
         pts
     }
+    pub(crate) fn revert<T>(
+        &mut self,
+        i: usize,
+        text_box: &mut (usize, usize),
+        modify: T,
+        rev: bool,
+    ) where
+        T: Fn(&mut Graph, &mut (usize, usize), String),
+    {
+        let do_rev = |r: bool| -> bool { if rev { r } else { !r } };
+        let s = std::mem::replace(&mut self.history[i], Change::None);
+        match &s {
+            &Change::Char((a, b), _, r) if do_rev(r) => {
+                self.remove_char(b, a);
+                *text_box = (a, b);
+            }
+            &Change::Char((a, b), c, _) => {
+                *text_box = (a, b);
+                modify(self, text_box, c.to_string());
+            }
+            Change::Str((a, b), s, r) if do_rev(*r) => {
+                for _ in 0..s.len() {
+                    self.remove_char(*b, *a);
+                }
+                *text_box = (*a, *b);
+            }
+            Change::Str((a, b), s, _) => {
+                *text_box = (*a, *b);
+                for c in s.chars() {
+                    modify(self, text_box, c.to_string());
+                }
+            }
+            &Change::Line(b, var, r) if do_rev(r) => {
+                self.remove_name(b);
+                let b = if var { b } else { b.saturating_sub(1) };
+                *text_box = (self.get_name(b).len(), b)
+            }
+            &Change::Line(b, var, _) => {
+                self.insert_name(b, var);
+                *text_box = (0, b);
+            }
+            Change::None => unreachable!(),
+        }
+        self.history[i] = s;
+    }
     pub(crate) fn expand_names(&mut self, b: usize) -> usize {
         if !matches!(self.menu, Menu::Side | Menu::Normal) {
             return b.min(self.get_name_len().saturating_sub(1));
@@ -713,7 +763,7 @@ impl Graph {
     pub(crate) fn display_names(&self, painter: &mut Painter, delta: f32) {
         match self.menu {
             Menu::Side | Menu::Normal => {
-                let mut text = |s: String, i: usize, color: (Option<Color>, Option<Color>)| {
+                let mut text = |s: &str, i: usize, color: (Option<Color>, Option<Color>)| {
                     match color {
                         (Some(a), Some(b)) => {
                             painter.line_segment(
@@ -763,7 +813,7 @@ impl Graph {
                         }
                         if i >= self.text_scroll_pos.0 {
                             text(
-                                v.clone(),
+                                v,
                                 i - self.text_scroll_pos.0,
                                 (
                                     if self.blacklist_graphs.contains(&i) {
@@ -793,7 +843,7 @@ impl Graph {
                             } else {
                                 None
                             };
-                            text(n.name.clone(), i - self.text_scroll_pos.0, (real, imag));
+                            text(n.name.as_str(), i - self.text_scroll_pos.0, (real, imag));
                         }
                         k += 1;
                     }
@@ -806,7 +856,7 @@ impl Graph {
                     self.text_color(
                         Pos::new(4.0, i as f32 * delta + delta / 2.0),
                         Align::LeftCenter,
-                        n.0.clone(),
+                        &n.0,
                         painter,
                     )
                 }
@@ -908,9 +958,8 @@ impl Graph {
                             if name.vars.is_empty() {
                                 self.names.remove(k);
                             } else if l > k + 1 {
-                                let v = self.names[k].vars.clone();
-                                self.names[k + 1].vars.splice(0..0, v);
-                                self.names.remove(k);
+                                let v = self.names.remove(k).vars;
+                                self.names[k].vars.splice(0..0, v);
                             }
                             return Some(false);
                         }
