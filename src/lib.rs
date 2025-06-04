@@ -1099,20 +1099,20 @@ impl Graph {
         if !self.disable_lines {
             for j in nx..=mx {
                 let x = self.to_screen(j as f64 / (2.0 * minorx), 0.0).x;
-                painter.vline(x, self.screen.y as f32, &self.axis_color);
+                painter.vline(x, self.screen.y as f32 + 1.0, &self.axis_color);
             }
             for j in my..=ny {
                 let y = self.to_screen(0.0, j as f64 / (2.0 * minory)).y;
-                painter.hline(self.screen.x as f32, y, &self.axis_color);
+                painter.hline(self.screen.x as f32 + 1.0, y, &self.axis_color);
             }
         } else if !self.disable_axis {
             if (nx..=mx).contains(&0) {
                 let x = self.to_screen(0.0, 0.0).x;
-                painter.vline(x, self.screen.y as f32, &self.axis_color);
+                painter.vline(x, self.screen.y as f32 + 1.0, &self.axis_color);
             }
             if (my..=ny).contains(&0) {
                 let y = self.to_screen(0.0, 0.0).y;
-                painter.hline(self.screen.x as f32, y, &self.axis_color);
+                painter.hline(self.screen.x as f32 + 1.0, y, &self.axis_color);
             }
         }
     }
