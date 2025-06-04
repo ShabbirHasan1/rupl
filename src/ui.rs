@@ -616,15 +616,14 @@ impl<'a> Painter<'a> {
         if self.anti_alias {
             paint.quality = tiny_skia::FilterQuality::Bicubic
         }
+        let sx = pos.x as f32 / p0.0.width() as f32;
+        let sy = pos.y as f32 / p0.0.height() as f32;
         self.canvas.draw_pixmap(
             0,
             0,
             p0.0.as_ref(),
             &paint,
-            tiny_skia::Transform::from_scale(
-                pos.x as f32 / p0.0.width() as f32,
-                pos.y as f32 / p0.0.height() as f32,
-            ),
+            tiny_skia::Transform::from_row(sx, 0.0, 0.0, sy, self.offset.x, self.offset.y),
             None,
         );
     }

@@ -1666,6 +1666,7 @@ impl Graph {
                         );
                         self.side_drag = Some((min.0, k));
                         self.name_modified(Some(min.0));
+                        #[cfg(any(feature = "skia", feature = "tiny-skia"))]
                         if self.menu == Menu::Side {
                             self.request_redraw = true;
                         }
