@@ -160,14 +160,15 @@ impl Graph {
         let new = (height * self.target_side_ratio)
             .min(width - self.min_side_width.max(fw))
             .max(self.min_screen_width);
+        let a = if self.is_3d { 0.0 } else { 1.0 };
         let screen = if !matches!(self.menu, Menu::Normal) && offset {
             if height < width {
-                Vec2::new(new - 1.0, height - 1.0)
+                Vec2::new(new - a, height - a)
             } else {
-                Vec2::new(width - 1.0, width - 1.0)
+                Vec2::new(width - a, width - a)
             }
         } else if offset {
-            Vec2::new(width - 1.0, height - 1.0)
+            Vec2::new(width - a, height - a)
         } else {
             Vec2::new(width, height)
         };
@@ -331,8 +332,8 @@ impl Graph {
                                 cf.0,
                                 cf.1,
                                 Prec::Dimension(
-                                    (self.screen.x * prec * self.mult) as usize,
-                                    (self.screen.y * prec * self.mult) as usize,
+                                    ((self.screen.x + 1.0) * prec * self.mult) as usize,
+                                    ((self.screen.y + 1.0) * prec * self.mult) as usize,
                                 ),
                             )
                         }
@@ -3090,8 +3091,11 @@ impl Graph {
                     }
                 }
                 GraphMode::DomainColoring => {
-                    let lenx = (self.screen.x * self.prec() * self.mult) as usize + 1;
-                    let leny = (self.screen.y * self.prec() * self.mult) as usize + 1;
+                    let mut s = self.screen;
+                    s.x += 1.0;
+                    s.y += 1.0;
+                    let lenx = (s.x * self.prec() * self.mult) as usize + 1;
+                    let leny = (s.y * self.prec() * self.mult) as usize + 1;
                     if cache.is_none() {
                         #[cfg(feature = "egui")]
                         let m = 3;
@@ -3106,7 +3110,7 @@ impl Graph {
                         tex(cache, lenx, leny, rgb);
                     }
                     if let Some(texture) = &cache {
-                        painter.image(texture, self.screen);
+                        painter.image(texture, s);
                     }
                 }
             },
