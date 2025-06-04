@@ -162,10 +162,12 @@ impl Graph {
             .max(self.min_screen_width);
         let screen = if !matches!(self.menu, Menu::Normal) && offset {
             if height < width {
-                Vec2::new(new, height)
+                Vec2::new(new - 1.0, height - 1.0)
             } else {
-                Vec2::new(width, width)
+                Vec2::new(width - 1.0, width - 1.0)
             }
+        } else if offset {
+            Vec2::new(width - 1.0, height - 1.0)
         } else {
             Vec2::new(width, height)
         };
