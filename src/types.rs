@@ -2,6 +2,7 @@
 use base64::Engine;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
@@ -236,7 +237,7 @@ pub struct Graph {
     #[cfg_attr(feature = "serde", serde(default))]
     pub names: Vec<Name>,
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub(crate) cache: Option<Image>,
+    pub(crate) cache: HashMap<usize, Image>,
     #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) name_updated: Option<usize>,
     #[cfg(feature = "skia")]
@@ -542,7 +543,7 @@ impl Default for Graph {
             save_file: String::new(),
             #[cfg(feature = "serde")]
             save_num: None,
-            cache: None,
+            cache: Default::default(),
             blacklist_graphs: Vec::new(),
             line_width: 3.0,
             #[cfg(any(feature = "skia", feature = "tiny-skia"))]

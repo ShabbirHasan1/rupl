@@ -614,7 +614,7 @@ impl<'a> Painter<'a> {
     pub(crate) fn image(&mut self, p0: &Image, pos: Vec2) {
         let mut paint = tiny_skia::PixmapPaint::default();
         if self.anti_alias {
-            paint.quality = tiny_skia::FilterQuality::Bicubic
+            paint.quality = tiny_skia::FilterQuality::Bilinear
         }
         let sx = pos.x as f32 / p0.0.width() as f32;
         let sy = pos.y as f32 / p0.0.height() as f32;

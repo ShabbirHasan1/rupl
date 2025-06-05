@@ -9,6 +9,8 @@ use crate::ui::Painter;
 use base64::Engine;
 #[cfg(feature = "rayon")]
 use rayon::slice::ParallelSliceMut;
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::f64::consts::{PI, TAU};
 #[cfg(feature = "serde")]
 use std::io::BufRead;
@@ -16,6 +18,9 @@ fn is_3d(data: &[GraphType]) -> bool {
     data.iter()
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
 }
+//TODO dots not proper size in tiny skia(maybe egui)
+//TODO try and optimize liens in tiny skia
+//TODO try to fix skia on macos
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -154,7 +159,7 @@ impl Graph {
     ///sets data and resets domain coloring cache
     pub fn set_data(&mut self, data: Vec<GraphType>) {
         self.data = data;
-        self.cache = None;
+        self.cache.clear();
     }
     pub(crate) fn reset_offset(&self, width: f64, height: f64) -> Vec2 {
         let (_, _, screen) = self.get_new_screen(width, height, true);
@@ -225,7 +230,7 @@ impl Graph {
     ///clears data and domain coloring cache
     pub fn clear_data(&mut self) {
         self.data.clear();
-        self.cache = None;
+        self.cache.clear();
     }
     ///resets current 3d view based on the data that is supplied
     pub fn reset_3d(&mut self) {
@@ -1976,7 +1981,7 @@ impl Graph {
         }
         if i.keys_pressed(keybinds.anti_alias) {
             self.anti_alias = !self.anti_alias;
-            self.cache = None;
+            self.cache.clear();
         }
         if self.is_3d {
             let s = (self.bound.y - self.bound.x) / 4.0;
@@ -2054,7 +2059,7 @@ impl Graph {
         } else {
             let rt = (i.raw_scroll_delta.y / 512.0).exp();
             if i.keys_pressed(keybinds.domain_alternate) {
-                self.cache = None;
+                self.cache.clear();
                 self.domain_alternate = !self.domain_alternate
             }
             let (x, y) = (i.modifiers.ctrl, i.modifiers.shift);
@@ -2223,7 +2228,7 @@ impl Graph {
             }
         }
         if self.graph_mode == GraphMode::DomainColoring && i.keys_pressed(keybinds.log_scale) {
-            self.cache = None;
+            self.cache.clear();
             self.log_scale = !self.log_scale
         }
         if i.keys_pressed(keybinds.line_style) {
@@ -2560,7 +2565,7 @@ impl Graph {
         buffer: &mut Option<Vec<(f32, Draw, Color)>>,
         k: usize,
         data: &GraphType,
-        cache: &mut Option<Image>,
+        cache: &mut HashMap<usize, Image>,
     ) where
         G: Fn(&mut Option<Image>, usize, usize, Vec<u8>),
     {
@@ -3109,7 +3114,7 @@ impl Graph {
                     s.y += 1.0;
                     let lenx = (s.x * self.prec() * self.mult) as usize + 1;
                     let leny = (s.y * self.prec() * self.mult) as usize + 1;
-                    if cache.is_none() {
+                    if let Entry::Vacant(cache) = cache.entry(k) {
                         #[cfg(feature = "egui")]
                         let m = 3;
                         #[cfg(any(feature = "skia", feature = "tiny-skia"))]
@@ -3120,9 +3125,13 @@ impl Graph {
                             #[cfg(any(feature = "skia", feature = "tiny-skia"))]
                             rgb.push(255)
                         }
-                        tex(cache, lenx, leny, rgb);
+                        let mut c = None;
+                        tex(&mut c, lenx, leny, rgb);
+                        if let Some(c) = c {
+                            cache.insert(c);
+                        }
                     }
-                    if let Some(texture) = &cache {
+                    if let Some(texture) = cache.get(&k) {
                         painter.image(texture, s);
                     }
                 }
