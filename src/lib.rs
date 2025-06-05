@@ -20,7 +20,6 @@ fn is_3d(data: &[GraphType]) -> bool {
 }
 //TODO dots not proper size in tiny skia(maybe egui)
 //TODO try and optimize liens in tiny skia
-//TODO try to fix skia on macos
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///

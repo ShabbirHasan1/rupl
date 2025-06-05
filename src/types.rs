@@ -501,11 +501,29 @@ impl Default for Graph {
     fn default() -> Self {
         #[cfg(all(any(feature = "skia", feature = "tiny-skia"), feature = "serde"))]
         let terminus = &{
-            let b = include_bytes!("../terminus.zstd");
-            zstd::bulk::decompress(b, 240681).unwrap()
+            #[cfg(any(target_os = "linux", feature = "tiny-skia"))]
+            {
+                let b = include_bytes!("../terminus.zstd");
+                zstd::bulk::decompress(b, 240681).unwrap()
+            }
+            #[cfg(not(any(target_os = "linux", feature = "tiny-skia")))]
+            {
+                let b = include_bytes!("../terminus-ttf.zstd");
+                zstd::bulk::decompress(b, 500668).unwrap()
+            }
         };
-        #[cfg(all(any(feature = "skia", feature = "tiny-skia"), not(feature = "serde")))]
+        #[cfg(all(
+            any(feature = "skia", feature = "tiny-skia"),
+            not(feature = "serde"),
+            any(target_os = "linux", feature = "tiny-skia")
+        ))]
         let terminus = include_bytes!("../terminus.bdf");
+        #[cfg(all(
+            any(feature = "skia", feature = "tiny-skia"),
+            not(feature = "serde"),
+            not(any(target_os = "linux", feature = "tiny-skia"))
+        ))]
+        let terminus = include_bytes!("../terminus.ttf");
         #[cfg(feature = "skia")]
         let typeface = skia_safe::FontMgr::default()
             .new_from_data(terminus, None)
