@@ -499,14 +499,21 @@ pub enum Menu {
 }
 impl Default for Graph {
     fn default() -> Self {
+        #[cfg(all(any(feature = "skia", feature = "tiny-skia"), feature = "serde"))]
+        let terminus = &{
+            let b = include_bytes!("../terminus.zstd");
+            zstd::bulk::decompress(b, 240681).unwrap()
+        };
+        #[cfg(all(any(feature = "skia", feature = "tiny-skia"), not(feature = "serde")))]
+        let terminus = include_bytes!("../terminus.bdf");
         #[cfg(feature = "skia")]
         let typeface = skia_safe::FontMgr::default()
-            .new_from_data(include_bytes!("../terminus.bdf"), None)
+            .new_from_data(terminus, None)
             .unwrap();
         let text_color = Color::splat(0);
         let font_size = 18.0;
         #[cfg(feature = "tiny-skia")]
-        let font = bdf2::read(&include_bytes!("../terminus.bdf")[..]).ok();
+        let font = bdf2::read(&terminus[..]).ok();
         #[cfg(feature = "skia")]
         let font = Some(skia_safe::Font::new(typeface, font_size));
         #[cfg(feature = "arboard")]
