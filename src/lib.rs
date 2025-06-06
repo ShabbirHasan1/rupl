@@ -2054,7 +2054,7 @@ impl Graph {
                 self.domain_alternate = !self.domain_alternate
             }
             let (x, y) = (i.modifiers.ctrl, i.modifiers.shift);
-            let a = !x && !y;
+            let a = !(x ^ y);
             match rt.total_cmp(&1.0) {
                 std::cmp::Ordering::Greater => {
                     if a {
