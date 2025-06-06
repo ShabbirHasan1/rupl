@@ -1145,7 +1145,7 @@ impl Graph {
                 }
                 let mut s = j.to_string();
                 if s.len() > 8 {
-                    s = format!("{:E}", j)
+                    s = format!("{j:E}")
                 }
                 self.text(
                     p,
@@ -1177,7 +1177,7 @@ impl Graph {
                 let mut p = Pos::new(x + 2.0, y);
                 let mut s = j.to_string();
                 if s.len() > 8 {
-                    s = format!("{:E}", j)
+                    s = format!("{j:E}")
                 }
                 if !align {
                     p.x =
@@ -1427,15 +1427,15 @@ impl Graph {
                 zl = i + 1
             }
         }
-        let m = (!self.fast_3d())
-            .then(|| {
-                edges
-                    .iter()
-                    .map(|(i, j)| vertices[*i].1.unwrap() + vertices[*j].1.unwrap())
-                    .sum::<f32>()
-                    / edges.len() as f32
-            })
-            .unwrap_or_default();
+        let m = if !self.fast_3d() {
+            edges
+                .iter()
+                .map(|(i, j)| vertices[*i].1.unwrap() + vertices[*j].1.unwrap())
+                .sum::<f32>()
+                / edges.len() as f32
+        } else {
+            0.0
+        };
         //TODO make text not just on ints
         for (k, (i, j)) in edges.iter().enumerate() {
             #[derive(PartialEq)]
