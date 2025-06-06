@@ -45,7 +45,7 @@ impl ApplicationHandler for App {
                     .unwrap();
             }
             WindowEvent::RedrawRequested => {
-                let Some(state) = &mut self.surface_state else {
+                let Some(state) = self.surface_state.as_mut() else {
                     unreachable!();
                 };
                 let (width, height) = {
