@@ -146,7 +146,6 @@ impl<'a> Painter<'a> {
 pub(crate) struct Painter<'a> {
     surface: &'a mut skia_safe::Surface,
     line: Line,
-    font: &'a Option<skia_safe::Font>,
     points: Point,
     fast: bool,
     anti_alias: bool,
@@ -159,7 +158,6 @@ impl<'a> Painter<'a> {
     pub(crate) fn new(
         surface: &'a mut skia_safe::Surface,
         background: Color,
-        font: &'a Option<skia_safe::Font>,
         fast: bool,
         size: usize,
         anti_alias: bool,
@@ -193,7 +191,6 @@ impl<'a> Painter<'a> {
                     color: Color::new(0, 0, 0),
                 })
             },
-            font,
             fast,
             anti_alias,
             line_width,
@@ -362,8 +359,15 @@ impl<'a> Painter<'a> {
             );
         }
     }
-    pub(crate) fn text(&mut self, p0: Pos, p1: crate::types::Align, p2: &str, p4: &Color) -> f32 {
-        let Some(font) = self.font else {
+    pub(crate) fn text(
+        &mut self,
+        p0: Pos,
+        p1: crate::types::Align,
+        p2: &str,
+        p4: &Color,
+        font: &Option<skia_safe::Font>,
+    ) -> f32 {
+        let Some(font) = font else {
             return 0.0;
         };
         let mut pos = (self.offset + p0).to_pos2();
@@ -443,9 +447,8 @@ impl<'a> Painter<'a> {
     }
 }
 #[cfg(feature = "tiny-skia")]
-pub(crate) struct Painter<'a> {
+pub(crate) struct Painter {
     canvas: tiny_skia::Pixmap,
-    font: &'a Option<bdf2::Font>,
     line: Line,
     fast: bool,
     anti_alias: bool,
@@ -453,7 +456,7 @@ pub(crate) struct Painter<'a> {
     pub offset: Pos,
 }
 #[cfg(feature = "tiny-skia")]
-impl<'a> Painter<'a> {
+impl Painter {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         width: u32,
@@ -463,13 +466,11 @@ impl<'a> Painter<'a> {
         anti_alias: bool,
         line_width: f32,
         offset: Pos,
-        font: &'a Option<bdf2::Font>,
     ) -> Self {
         let mut canvas = tiny_skia::Pixmap::new(width, height).unwrap();
         canvas.fill(background.to_col());
         Self {
             canvas,
-            font,
             line: if fast {
                 Line::Fast(FastLine {
                     line: Default::default(),
@@ -569,6 +570,7 @@ impl<'a> Painter<'a> {
         let slice: &[u32] = bytemuck::cast_slice(slice);
         buffer.copy_from_slice(slice);
     }
+    #[cfg(feature = "tiny-skia-png")]
     pub(crate) fn save_png(&mut self) -> Vec<u8> {
         self.canvas.encode_png().unwrap_or_default()
     }
@@ -657,6 +659,7 @@ impl<'a> Painter<'a> {
             );
         }
     }
+    #[cfg(feature = "tiny-skia-text")]
     fn draw_str(
         &mut self,
         s: &str,
@@ -680,14 +683,16 @@ impl<'a> Painter<'a> {
             pxi += pm.width() as i32;
         }
     }
+    #[cfg(feature = "tiny-skia-text")]
     pub(crate) fn text(
         &mut self,
         p0: Pos,
         p1: crate::types::Align,
         p2: &str,
         fc: &std::collections::HashMap<char, tiny_skia::Pixmap>,
+        font: &Option<bdf2::Font>,
     ) -> f32 {
-        let Some(font) = self.font else {
+        let Some(font) = font else {
             return 0.0;
         };
         let mut pos = self.offset + p0;
@@ -764,14 +769,14 @@ impl<'a> Painter<'a> {
         get_bounds(font, p2).0
     }
 }
-#[cfg(feature = "tiny-skia")]
+#[cfg(feature = "tiny-skia-text")]
 fn get_bounds(font: &bdf2::Font, s: &str) -> (f32, f32) {
     let (w, h) = char_dimen(font);
     let vec = s.split('\n').collect::<Vec<&str>>();
     let len = vec.iter().map(|a| a.len()).max().unwrap_or(0);
     ((w * len) as f32, (h * vec.len()) as f32)
 }
-#[cfg(feature = "tiny-skia")]
+#[cfg(feature = "tiny-skia-text")]
 pub(crate) fn char_dimen(font: &bdf2::Font) -> (usize, usize) {
     let a = font.glyphs().get(&'a').unwrap();
     (a.width() as usize, a.height() as usize)
@@ -780,7 +785,7 @@ pub(crate) fn char_dimen(font: &bdf2::Font) -> (usize, usize) {
 pub struct Data {
     pub data: skia_safe::Data,
 }
-#[cfg(feature = "tiny-skia")]
+#[cfg(feature = "tiny-skia-png")]
 pub struct Data {
     pub data: Vec<u8>,
 }
@@ -790,7 +795,7 @@ impl Data {
         self.data.as_bytes()
     }
 }
-#[cfg(feature = "tiny-skia")]
+#[cfg(feature = "tiny-skia-png")]
 impl Data {
     pub fn as_bytes(&self) -> &[u8] {
         &self.data

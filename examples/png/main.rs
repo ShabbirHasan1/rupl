@@ -15,7 +15,13 @@ fn main() -> Result<(), std::io::Error> {
 fn points(start: f64, end: f64) -> Vec<Complex> {
     let len = 256;
     let delta = (end - start) / len as f64;
-    (0..len)
-        .map(|i| Complex::Real(start + i as f64 * delta))
+    (0..=len)
+        .map(|i| {
+            let x = start + i as f64 * delta;
+            Complex::Real(f(x))
+        })
         .collect()
+}
+fn f(x: f64) -> f64 {
+    x * x * x - x
 }

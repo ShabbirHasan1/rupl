@@ -13,7 +13,9 @@ homepage = "https://github.com/bgkillas/rupl"
 default = ["skia-vulkan", "x11", "wayland", "winit", "rayon", "serde", "arboard"]
 egui = ["dep:egui"]
 skia = ["dep:skia-safe"]
-tiny-skia = ["dep:tiny-skia", "dep:bdf2", "dep:bytemuck"]
+tiny-skia = ["dep:tiny-skia", "dep:bytemuck"]
+tiny-skia-text = ["dep:bdf2", "dep:tiny-skia"]
+tiny-skia-png = ["tiny-skia/png-format", "dep:tiny-skia"]
 winit = ["dep:winit"]
 rayon = ["dep:rayon"]
 serde = ["dep:serde", "dep:bitcode", "dep:base64", "dep:zstd"]
@@ -29,7 +31,7 @@ rayon = { version = "1.10.0", optional = true }
 winit = { version = "0.30.9", default-features = false, features = ["rwh_06"], optional = true }
 egui = { version = "0.31.1", default-features = false, optional = true }
 skia-safe = { version = "0.86.0", optional = true }
-tiny-skia = { version = "0.11.4", optional = true }
+tiny-skia = { version = "0.11.4", default-features = false, features = ["simd", "std"], optional = true }
 bdf2 = { version = "0.7.1", optional = true }
 serde = { version = "1.0.219", features = ["derive"], optional = true }
 arboard = { version = "3.5.0", features = ["wayland-data-control"], optional = true }

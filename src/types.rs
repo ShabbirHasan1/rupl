@@ -244,7 +244,7 @@ pub struct Graph {
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) font: Option<skia_safe::Font>,
     #[cfg_attr(feature = "serde", serde(skip))]
-    #[cfg(feature = "tiny-skia")]
+    #[cfg(feature = "tiny-skia-text")]
     pub(crate) font: Option<bdf2::Font>,
     #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) font_size: f32,
@@ -484,7 +484,7 @@ pub struct Graph {
     #[cfg_attr(feature = "serde", serde(skip))]
     pub request_redraw: bool,
     #[cfg_attr(feature = "serde", serde(skip))]
-    #[cfg(feature = "tiny-skia")]
+    #[cfg(feature = "tiny-skia-text")]
     pub(crate) font_cache: std::collections::HashMap<char, tiny_skia::Pixmap>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -513,15 +513,15 @@ impl Default for Graph {
             }
         };
         #[cfg(all(
-            any(feature = "skia", feature = "tiny-skia"),
+            any(feature = "skia", feature = "tiny-skia-text"),
             not(feature = "serde"),
-            any(target_os = "linux", feature = "tiny-skia")
+            any(target_os = "linux", feature = "tiny-skia-text")
         ))]
         let terminus = include_bytes!("../terminus.bdf");
         #[cfg(all(
-            any(feature = "skia", feature = "tiny-skia"),
+            any(feature = "skia", feature = "tiny-skia-text"),
             not(feature = "serde"),
-            not(any(target_os = "linux", feature = "tiny-skia"))
+            not(any(target_os = "linux", feature = "tiny-skia-text"))
         ))]
         let terminus = include_bytes!("../terminus.ttf");
         #[cfg(feature = "skia")]
@@ -530,7 +530,7 @@ impl Default for Graph {
             .unwrap();
         let text_color = Color::splat(0);
         let font_size = 18.0;
-        #[cfg(feature = "tiny-skia")]
+        #[cfg(feature = "tiny-skia-text")]
         let font = bdf2::read(&terminus[..]).ok();
         #[cfg(feature = "skia")]
         let font = Some(skia_safe::Font::new(typeface, font_size));
@@ -539,7 +539,7 @@ impl Default for Graph {
         #[cfg(not(feature = "arboard"))]
         let clipboard = Some(Clipboard(String::new()));
         Self {
-            #[cfg(feature = "tiny-skia")]
+            #[cfg(feature = "tiny-skia-text")]
             font_cache: crate::build_cache(&font, text_color),
             #[cfg(feature = "skia-vulkan")]
             render_ctx: Default::default(),
@@ -571,7 +571,7 @@ impl Default for Graph {
             cache: Default::default(),
             blacklist_graphs: Vec::new(),
             line_width: 3.0,
-            #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+            #[cfg(any(feature = "skia", feature = "tiny-skia-text"))]
             font,
             font_size,
             font_width: 0.0,
@@ -1404,6 +1404,11 @@ impl MulAssign<f64> for Vec2 {
     fn mul_assign(&mut self, rhs: f64) {
         self.x *= rhs;
         self.y *= rhs;
+    }
+}
+impl From<(f64, f64)> for Complex {
+    fn from(value: (f64, f64)) -> Self {
+        Complex::Complex(value.0, value.1)
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
