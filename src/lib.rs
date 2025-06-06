@@ -2442,11 +2442,11 @@ impl Graph {
         graph.file_data_raw = std::mem::take(&mut self.file_data_raw);
         graph.clipboard = std::mem::take(&mut self.clipboard);
         graph.menu = self.menu;
-        #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+        #[cfg(any(feature = "skia", feature = "tiny-skia-text"))]
         {
             graph.font = std::mem::take(&mut self.font);
         }
-        #[cfg(feature = "tiny-skia")]
+        #[cfg(feature = "tiny-skia-text")]
         {
             graph.font_cache = build_cache(&self.font, self.text_color);
         }

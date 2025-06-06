@@ -10,7 +10,7 @@ fn main() -> Result<(), EventLoopError> {
     let mut app = App::default();
     app.plot
         .set_data(vec![GraphType::Width(points(-2.0, 2.0), -2.0, 2.0)]);
-    let event_loop = winit::event_loop::EventLoop::new().unwrap();
+    let event_loop = winit::event_loop::EventLoop::new()?;
     event_loop.run_app(&mut app)
 }
 #[derive(Default)]
@@ -26,9 +26,6 @@ impl ApplicationHandler for App {
         };
         let context = softbuffer::Context::new(window.clone()).unwrap();
         self.surface_state = Some(Surface::new(&context, window.clone()).unwrap());
-    }
-    fn suspended(&mut self, _: &ActiveEventLoop) {
-        self.surface_state = None;
     }
     fn window_event(&mut self, el: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
         match event {
@@ -58,13 +55,19 @@ impl ApplicationHandler for App {
                         std::num::NonZeroU32::new(height).unwrap(),
                     )
                     .unwrap();
-                let mut buffer = state.buffer_mut().unwrap();
-                self.plot.update(width, height, &mut buffer);
-                buffer.present().unwrap();
+                #[cfg(not(feature = "skia-vulkan"))]
+                {
+                    let mut buffer = state.buffer_mut().unwrap();
+                    self.plot.update(width, height, &mut buffer);
+                    buffer.present().unwrap();
+                }
             }
             WindowEvent::CloseRequested => el.exit(),
             _ => {}
         }
+    }
+    fn suspended(&mut self, _: &ActiveEventLoop) {
+        self.surface_state = None;
     }
 }
 fn points(start: f64, end: f64) -> Vec<Complex> {
