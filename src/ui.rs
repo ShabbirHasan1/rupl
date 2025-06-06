@@ -854,7 +854,7 @@ fn make_paint(p1: f32, p2: &Color, alias: bool, fill: bool) -> skia_safe::Paint 
     p
 }
 #[cfg(feature = "tiny-skia")]
-fn make_paint(p2: &Color, alias: bool) -> tiny_skia::Paint {
+fn make_paint(p2: &Color, alias: bool) -> tiny_skia::Paint<'_> {
     let mut p = tiny_skia::Paint::default();
     p.set_color(p2.to_col());
     p.anti_alias = alias;

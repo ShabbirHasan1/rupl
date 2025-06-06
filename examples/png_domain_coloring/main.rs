@@ -1,9 +1,8 @@
 use rupl::types::*;
-use std::f64::consts::PI;
 use std::io::Write;
-const WIDTH: usize = 16;
+const WIDTH: usize = 4096;
 fn main() -> Result<(), std::io::Error> {
-    let (start, end) = (-2.0, 2.0);
+    let (start, end) = (-0.5, 0.5);
     let pts = points(start, end);
     let graph = GraphType::Width3D(pts, start, start, end, end);
     let name = Name::new("sin(z)".to_string());
@@ -25,10 +24,18 @@ fn points(start: f64, end: f64) -> Vec<Complex> {
             let y = end - i as f64 * delta;
             (0..WIDTH).map(move |j| {
                 let x = start + j as f64 * delta;
-                Complex::from(sin(x * PI / 4.0, y * PI / 4.0))
+                Complex::from(f(x, y))
             })
         })
         .collect()
+}
+pub fn f(x: f64, y: f64) -> (f64, f64) {
+    let (x, y) = recip(x, y);
+    sin(x, y)
+}
+pub fn recip(x: f64, y: f64) -> (f64, f64) {
+    let r = x * x + y * y;
+    (x / r, -y / r)
 }
 pub fn sin(x: f64, y: f64) -> (f64, f64) {
     let (a, b) = x.sin_cos();
