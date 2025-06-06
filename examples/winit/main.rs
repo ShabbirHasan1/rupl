@@ -31,7 +31,7 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::Resized(d) => {
                 let Some(state) = self.surface_state.as_mut() else {
-                    unreachable!();
+                    return;
                 };
                 state.window().request_redraw();
                 state
@@ -43,7 +43,7 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 let Some(state) = self.surface_state.as_mut() else {
-                    unreachable!();
+                    return;
                 };
                 let (width, height) = {
                     let size = state.window().inner_size();
