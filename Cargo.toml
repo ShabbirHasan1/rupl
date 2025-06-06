@@ -9,6 +9,14 @@ documentation = "https://docs.rs/rupl"
 repository = "https://github.com/bgkillas/rupl"
 homepage = "https://github.com/bgkillas/rupl"
 
+[profile.release]
+lto = true
+strip = true
+panic = "abort"
+split-debuginfo = "packed"
+incremental = true
+codegen-units = 1
+
 [features]
 default = ["skia-vulkan", "x11", "wayland", "winit", "rayon", "serde", "arboard"]
 egui = ["dep:egui"]
@@ -22,8 +30,8 @@ serde = ["dep:serde", "dep:bitcode", "dep:base64", "dep:zstd"]
 arboard = ["dep:arboard"]
 skia-vulkan = ["skia-safe/vulkan", "skia", "skia-safe/vulkan-window", "dep:ash", "dep:vulkano"]
 vulkano-x11 = ["vulkano/x11"]
-x11 = ["winit/x11"]
-wayland = ["winit/wayland"]
+x11 = ["winit/x11", "softbuffer/x11"]
+wayland = ["winit/wayland", "softbuffer/wayland"]
 
 [dependencies]
 bytemuck = { version = "1.23.0", optional = true }
@@ -40,3 +48,6 @@ base64 = { version = "0.22.1", optional = true }
 zstd = { version = "0.13.3", optional = true }
 ash = { version = "0.38.0", optional = true }
 vulkano = { version = "0.35.1", default-features = false, optional = true }
+
+[dev-dependencies]
+softbuffer = { version = "0.4.6", default-features = false }

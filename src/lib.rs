@@ -1209,6 +1209,7 @@ impl Graph {
         }
     }
     #[cfg(feature = "tiny-skia")]
+    #[cfg(not(feature = "tiny-skia-text"))]
     fn font_width(&mut self) {}
     #[cfg(feature = "skia")]
     fn font_width(&mut self) {
