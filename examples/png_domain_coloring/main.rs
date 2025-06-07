@@ -21,7 +21,7 @@ fn points(start: f64, end: f64) -> Vec<Complex> {
     let delta = (end - start) / WIDTH as f64;
     (0..WIDTH)
         .flat_map(|i| {
-            let y = end - i as f64 * delta;
+            let y = start + i as f64 * delta;
             (0..WIDTH).map(move |j| {
                 let x = start + j as f64 * delta;
                 Complex::from(f(x, y))

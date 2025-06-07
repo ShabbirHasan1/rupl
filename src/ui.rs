@@ -423,10 +423,10 @@ impl Painter {
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color, p3: f32) {
         self.canvas.fill_rect(
             tiny_skia::Rect::from_ltrb(
-                self.offset.x + p0.x - p3 / 2 + 0.5,
-                self.offset.y + p0.y - p3 / 2 + 0.5,
-                self.offset.x + p0.x + p3 / 2 + 0.5,
-                self.offset.y + p0.y + p3 / 2 + 0.5,
+                self.offset.x + p0.x - p3 / 2.0 + 0.5,
+                self.offset.y + p0.y - p3 / 2.0 + 0.5,
+                self.offset.x + p0.x + p3 / 2.0 + 0.5,
+                self.offset.y + p0.y + p3 / 2.0 + 0.5,
             )
             .unwrap(),
             &make_paint(p2, true),
