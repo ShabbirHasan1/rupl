@@ -618,7 +618,7 @@ impl Graph {
                             painter.line_segment([a, b], width, &c);
                         }
                         Draw::Point(a) => {
-                            painter.rect_filled(a, &c);
+                            painter.rect_filled(a, &c, self.point_size);
                         }
                     }
                 }
@@ -887,7 +887,7 @@ impl Graph {
         let pos = self.to_screen(x, y);
         let is_in = self.in_screen(pos);
         if !matches!(self.lines, Lines::Lines) && is_in {
-            painter.rect_filled(pos, color);
+            painter.rect_filled(pos, color, self.point_size);
         }
         if !matches!(self.lines, Lines::Points) {
             if let Some(last) = last {
@@ -1225,6 +1225,7 @@ impl Graph {
                 pos.1,
                 pos.0,
                 self.shift_hue(pos.1, z, color),
+                self.point_size,
             );
         }
         if !matches!(self.lines, Lines::Points) {
@@ -3372,7 +3373,7 @@ impl Graph {
                     if !self.is_3d {
                         painter.rect_filled(
                             self.to_screen(p.x, p.y),
-                            &self.main_colors[k % self.main_colors.len()],
+                            &self.main_colors[k % self.main_colors.len()], self.point_size
                         )
                     }
                 }
@@ -3383,7 +3384,7 @@ impl Graph {
                         painter.rect_filled(
                             self.to_screen(c*p.y, s*p.y),
                             &self.main_colors[k % self.main_colors.len()],
-                        )
+                         self.point_size)
                     }
                 }
                 GraphMode::Depth => {}
@@ -3639,11 +3640,12 @@ fn point(
     depth: Option<f32>,
     point: Pos,
     color: Color,
+    point_size: f32,
 ) {
     if let Some(buffer) = buffer {
         buffer.push((depth.unwrap(), Draw::Point(point), color))
     } else if let Some(painter) = painter {
-        painter.rect_filled(point, &color)
+        painter.rect_filled(point, &color, point_size)
     }
 }
 #[cfg(feature = "serde")]

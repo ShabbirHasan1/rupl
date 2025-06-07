@@ -258,6 +258,8 @@ pub struct Graph {
     ///width of function lines
     #[cfg_attr(feature = "serde", serde(default))]
     pub line_width: f32,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub point_size: f32,
     #[cfg(feature = "skia")]
     ///if Some, then returns bytes of an image format from update
     #[cfg_attr(feature = "serde", serde(default))]
@@ -553,6 +555,7 @@ impl Default for Graph {
             file_data: None,
             #[cfg(feature = "serde")]
             file_data_raw: None,
+            point_size: 5.0,
             history: Vec::new(),
             tab_complete: None,
             history_pos: 0,

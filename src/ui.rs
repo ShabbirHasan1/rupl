@@ -61,9 +61,9 @@ impl<'a> Painter<'a> {
             egui::Stroke::new(width, p2.to_col()),
         );
     }
-    pub(crate) fn rect_filled(&self, p0: Pos, p2: &Color) {
+    pub(crate) fn rect_filled(&self, p0: Pos, p2: &Color, p3: f32) {
         let rect =
-            egui::Rect::from_center_size((self.offset + p0).to_pos2(), egui::Vec2::splat(5.0));
+            egui::Rect::from_center_size((self.offset + p0).to_pos2(), egui::Vec2::splat(p3));
         self.painter.rect_filled(rect, 0.0, p2.to_col());
     }
     pub(crate) fn image(&self, p0: &Image, pos: Vec2) {
@@ -197,7 +197,7 @@ impl<'a> Painter<'a> {
                 .unwrap(),
         }
     }
-    pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
+    pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color, p3: f32) {
         let p0 = self.offset
             + Pos {
                 x: p0.x + 0.5,
@@ -205,7 +205,7 @@ impl<'a> Painter<'a> {
             };
         self.surface
             .canvas()
-            .draw_point(p0.to_pos2(), &make_paint(5.0, p2, true, true));
+            .draw_point(p0.to_pos2(), &make_paint(p3, p2, true, true));
     }
     pub(crate) fn image(&mut self, p0: &Image, pos: Vec2) {
         if self.anti_alias {
@@ -420,13 +420,13 @@ impl Painter {
     pub(crate) fn save_png(&mut self) -> Vec<u8> {
         self.canvas.encode_png().unwrap_or_default()
     }
-    pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color) {
+    pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color, p3: f32) {
         self.canvas.fill_rect(
             tiny_skia::Rect::from_ltrb(
-                self.offset.x + p0.x - 2.0,
-                self.offset.y + p0.y - 2.0,
-                self.offset.x + p0.x + 3.0,
-                self.offset.y + p0.y + 3.0,
+                self.offset.x + p0.x - p3 / 2 + 0.5,
+                self.offset.y + p0.y - p3 / 2 + 0.5,
+                self.offset.x + p0.x + p3 / 2 + 0.5,
+                self.offset.y + p0.y + p3 / 2 + 0.5,
             )
             .unwrap(),
             &make_paint(p2, true),
