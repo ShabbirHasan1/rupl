@@ -3522,7 +3522,11 @@ fn hsv2rgb(hue: f64, sat: f64, val: f64) -> [u8; 3] {
     }
 }
 fn rgb2val(r: f64, g: f64, b: f64) -> [u8; 3] {
-    [(255.0 * r) as u8, (255.0 * g) as u8, (255.0 * b) as u8]
+    if cfg!(feature = "tiny-skia") {
+        [(255.0 * b) as u8, (255.0 * g) as u8, (255.0 * r) as u8]
+    } else {
+        [(255.0 * r) as u8, (255.0 * g) as u8, (255.0 * b) as u8]
+    }
 }
 fn get_lch(color: [f32; 3]) -> (f32, f32, f32) {
     let c = (color[1].powi(2) + color[2].powi(2)).sqrt();

@@ -1266,7 +1266,7 @@ impl Color {
     }
     #[cfg(feature = "tiny-skia")]
     pub(crate) fn to_col(self) -> tiny_skia::Color {
-        tiny_skia::Color::from_rgba8(self.r, self.g, self.b, 255)
+        tiny_skia::Color::from_rgba8(self.b, self.g, self.r, 255)
     }
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
