@@ -184,7 +184,8 @@ impl<'a> Painter<'a> {
         T: std::ops::DerefMut<Target = [u32]>,
     {
         if let Some(pm) = self.surface.canvas().peek_pixels() {
-            let px = pm.pixels::<u32>().unwrap();
+            let px: &[u8] = pm.pixels().unwrap();
+            let px: &[u32] = bytemuck::cast_slice(px);
             buffer.copy_from_slice(px);
         }
     }

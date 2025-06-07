@@ -20,7 +20,7 @@ codegen-units = 1
 [features]
 default = ["skia-vulkan", "x11", "wayland", "winit", "rayon", "serde", "arboard"]
 egui = ["dep:egui"]
-skia = ["dep:skia-safe"]
+skia = ["dep:skia-safe", "dep:bytemuck"]
 tiny-skia = ["dep:tiny-skia", "dep:bytemuck"]
 tiny-skia-text = ["dep:bdf2", "dep:tiny-skia"]
 tiny-skia-png = ["tiny-skia/png-format", "dep:tiny-skia"]
