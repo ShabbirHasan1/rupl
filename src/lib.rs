@@ -509,8 +509,17 @@ impl Graph {
     {
         self.font_width();
         self.set_screen(width as f64, height as f64, true, true);
-        let mut surface =
-            skia_safe::surfaces::raster_n32_premul((width as i32, height as i32)).unwrap();
+        let mut surface = skia_safe::surfaces::raster(
+            &skia_safe::ImageInfo::new(
+                (width as i32, height as i32),
+                skia_safe::ColorType::BGRA8888,
+                skia_safe::AlphaType::Opaque,
+                None,
+            ),
+            None,
+            None,
+        )
+        .unwrap();
         let mut painter = Painter::new(
             &mut surface,
             self.background_color,
@@ -526,8 +535,17 @@ impl Graph {
     pub fn get_png(&mut self, width: u32, height: u32) -> ui::Data {
         self.font_width();
         self.set_screen(width as f64, height as f64, true, true);
-        let mut surface =
-            skia_safe::surfaces::raster_n32_premul((width as i32, height as i32)).unwrap();
+        let mut surface = skia_safe::surfaces::raster(
+            &skia_safe::ImageInfo::new(
+                (width as i32, height as i32),
+                skia_safe::ColorType::BGRA8888,
+                skia_safe::AlphaType::Opaque,
+                None,
+            ),
+            None,
+            None,
+        )
+        .unwrap();
         let mut painter = Painter::new(
             &mut surface,
             self.background_color,
