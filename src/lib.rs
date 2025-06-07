@@ -458,22 +458,6 @@ impl Graph {
             None
         }
     }
-    #[cfg(any(feature = "skia", feature = "egui"))]
-    fn max(&self) -> usize {
-        fn mx(a: &GraphType) -> usize {
-            match a {
-                GraphType::Coord(d) => d.len(),
-                GraphType::Coord3D(d) => d.len(),
-                GraphType::Width(d, _, _) => d.len(),
-                GraphType::Width3D(d, _, _, _, _) => d.len(),
-                GraphType::Constant(_, _) => 1,
-                GraphType::Point(_) => 1,
-                GraphType::List(a) => a.iter().map(mx).sum(),
-                GraphType::None => 0,
-            }
-        }
-        self.data.iter().map(mx).max().unwrap_or(0)
-    }
     #[cfg(feature = "egui")]
     ///repaints the screen
     pub fn update(&mut self, ctx: &egui::Context, ui: &egui::Ui) {
@@ -481,13 +465,7 @@ impl Graph {
         let rect = ctx.available_rect();
         let (width, height) = (rect.width() as f64, rect.height() as f64);
         self.set_screen(width, height, true, true);
-        let mut painter = Painter::new(
-            ui,
-            self.fast_3d(),
-            self.max(),
-            self.line_width,
-            self.draw_offset,
-        );
+        let mut painter = Painter::new(ui, self.draw_offset);
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter, ui);
         self.update_inner(&mut painter, plot, width, height);
     }
@@ -515,10 +493,7 @@ impl Graph {
             let mut painter = Painter::new(
                 surface,
                 self.background_color,
-                self.fast_3d(),
-                self.max(),
                 self.anti_alias,
-                self.line_width,
                 self.draw_offset,
             );
             let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
@@ -539,10 +514,7 @@ impl Graph {
         let mut painter = Painter::new(
             &mut surface,
             self.background_color,
-            self.fast_3d(),
-            self.max(),
             self.anti_alias,
-            self.line_width,
             self.draw_offset,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
@@ -559,10 +531,7 @@ impl Graph {
         let mut painter = Painter::new(
             &mut surface,
             self.background_color,
-            self.fast_3d(),
-            self.max(),
             self.anti_alias,
-            self.line_width,
             self.draw_offset,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
@@ -588,9 +557,7 @@ impl Graph {
             width,
             height,
             self.background_color,
-            self.fast_3d(),
             self.anti_alias,
-            self.line_width,
             self.draw_offset,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
@@ -606,9 +573,7 @@ impl Graph {
             width,
             height,
             self.background_color,
-            self.fast_3d(),
             self.anti_alias,
-            self.line_width,
             self.draw_offset,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
@@ -642,8 +607,6 @@ impl Graph {
             (self.sin_theta, self.cos_theta) = self.angle.y.sin_cos();
             let mut buffer = plot(painter, self);
             self.write_axis_3d(painter, &mut buffer);
-            #[cfg(feature = "skia")]
-            let mut is_line: Option<bool> = None;
             if let Some(mut buffer) = buffer {
                 #[cfg(feature = "rayon")]
                 buffer.par_sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
@@ -652,25 +615,9 @@ impl Graph {
                 for (_, a, c) in buffer {
                     match a {
                         Draw::Line(a, b, width) => {
-                            #[cfg(feature = "skia")]
-                            {
-                                if !is_line.unwrap_or(true) {
-                                    painter.draw_pts();
-                                    painter.clear_pts();
-                                }
-                                is_line = Some(true);
-                            }
                             painter.line_segment([a, b], width, &c);
                         }
                         Draw::Point(a) => {
-                            #[cfg(feature = "skia")]
-                            {
-                                if is_line.unwrap_or(false) {
-                                    painter.draw();
-                                    painter.clear();
-                                }
-                                is_line = Some(false);
-                            }
                             painter.rect_filled(a, &c);
                         }
                     }
@@ -678,21 +625,12 @@ impl Graph {
             }
         }
         let draw = !matches!(self.menu, Menu::Normal);
-        let finish = |painter: &mut Painter| {
-            #[cfg(feature = "skia")]
-            painter.finish(draw);
-            #[cfg(feature = "tiny-skia")]
-            painter.draw(draw);
-            #[cfg(feature = "egui")]
-            painter.save();
-        };
         if !self.is_3d {
             self.write_coord(painter);
         } else {
             self.write_angle(painter);
         }
         self.write_label(painter);
-        finish(painter);
         if draw {
             self.set_screen(width, height, false, false);
             if painter.offset.x == painter.offset.y && painter.offset.x == 0.0 {
@@ -702,7 +640,6 @@ impl Graph {
             }
             self.write_side(painter);
             self.set_screen(width, height, true, false);
-            finish(painter);
         }
     }
     fn write_label(&self, painter: &mut Painter) {

@@ -262,7 +262,6 @@ pub struct Graph {
     ///if Some, then returns bytes of an image format from update
     #[cfg_attr(feature = "serde", serde(default))]
     pub image_format: crate::ui::ImageFormat,
-    ///a fast 3d mode ignoring depth
     #[cfg_attr(feature = "serde", serde(default))]
     pub fast_3d: bool,
     ///enable fast 3d only when moving with a mouse
@@ -499,7 +498,7 @@ pub enum Menu {
 }
 impl Default for Graph {
     fn default() -> Self {
-        #[cfg(all(any(feature = "skia", feature = "tiny-skia"), feature = "serde"))]
+        #[cfg(all(any(feature = "skia", feature = "tiny-skia-text"), feature = "serde"))]
         let terminus = &{
             #[cfg(any(target_os = "linux", feature = "tiny-skia"))]
             {
@@ -1274,9 +1273,6 @@ pub struct Pos {
     pub y: f32,
 }
 impl Pos {
-    pub(crate) fn close(&self, rhs: Self) -> bool {
-        self.x.floor() == rhs.x.floor() && self.y.floor() == rhs.y.floor()
-    }
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }

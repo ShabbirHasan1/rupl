@@ -4,36 +4,13 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "egui")]
 pub(crate) struct Painter<'a> {
     painter: &'a egui::Painter,
-    line: Line,
-    line_width: f32,
     pub offset: Pos,
 }
 #[cfg(feature = "egui")]
 impl<'a> Painter<'a> {
-    pub(crate) fn new(
-        ui: &'a egui::Ui,
-        fast: bool,
-        size: usize,
-        line_width: f32,
-        offset: Pos,
-    ) -> Self {
+    pub(crate) fn new(ui: &'a egui::Ui, offset: Pos) -> Self {
         Self {
             painter: ui.painter(),
-            line: if fast {
-                Line::Fast(FastLine {
-                    line: Default::default(),
-                    size,
-                    line_width,
-                })
-            } else {
-                Line::Slow(SlowLine {
-                    line: Vec::with_capacity(size),
-                    color: Color::new(0, 0, 0),
-                    size,
-                    line_width,
-                })
-            },
-            line_width,
             offset,
         }
     }
@@ -79,17 +56,10 @@ impl<'a> Painter<'a> {
                     y: p.y + 0.5,
                 }
         });
-        if width == self.line_width {
-            self.line.line(p0, p2, self.painter)
-        } else {
-            self.painter.line_segment(
-                p0.map(|p| p.to_pos2()),
-                egui::Stroke::new(width, p2.to_col()),
-            );
-        }
-    }
-    pub(crate) fn save(&mut self) {
-        self.line.draw(self.painter)
+        self.painter.line_segment(
+            p0.map(|p| p.to_pos2()),
+            egui::Stroke::new(width, p2.to_col()),
+        );
     }
     pub(crate) fn rect_filled(&self, p0: Pos, p2: &Color) {
         let rect =
@@ -145,11 +115,7 @@ impl<'a> Painter<'a> {
 #[cfg(feature = "skia")]
 pub(crate) struct Painter<'a> {
     surface: &'a mut skia_safe::Surface,
-    line: Line,
-    points: Point,
-    fast: bool,
     anti_alias: bool,
-    line_width: f32,
     pub offset: Pos,
 }
 #[cfg(feature = "skia")]
@@ -158,42 +124,13 @@ impl<'a> Painter<'a> {
     pub(crate) fn new(
         surface: &'a mut skia_safe::Surface,
         background: Color,
-        fast: bool,
-        size: usize,
         anti_alias: bool,
-        line_width: f32,
         offset: Pos,
     ) -> Self {
         surface.canvas().clear(background.to_col());
         Self {
             surface,
-            line: if fast {
-                Line::Fast(FastLine {
-                    line: Default::default(),
-                    line_width,
-                })
-            } else {
-                Line::Slow(SlowLine {
-                    line: Default::default(),
-                    color: Color::new(0, 0, 0),
-                    last: None,
-                    line_width,
-                })
-            },
-            points: if fast {
-                Point::Fast(FastPoint {
-                    points: Default::default(),
-                    size,
-                })
-            } else {
-                Point::Slow(SlowPoint {
-                    points: Vec::with_capacity(size),
-                    color: Color::new(0, 0, 0),
-                })
-            },
-            fast,
             anti_alias,
-            line_width,
             offset,
         }
     }
@@ -205,35 +142,11 @@ impl<'a> Painter<'a> {
                     y: p.y + 0.5,
                 }
         });
-        if width == self.line_width {
-            self.line.line(
-                p0,
-                p2,
-                if self.fast {
-                    None
-                } else {
-                    Some(self.surface.canvas())
-                },
-            );
-        } else {
-            self.surface.canvas().draw_line(
-                p0[0].to_pos2(),
-                p0[1].to_pos2(),
-                &make_paint(width, p2, true, false),
-            );
-        }
-    }
-    pub fn draw(&mut self) {
-        self.line.draw(self.surface.canvas(), self.anti_alias);
-    }
-    pub fn draw_pts(&mut self) {
-        self.points.draw(self.surface.canvas());
-    }
-    pub fn clear(&mut self) {
-        self.line.clear()
-    }
-    pub fn clear_pts(&mut self) {
-        self.points.clear()
+        self.surface.canvas().draw_line(
+            p0[0].to_pos2(),
+            p0[1].to_pos2(),
+            &make_paint(width, p2, true, false),
+        );
     }
     pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color, p3: f32) {
         self.surface.canvas().draw_circle(
@@ -241,14 +154,6 @@ impl<'a> Painter<'a> {
             r,
             &make_paint(p3, p2, true, false),
         );
-    }
-    pub(crate) fn finish(&mut self, clear: bool) {
-        self.draw();
-        self.draw_pts();
-        if clear {
-            self.clear();
-            self.clear_pts();
-        }
     }
     pub(crate) fn highlight(&mut self, xi: f32, yi: f32, xf: f32, yf: f32, color: &Color) {
         let mut paint = make_paint(1.0, color, false, true);
@@ -298,15 +203,9 @@ impl<'a> Painter<'a> {
                 x: p0.x + 0.5,
                 y: p0.y + 0.5,
             };
-        self.points.point(
-            p0,
-            p2,
-            if self.fast {
-                None
-            } else {
-                Some(self.surface.canvas())
-            },
-        );
+        self.surface
+            .canvas()
+            .draw_point(p0.to_pos2(), &make_paint(5.0, p2, true, true));
     }
     pub(crate) fn image(&mut self, p0: &Image, pos: Vec2) {
         if self.anti_alias {
@@ -449,10 +348,7 @@ impl<'a> Painter<'a> {
 #[cfg(feature = "tiny-skia")]
 pub(crate) struct Painter {
     canvas: tiny_skia::Pixmap,
-    line: Line,
-    fast: bool,
     anti_alias: bool,
-    line_width: f32,
     pub offset: Pos,
 }
 #[cfg(feature = "tiny-skia")]
@@ -462,31 +358,14 @@ impl Painter {
         width: u32,
         height: u32,
         background: Color,
-        fast: bool,
         anti_alias: bool,
-        line_width: f32,
         offset: Pos,
     ) -> Self {
         let mut canvas = tiny_skia::Pixmap::new(width, height).unwrap();
         canvas.fill(background.to_col());
         Self {
             canvas,
-            line: if fast {
-                Line::Fast(FastLine {
-                    line: Default::default(),
-                    line_width,
-                })
-            } else {
-                Line::Slow(SlowLine {
-                    line: Default::default(),
-                    color: Color::new(0, 0, 0),
-                    last: None,
-                    line_width,
-                })
-            },
-            fast,
             anti_alias,
-            line_width,
             offset,
         }
     }
@@ -498,57 +377,24 @@ impl Painter {
                     y: p.y + 0.5,
                 }
         });
-        if width == self.line_width {
-            self.line.line(
-                p0,
-                p2,
-                if self.fast {
-                    None
-                } else {
-                    Some(&mut self.canvas)
-                },
-            );
-        } else {
-            let mut path = tiny_skia::PathBuilder::new();
-            path.move_to(p0[0].x, p0[0].y);
-            path.line_to(p0[1].x, p0[1].y);
-            let path = path.finish().unwrap();
-            let stroke = tiny_skia::Stroke {
-                width,
-                ..Default::default()
-            };
-            self.canvas.stroke_path(
-                &path,
-                &make_paint(p2, true),
-                &stroke,
-                tiny_skia::Transform::default(),
-                None,
-            )
-        }
-    }
-    pub fn draw(&mut self, draw: bool) {
-        let new = if draw {
-            match self.line {
-                Line::Fast(_) => Line::Fast(FastLine {
-                    line: Default::default(),
-                    line_width: self.line_width,
-                }),
-                Line::Slow(_) => Line::Slow(SlowLine {
-                    line: Default::default(),
-                    line_width: self.line_width,
-                    color: Color::new(0, 0, 0),
-                    last: None,
-                }),
-                Line::None => Line::None,
-            }
-        } else {
-            Line::None
+        let mut path = tiny_skia::PathBuilder::with_capacity(2, 2);
+        path.move_to(p0[0].x, p0[0].y);
+        path.line_to(p0[1].x, p0[1].y);
+        let path = path.finish().unwrap();
+        let stroke = tiny_skia::Stroke {
+            width,
+            ..Default::default()
         };
-        let line = std::mem::replace(&mut self.line, new);
-        line.draw(&mut self.canvas, self.anti_alias);
+        self.canvas.stroke_path(
+            &path,
+            &make_paint(p2, true),
+            &stroke,
+            tiny_skia::Transform::default(),
+            None,
+        )
     }
     pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color, width: f32) {
-        let mut path = tiny_skia::PathBuilder::new();
+        let mut path = tiny_skia::PathBuilder::with_capacity(1, 1);
         path.push_circle(self.offset.x + p0.x, self.offset.y + p0.y, r);
         let path = path.finish().unwrap();
         self.canvas.stroke_path(
@@ -631,7 +477,7 @@ impl Painter {
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p3: &Color) {
         if p1.is_finite() {
-            let mut path = tiny_skia::PathBuilder::new();
+            let mut path = tiny_skia::PathBuilder::with_capacity(2, 2);
             path.move_to(self.offset.x, self.offset.y + p1 + 0.5);
             path.line_to(self.offset.x + p0, self.offset.y + p1 + 0.5);
             let path = path.finish().unwrap();
@@ -646,7 +492,7 @@ impl Painter {
     }
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p3: &Color) {
         if p0.is_finite() {
-            let mut path = tiny_skia::PathBuilder::new();
+            let mut path = tiny_skia::PathBuilder::with_capacity(2, 2);
             path.move_to(self.offset.x + p0 + 0.5, self.offset.y);
             path.line_to(self.offset.x + p0 + 0.5, self.offset.y + p1);
             let path = path.finish().unwrap();
@@ -859,372 +705,4 @@ fn make_paint(p2: &Color, alias: bool) -> tiny_skia::Paint<'_> {
     p.set_color(p2.to_col());
     p.anti_alias = alias;
     p
-}
-struct FastLine {
-    #[cfg(feature = "skia")]
-    line: std::collections::HashMap<Color, skia_safe::Path>,
-    #[cfg(feature = "tiny-skia")]
-    line: std::collections::HashMap<Color, tiny_skia::PathBuilder>,
-    #[cfg(feature = "egui")]
-    line: std::collections::HashMap<Color, Vec<egui::Pos2>>,
-    #[cfg(feature = "egui")]
-    size: usize,
-    line_width: f32,
-}
-struct SlowLine {
-    #[cfg(feature = "skia")]
-    line: skia_safe::Path,
-    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
-    last: Option<Pos>,
-    #[cfg(feature = "tiny-skia")]
-    line: tiny_skia::PathBuilder,
-    #[cfg(feature = "egui")]
-    line: Vec<egui::Pos2>,
-    #[cfg(feature = "egui")]
-    size: usize,
-    color: Color,
-    line_width: f32,
-}
-enum Line {
-    Fast(FastLine),
-    Slow(SlowLine),
-    #[cfg(feature = "tiny-skia")]
-    None,
-}
-#[cfg(feature = "skia")]
-impl Line {
-    fn line(&mut self, p0: [Pos; 2], p2: &Color, canvas: Option<&skia_safe::Canvas>) {
-        match self {
-            Line::Fast(FastLine { line, .. }) => {
-                let path = line.entry(*p2).or_insert({
-                    let mut path = skia_safe::Path::new();
-                    path.move_to(p0[0].to_pos2());
-                    path
-                });
-                let last = path.last_pt().unwrap();
-                let last = Pos::new(last.x, last.y);
-                let a = !p0[0].close(last);
-                let b = !p0[1].close(last);
-                if b {
-                    if a {
-                        path.move_to(p0[0].to_pos2());
-                    }
-                    path.line_to(p0[1].to_pos2());
-                } else if a {
-                    path.line_to(p0[0].to_pos2());
-                }
-            }
-            Line::Slow(SlowLine {
-                line,
-                last,
-                color,
-                line_width,
-            }) => {
-                if p2 == color && last.map(|l| p0[0].close(l)).unwrap_or(false) {
-                    if !last.unwrap().close(p0[1]) {
-                        line.line_to(p0[1].to_pos2());
-                    }
-                } else {
-                    if last.is_some() {
-                        canvas
-                            .unwrap()
-                            .draw_path(line, &make_paint(*line_width, color, true, false));
-                    }
-                    *line = skia_safe::Path::new();
-                    line.move_to(p0[0].to_pos2());
-                    line.line_to(p0[1].to_pos2());
-                    *color = *p2;
-                }
-                *last = Some(p0[1])
-            }
-        }
-    }
-    fn draw(&self, canvas: &skia_safe::Canvas, anti_alias: bool) {
-        match self {
-            Line::Fast(FastLine { line, line_width }) => {
-                for (color, path) in line {
-                    canvas.draw_path(path, &make_paint(*line_width, color, anti_alias, false));
-                }
-            }
-            Line::Slow(SlowLine {
-                line,
-                color,
-                line_width,
-                ..
-            }) => {
-                if line.last_pt().is_some() {
-                    canvas.draw_path(line, &make_paint(*line_width, color, anti_alias, false));
-                }
-            }
-        }
-    }
-    fn clear(&mut self) {
-        match self {
-            Line::Fast(FastLine { line, .. }) => line.clear(),
-            Line::Slow(SlowLine { line, .. }) => {
-                let last = line.last_pt();
-                *line = skia_safe::Path::new();
-                if let Some(last) = last {
-                    line.move_to(last);
-                }
-            }
-        }
-    }
-}
-#[cfg(feature = "tiny-skia")]
-impl Line {
-    fn line(&mut self, p0: [Pos; 2], p2: &Color, canvas: Option<&mut tiny_skia::Pixmap>) {
-        match self {
-            Line::Fast(FastLine { line, .. }) => {
-                let path = line.entry(*p2).or_insert({
-                    let mut path = tiny_skia::PathBuilder::new();
-                    path.move_to(p0[0].x, p0[0].y);
-                    path
-                });
-                let last = path.last_point().unwrap();
-                let last = Pos::new(last.x, last.y);
-                let a = !p0[0].close(last);
-                let b = !p0[1].close(last);
-                if b {
-                    if a {
-                        path.move_to(p0[0].x, p0[0].y);
-                    }
-                    path.line_to(p0[1].x, p0[1].y);
-                } else if a {
-                    path.line_to(p0[0].x, p0[0].y);
-                }
-            }
-            Line::Slow(SlowLine {
-                line,
-                last,
-                color,
-                line_width,
-            }) => {
-                if p2 == color && last.map(|l| p0[0].close(l)).unwrap_or(false) {
-                    if !last.unwrap().close(p0[1]) {
-                        line.line_to(p0[1].x, p0[1].y);
-                    }
-                } else {
-                    if last.is_some() {
-                        let path = std::mem::take(line).finish().unwrap();
-                        let stroke = tiny_skia::Stroke {
-                            width: *line_width,
-                            ..Default::default()
-                        };
-                        canvas.unwrap().stroke_path(
-                            &path,
-                            &make_paint(color, true),
-                            &stroke,
-                            tiny_skia::Transform::default(),
-                            None,
-                        );
-                    }
-                    line.move_to(p0[0].x, p0[0].y);
-                    line.line_to(p0[1].x, p0[1].y);
-                    *color = *p2;
-                }
-                *last = Some(p0[1])
-            }
-            Line::None => {}
-        }
-    }
-    fn draw(self, canvas: &mut tiny_skia::Pixmap, anti_alias: bool) {
-        match self {
-            Line::Fast(FastLine { line, line_width }) => {
-                for (color, path) in line {
-                    let path = path.finish().unwrap();
-                    let stroke = tiny_skia::Stroke {
-                        width: line_width,
-                        ..Default::default()
-                    };
-                    canvas.stroke_path(
-                        &path,
-                        &make_paint(&color, anti_alias),
-                        &stroke,
-                        tiny_skia::Transform::default(),
-                        None,
-                    );
-                }
-            }
-            Line::Slow(SlowLine {
-                line,
-                color,
-                line_width,
-                ..
-            }) => {
-                if line.last_point().is_some() {
-                    let stroke = tiny_skia::Stroke {
-                        width: line_width,
-                        ..Default::default()
-                    };
-                    let path = line.finish().unwrap();
-                    canvas.stroke_path(
-                        &path,
-                        &make_paint(&color, anti_alias),
-                        &stroke,
-                        tiny_skia::Transform::default(),
-                        None,
-                    );
-                }
-            }
-            Line::None => {}
-        }
-    }
-}
-#[cfg(feature = "egui")]
-impl Line {
-    fn line(&mut self, p0: [Pos; 2], p2: &Color, painter: &egui::Painter) {
-        match self {
-            Line::Fast(FastLine {
-                line,
-                size,
-                line_width,
-            }) => {
-                let line = line.entry(*p2).or_insert_with(|| {
-                    let mut vec = Vec::with_capacity(*size);
-                    vec.push(p0[0].to_pos2());
-                    vec
-                });
-                let last = line.last().unwrap();
-                let last = Pos::new(last.x, last.y);
-                if last.close(p0[0]) {
-                    if !last.close(p0[1]) {
-                        line.push(p0[1].to_pos2());
-                    }
-                } else {
-                    painter.line(
-                        std::mem::replace(line, Vec::with_capacity(*size)),
-                        egui::Stroke::new(*line_width, p2.to_col()),
-                    );
-                    line.clear();
-                    line.push(p0[0].to_pos2());
-                    line.push(p0[1].to_pos2());
-                }
-            }
-            Line::Slow(SlowLine {
-                line,
-                color,
-                size,
-                line_width,
-            }) => {
-                let last = line.last().map(|l| Pos::new(l.x, l.y));
-                if p2 == color && last.map(|l| l.close(p0[0])).unwrap_or(false) {
-                    if !last.unwrap().close(p0[1]) {
-                        line.push(p0[1].to_pos2());
-                    }
-                } else {
-                    if !line.is_empty() {
-                        painter.line(
-                            std::mem::replace(line, Vec::with_capacity(*size)),
-                            egui::Stroke::new(*line_width, color.to_col()),
-                        );
-                    }
-                    line.push(p0[0].to_pos2());
-                    line.push(p0[1].to_pos2());
-                    *color = *p2
-                }
-            }
-        }
-    }
-    fn draw(&mut self, painter: &egui::Painter) {
-        match self {
-            Line::Fast(FastLine {
-                line, line_width, ..
-            }) => {
-                for (color, line) in line {
-                    painter.line(
-                        std::mem::take(line),
-                        egui::Stroke::new(*line_width, color.to_col()),
-                    );
-                }
-            }
-            Line::Slow(SlowLine {
-                line,
-                color,
-                line_width,
-                ..
-            }) => {
-                painter.line(
-                    std::mem::take(line),
-                    egui::Stroke::new(*line_width, color.to_col()),
-                );
-            }
-        }
-    }
-}
-#[cfg(feature = "skia")]
-struct FastPoint {
-    points: std::collections::HashMap<Color, Vec<skia_safe::Point>>,
-    size: usize,
-}
-#[cfg(feature = "skia")]
-struct SlowPoint {
-    points: Vec<skia_safe::Point>,
-    color: Color,
-}
-#[cfg(feature = "skia")]
-enum Point {
-    Fast(FastPoint),
-    Slow(SlowPoint),
-}
-#[cfg(feature = "skia")]
-impl Point {
-    fn point(&mut self, p0: Pos, p2: &Color, canvas: Option<&skia_safe::Canvas>) {
-        match self {
-            Point::Fast(FastPoint { points, size }) => {
-                points
-                    .entry(*p2)
-                    .or_insert(Vec::with_capacity(*size))
-                    .push(p0.to_pos2());
-            }
-            Point::Slow(SlowPoint { points, color }) => {
-                if p2 != color || points.is_empty() {
-                    if !points.is_empty() {
-                        canvas.unwrap().draw_points(
-                            skia_safe::canvas::PointMode::Points,
-                            points,
-                            &make_paint(5.0, color, true, true),
-                        );
-                        points.clear();
-                    }
-                    *color = *p2
-                }
-                if points
-                    .last()
-                    .map(|p| !p0.close(Pos::new(p.x, p.y)))
-                    .unwrap_or(true)
-                {
-                    points.push(p0.to_pos2())
-                }
-            }
-        }
-    }
-    fn draw(&self, canvas: &skia_safe::Canvas) {
-        match self {
-            Point::Fast(FastPoint { points, .. }) => {
-                for (color, points) in points {
-                    canvas.draw_points(
-                        skia_safe::canvas::PointMode::Points,
-                        points,
-                        &make_paint(5.0, color, true, true),
-                    );
-                }
-            }
-            Point::Slow(SlowPoint { points, color }) => {
-                if !points.is_empty() {
-                    canvas.draw_points(
-                        skia_safe::canvas::PointMode::Points,
-                        points,
-                        &make_paint(5.0, color, true, true),
-                    );
-                }
-            }
-        }
-    }
-    fn clear(&mut self) {
-        match self {
-            Point::Fast(FastPoint { points, .. }) => points.clear(),
-            Point::Slow(SlowPoint { points, .. }) => points.clear(),
-        }
-    }
 }
