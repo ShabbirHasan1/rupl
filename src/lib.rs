@@ -558,41 +558,53 @@ impl Graph {
     }
     #[cfg(feature = "tiny-skia")]
     ///repaints the screen
-    pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T)
+    pub fn update<T>(
+        &mut self,
+        width: u32,
+        height: u32,
+        buffer: &mut T,
+        canvas: tiny_skia::Pixmap,
+    ) -> tiny_skia::Pixmap
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
-        self.get_img(width, height, buffer)
+        self.get_img(width, height, buffer, canvas)
     }
     #[cfg(feature = "tiny-skia")]
-    fn get_img<T>(&mut self, width: u32, height: u32, buffer: &mut T)
+    fn get_img<T>(
+        &mut self,
+        width: u32,
+        height: u32,
+        buffer: &mut T,
+        canvas: tiny_skia::Pixmap,
+    ) -> tiny_skia::Pixmap
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
         self.font_width();
         self.set_screen(width as f64, height as f64, true, true);
         let mut painter = Painter::new(
-            width,
-            height,
             self.background_color,
             self.anti_alias,
             self.draw_offset,
+            canvas,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
         painter.save(buffer);
+        painter.canvas
     }
     #[cfg(feature = "tiny-skia-png")]
     ///get png data
     pub fn get_png(&mut self, width: u32, height: u32) -> ui::Data {
+        let canvas = tiny_skia::Pixmap::new(width, height).unwrap();
         self.font_width();
         self.set_screen(width as f64, height as f64, true, true);
         let mut painter = Painter::new(
-            width,
-            height,
             self.background_color,
             self.anti_alias,
             self.draw_offset,
+            canvas,
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
@@ -1760,7 +1772,15 @@ impl Graph {
         if i.keys_pressed(keybinds.save_png) {
             let (x, y) = (self.screen.x as usize, self.screen.y as usize);
             let mut bytes = vec![0; x * y];
-            self.get_img(x as u32, y as u32, &mut bytes);
+            #[cfg(feature = "skia")]
+            {
+                self.get_img(x as u32, y as u32, &mut bytes);
+            }
+            #[cfg(feature = "tiny-skia")]
+            {
+                let canvas = tiny_skia::Pixmap::new(x as u32, y as u32).unwrap();
+                self.get_img(x as u32, y as u32, &mut bytes, canvas);
+            }
             let mut new = Vec::with_capacity(x * y * 4);
             new.extend(bytes.iter().flat_map(|c| {
                 let [_, b1, b2, b3] = c.to_be_bytes();

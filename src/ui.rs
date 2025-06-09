@@ -184,11 +184,10 @@ impl<'a> Painter<'a> {
         T: std::ops::DerefMut<Target = [u32]>,
     {
         if let Some(pm) = self.surface.canvas().peek_pixels() {
-            let Some(px) = pm.pixels::<u8>() else {
+            let Some(px) = pm.pixels::<u32>() else {
                 eprintln!("{:?}", pm.info());
                 panic!()
             };
-            let px: &[u32] = bytemuck::cast_slice(px);
             buffer.copy_from_slice(px);
         }
     }
@@ -351,7 +350,7 @@ impl<'a> Painter<'a> {
 }
 #[cfg(feature = "tiny-skia")]
 pub(crate) struct Painter {
-    canvas: tiny_skia::Pixmap,
+    pub canvas: tiny_skia::Pixmap,
     anti_alias: bool,
     pub offset: Pos,
 }
@@ -359,13 +358,11 @@ pub(crate) struct Painter {
 impl Painter {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        width: u32,
-        height: u32,
         background: Color,
         anti_alias: bool,
         offset: Pos,
+        mut canvas: tiny_skia::Pixmap,
     ) -> Self {
-        let mut canvas = tiny_skia::Pixmap::new(width, height).unwrap();
         canvas.fill(background.to_col());
         Self {
             canvas,
