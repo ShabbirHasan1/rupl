@@ -2451,7 +2451,7 @@ impl Graph {
         let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: &mut Vec<u8>| {
             *cache = Some(Image(ui.ctx().load_texture(
                 "dc",
-                egui::ColorImage::from_rgb([lenx, leny], data),
+                egui::ColorImage::from_rgb([lenx, leny], &data[0..lenx * leny * 3]),
                 if anti_alias {
                     egui::TextureOptions::LINEAR
                 } else {
@@ -2472,7 +2472,7 @@ impl Graph {
             );
             *cache = skia_safe::images::raster_from_data(
                 &info,
-                skia_safe::Data::new_copy(data),
+                unsafe { skia_safe::Data::new_bytes(&data[0..lenx * leny * 4]) },
                 4 * lenx,
             )
             .map(Image);
@@ -2485,10 +2485,10 @@ impl Graph {
             if let Some(Image(pixmap)) = cache.as_mut() {
                 pixmap
                     .pixels_mut()
-                    .copy_from_slice(bytemuck::cast_slice(data));
+                    .copy_from_slice(bytemuck::cast_slice(&data[0..lenx * leny * 4]));
             } else {
                 *cache = tiny_skia::Pixmap::from_vec(
-                    data.to_vec(),
+                    data[0..lenx * leny * 4].to_vec(),
                     tiny_skia::IntSize::from_wh(lenx as u32, leny as u32).unwrap(),
                 )
                 .map(Image);
@@ -3106,8 +3106,10 @@ impl Graph {
                         let m = 3;
                         #[cfg(any(feature = "skia", feature = "tiny-skia"))]
                         let m = 4;
-                        if image_buffer.len() != lenx * leny * m {
-                            *image_buffer = vec![0; lenx * leny * m];
+                        let n = lenx * leny * m;
+                        let c = image_buffer.len();
+                        if c < n {
+                            image_buffer.resize(n, 0);
                         }
                         for (i, z) in data.iter().enumerate() {
                             let [r, g, b] = self.get_color(z);
