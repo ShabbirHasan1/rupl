@@ -476,7 +476,18 @@ impl Graph {
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
-        self.get_img(width, height, buffer)
+        let mut canvas = std::mem::take(&mut self.canvas);
+        if canvas.is_none() {
+            canvas = Some(get_surface(width as i32, height as i32));
+        }
+        let Some(canvas) = canvas else { unreachable!() };
+        let mut canvas = if (width as i32, height as i32) == (canvas.width(), canvas.height()) {
+            canvas
+        } else {
+            get_surface(width as i32, height as i32)
+        };
+        self.get_img(width, height, buffer, &mut canvas);
+        self.canvas = Some(canvas);
     }
     #[cfg(feature = "skia")]
     #[cfg(feature = "skia-vulkan")]
@@ -503,25 +514,19 @@ impl Graph {
     }
     #[cfg(feature = "skia")]
     #[cfg(any(feature = "arboard", not(feature = "skia-vulkan")))]
-    fn get_img<T>(&mut self, width: u32, height: u32, _buffer: &mut T)
-    where
+    fn get_img<T>(
+        &mut self,
+        width: u32,
+        height: u32,
+        _buffer: &mut T,
+        surface: &mut skia_safe::Surface,
+    ) where
         T: std::ops::DerefMut<Target = [u32]>,
     {
         self.font_width();
         self.set_screen(width as f64, height as f64, true, true);
-        let mut surface = skia_safe::surfaces::raster(
-            &skia_safe::ImageInfo::new(
-                (width as i32, height as i32),
-                skia_safe::ColorType::BGRA8888,
-                skia_safe::AlphaType::Opaque,
-                None,
-            ),
-            None,
-            None,
-        )
-        .unwrap();
         let mut painter = Painter::new(
-            &mut surface,
+            surface,
             self.background_color,
             self.anti_alias,
             self.draw_offset,
@@ -536,17 +541,7 @@ impl Graph {
     pub fn get_png(&mut self, width: u32, height: u32) -> ui::Data {
         self.font_width();
         self.set_screen(width as f64, height as f64, true, true);
-        let mut surface = skia_safe::surfaces::raster(
-            &skia_safe::ImageInfo::new(
-                (width as i32, height as i32),
-                skia_safe::ColorType::BGRA8888,
-                skia_safe::AlphaType::Opaque,
-                None,
-            ),
-            None,
-            None,
-        )
-        .unwrap();
+        let mut surface = get_surface(width as i32, height as i32);
         let mut painter = Painter::new(
             &mut surface,
             self.background_color,
@@ -559,17 +554,21 @@ impl Graph {
     }
     #[cfg(feature = "tiny-skia")]
     ///repaints the screen
-    pub fn update<T>(
-        &mut self,
-        width: u32,
-        height: u32,
-        buffer: &mut T,
-        canvas: tiny_skia::Pixmap,
-    ) -> tiny_skia::Pixmap
+    pub fn update<T>(&mut self, width: u32, height: u32, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
-        self.get_img(width, height, buffer, canvas)
+        let mut canvas = std::mem::take(&mut self.canvas);
+        if canvas.is_none() {
+            canvas = Some(tiny_skia::Pixmap::new(width, height).unwrap());
+        }
+        let Some(canvas) = canvas else { unreachable!() };
+        let canvas = if (width, height) == (canvas.width(), canvas.height()) {
+            canvas
+        } else {
+            tiny_skia::Pixmap::new(width, height).unwrap()
+        };
+        self.canvas = Some(self.get_img(width, height, buffer, canvas))
     }
     #[cfg(feature = "tiny-skia")]
     fn get_img<T>(
@@ -1776,7 +1775,8 @@ impl Graph {
             let mut bytes = vec![0; x * y];
             #[cfg(feature = "skia")]
             {
-                self.get_img(x as u32, y as u32, &mut bytes);
+                let mut surface = get_surface(x as i32, y as i32);
+                self.get_img(x as u32, y as u32, &mut bytes, &mut surface);
             }
             #[cfg(feature = "tiny-skia")]
             {
@@ -3734,4 +3734,18 @@ impl Drop for Graph {
             self.save()
         }
     }
+}
+#[cfg(feature = "skia")]
+pub fn get_surface(width: i32, height: i32) -> skia_safe::Surface {
+    skia_safe::surfaces::raster(
+        &skia_safe::ImageInfo::new(
+            (width, height),
+            skia_safe::ColorType::BGRA8888,
+            skia_safe::AlphaType::Opaque,
+            None,
+        ),
+        None,
+        None,
+    )
+    .unwrap()
 }

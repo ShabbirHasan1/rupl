@@ -489,6 +489,12 @@ pub struct Graph {
     pub(crate) font_cache: std::collections::HashMap<char, tiny_skia::Pixmap>,
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) image_buffer: Vec<u8>,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    #[cfg(feature = "tiny-skia")]
+    pub canvas: Option<tiny_skia::Pixmap>,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    #[cfg(all(feature = "skia", not(feature = "skia-vulkan")))]
+    pub canvas: Option<skia_safe::Surface>,
 }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Copy, PartialEq, Default)]
@@ -671,6 +677,11 @@ impl Default for Graph {
             target_side_ratio: 3.0 / 2.0,
             min_side_width: 256.0,
             select_color: Color::new(191, 191, 255),
+            #[cfg(any(
+                all(feature = "skia", not(feature = "skia-vulkan")),
+                feature = "tiny-skia"
+            ))]
+            canvas: None,
         }
     }
 }
