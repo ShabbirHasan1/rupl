@@ -503,7 +503,7 @@ impl Graph {
     }
     #[cfg(feature = "skia")]
     #[cfg(any(feature = "arboard", not(feature = "skia-vulkan")))]
-    fn get_img<T>(&mut self, width: u32, height: u32, buffer: &mut T)
+    fn get_img<T>(&mut self, width: u32, height: u32, _buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
     {
@@ -529,7 +529,7 @@ impl Graph {
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
         #[cfg(not(target_arch = "wasm32"))]
-        painter.save(buffer);
+        painter.save(_buffer);
     }
     #[cfg(feature = "skia")]
     ///get png data
@@ -576,7 +576,7 @@ impl Graph {
         &mut self,
         width: u32,
         height: u32,
-        buffer: &mut T,
+        _buffer: &mut T,
         canvas: tiny_skia::Pixmap,
     ) -> tiny_skia::Pixmap
     where
@@ -593,7 +593,7 @@ impl Graph {
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
         #[cfg(not(target_arch = "wasm32"))]
-        painter.save(buffer);
+        painter.save(_buffer);
         painter.canvas
     }
     #[cfg(feature = "tiny-skia-png")]

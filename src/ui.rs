@@ -178,6 +178,7 @@ impl<'a> Painter<'a> {
             &paint,
         );
     }
+    #[cfg(not(target_arch = "wasm32"))]
     #[cfg(any(feature = "arboard", not(feature = "skia-vulkan")))]
     pub(crate) fn save<T>(&mut self, buffer: &mut T)
     where
@@ -409,6 +410,7 @@ impl Painter {
             None,
         );
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn save<T>(&mut self, buffer: &mut T)
     where
         T: std::ops::DerefMut<Target = [u32]>,
