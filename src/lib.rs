@@ -3560,7 +3560,7 @@ fn hsv2rgb(hue: f64, sat: f64, val: f64) -> [u8; 3] {
     }
 }
 fn rgb2val(r: f64, g: f64, b: f64) -> [u8; 3] {
-    if cfg!(feature = "tiny-skia") {
+    if cfg!(all(feature = "tiny-skia", not(target_arch = "wasm32"))) {
         [(255.0 * b) as u8, (255.0 * g) as u8, (255.0 * r) as u8]
     } else {
         [(255.0 * r) as u8, (255.0 * g) as u8, (255.0 * b) as u8]
