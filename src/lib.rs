@@ -2448,10 +2448,10 @@ impl Graph {
     #[cfg(feature = "egui")]
     fn plot(&mut self, painter: &mut Painter, ui: &egui::Ui) -> Option<Vec<(f32, Draw, Color)>> {
         let anti_alias = self.anti_alias;
-        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
+        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: &mut Vec<u8>| {
             *cache = Some(Image(ui.ctx().load_texture(
                 "dc",
-                egui::ColorImage::from_rgb([lenx, leny], &data),
+                egui::ColorImage::from_rgb([lenx, leny], data),
                 if anti_alias {
                     egui::TextureOptions::LINEAR
                 } else {
@@ -2463,7 +2463,7 @@ impl Graph {
     }
     #[cfg(feature = "skia")]
     fn plot(&mut self, painter: &mut Painter) -> Option<Vec<(f32, Draw, Color)>> {
-        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
+        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: &mut Vec<u8>| {
             let info = skia_safe::ImageInfo::new(
                 (lenx as i32, leny as i32),
                 skia_safe::ColorType::RGB888x,
@@ -2472,7 +2472,7 @@ impl Graph {
             );
             *cache = skia_safe::images::raster_from_data(
                 &info,
-                skia_safe::Data::new_copy(&data),
+                skia_safe::Data::new_copy(data),
                 4 * lenx,
             )
             .map(Image);
@@ -2481,18 +2481,24 @@ impl Graph {
     }
     #[cfg(feature = "tiny-skia")]
     fn plot(&mut self, painter: &mut Painter) -> Option<Vec<(f32, Draw, Color)>> {
-        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: Vec<u8>| {
-            *cache = tiny_skia::Pixmap::from_vec(
-                data,
-                tiny_skia::IntSize::from_wh(lenx as u32, leny as u32).unwrap(),
-            )
-            .map(Image)
+        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: &mut Vec<u8>| {
+            if let Some(Image(pixmap)) = cache.as_mut() {
+                pixmap
+                    .pixels_mut()
+                    .copy_from_slice(bytemuck::cast_slice(data));
+            } else {
+                *cache = tiny_skia::Pixmap::from_vec(
+                    data.to_vec(),
+                    tiny_skia::IntSize::from_wh(lenx as u32, leny as u32).unwrap(),
+                )
+                .map(Image);
+            }
         };
         self.plot_inner(painter, tex)
     }
     fn plot_inner<G>(&mut self, painter: &mut Painter, tex: G) -> Option<Vec<(f32, Draw, Color)>>
     where
-        G: Fn(&mut Option<Image>, usize, usize, Vec<u8>),
+        G: Fn(&mut Option<Image>, usize, usize, &mut Vec<u8>),
     {
         let mut buffer: Option<Vec<(f32, Draw, Color)>> = (!self.fast_3d()).then(|| {
             fn su(a: &GraphType) -> usize {
@@ -2521,12 +2527,23 @@ impl Graph {
             Vec::with_capacity(n + 12)
         });
         let mut cache = std::mem::take(&mut self.cache);
+        let mut image_buffer = std::mem::take(&mut self.image_buffer);
         for (k, data) in self.data.iter().enumerate() {
-            self.plot_type(painter, &tex, &mut buffer, k, data, &mut cache);
+            self.plot_type(
+                painter,
+                &tex,
+                &mut buffer,
+                k,
+                data,
+                &mut cache,
+                &mut image_buffer,
+            );
         }
         self.cache = cache;
+        self.image_buffer = image_buffer;
         buffer
     }
+    #[allow(clippy::too_many_arguments)]
     fn plot_type<G>(
         &self,
         painter: &mut Painter,
@@ -2535,15 +2552,16 @@ impl Graph {
         k: usize,
         data: &GraphType,
         cache: &mut HashMap<usize, Image>,
+        image_buffer: &mut Vec<u8>,
     ) where
-        G: Fn(&mut Option<Image>, usize, usize, Vec<u8>),
+        G: Fn(&mut Option<Image>, usize, usize, &mut Vec<u8>),
     {
         let (mut a, mut b, mut c) = (None, None, None);
         match data {
             GraphType::None => {}
-            GraphType::List(a) => a
-                .iter()
-                .for_each(|data| self.plot_type(painter, tex, buffer, k, data, cache)),
+            GraphType::List(a) => a.iter().for_each(|data| {
+                self.plot_type(painter, tex, buffer, k, data, cache, image_buffer)
+            }),
             GraphType::Width(data, start, end) => match self.graph_mode {
                 GraphMode::DomainColoring | GraphMode::Slice | GraphMode::SlicePolar => {}
                 GraphMode::Normal => {
@@ -3088,14 +3106,21 @@ impl Graph {
                         let m = 3;
                         #[cfg(any(feature = "skia", feature = "tiny-skia"))]
                         let m = 4;
-                        let mut rgb = Vec::with_capacity(lenx * leny * m);
-                        for z in data {
-                            rgb.extend(self.get_color(z));
+                        if image_buffer.len() != lenx * leny * m {
+                            *image_buffer = vec![0; lenx * leny * m];
+                        }
+                        for (i, z) in data.iter().enumerate() {
+                            let [r, g, b] = self.get_color(z);
+                            image_buffer[m * i] = r;
+                            image_buffer[m * i + 1] = g;
+                            image_buffer[m * i + 2] = b;
                             #[cfg(any(feature = "skia", feature = "tiny-skia"))]
-                            rgb.push(255)
+                            {
+                                image_buffer[m * i + 3] = 255;
+                            }
                         }
                         let mut c = None;
-                        tex(&mut c, lenx, leny, rgb);
+                        tex(&mut c, lenx, leny, image_buffer);
                         if let Some(c) = c {
                             cache.insert(c);
                         }
