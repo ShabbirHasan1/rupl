@@ -528,6 +528,7 @@ impl Graph {
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
+        #[cfg(not(target_arch = "wasm32"))]
         painter.save(buffer);
     }
     #[cfg(feature = "skia")]
@@ -591,6 +592,7 @@ impl Graph {
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
+        #[cfg(not(target_arch = "wasm32"))]
         painter.save(buffer);
         painter.canvas
     }
