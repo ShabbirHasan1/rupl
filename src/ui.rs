@@ -709,3 +709,143 @@ fn make_paint(p2: &Color, alias: bool) -> tiny_skia::Paint<'_> {
     p.anti_alias = alias;
     p
 }
+#[cfg(feature = "wasm")]
+pub(crate) struct Painter {
+    pub canvas: web_sys::CanvasRenderingContext2d,
+    anti_alias: bool,
+    pub offset: Pos,
+}
+#[cfg(feature = "wasm")]
+impl Painter {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        background: Color,
+        anti_alias: bool,
+        offset: Pos,
+        canvas: web_sys::CanvasRenderingContext2d,
+        x: f64,
+        y: f64,
+    ) -> Self {
+        canvas.set_fill_style_str(&background.to_col());
+        canvas.fill_rect(0.0, 0.0, x, y);
+        Self {
+            canvas,
+            anti_alias,
+            offset,
+        }
+    }
+    pub(crate) fn line_segment(&mut self, p0: [Pos; 2], width: f32, p2: &Color) {
+        todo!()
+    }
+    pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color, width: f32) {
+        todo!()
+    }
+    pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color, p3: f32) {
+        todo!()
+    }
+    pub(crate) fn highlight(&mut self, xi: f32, yi: f32, xf: f32, yf: f32, color: &Color) {
+        todo!()
+    }
+    pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
+        todo!()
+    }
+    pub(crate) fn clear_below(&mut self, screen: Vec2, background: &Color) {
+        todo!()
+    }
+    pub(crate) fn image(&mut self, p0: &Image, pos: Vec2) {
+        todo!()
+    }
+    pub(crate) fn hline(&mut self, p0: f32, p1: f32, p3: &Color) {
+        todo!()
+    }
+    pub(crate) fn vline(&mut self, p0: f32, p1: f32, p3: &Color) {
+        todo!()
+    }
+    pub(crate) fn text(
+        &mut self,
+        p0: Pos,
+        p1: crate::types::Align,
+        p2: &str,
+        color: &Color,
+    ) -> f32 {
+        self.canvas.set_stroke_style_str(&color.to_col());
+        let mut pos = self.offset + p0;
+        let strs = p2.split('\n').collect::<Vec<&str>>();
+        let mut body = |s: &str| {
+            let (width, height) = self.get_bounds(s);
+            if !s.is_empty() {
+                let mut pos = pos;
+                match p1 {
+                    crate::types::Align::CenterBottom
+                    | crate::types::Align::CenterCenter
+                    | crate::types::Align::CenterTop => pos.x -= width / 2.0,
+                    crate::types::Align::LeftBottom
+                    | crate::types::Align::LeftCenter
+                    | crate::types::Align::LeftTop => {}
+                    crate::types::Align::RightBottom
+                    | crate::types::Align::RightCenter
+                    | crate::types::Align::RightTop => pos.x -= width,
+                }
+                match p1 {
+                    crate::types::Align::CenterCenter
+                    | crate::types::Align::LeftCenter
+                    | crate::types::Align::RightCenter => pos.y += height / 2.0,
+                    crate::types::Align::CenterBottom
+                    | crate::types::Align::LeftBottom
+                    | crate::types::Align::RightBottom => {}
+                    crate::types::Align::CenterTop
+                    | crate::types::Align::LeftTop
+                    | crate::types::Align::RightTop => pos.y += height,
+                }
+                self.canvas
+                    .stroke_text(s, pos.x as f64, pos.y as f64)
+                    .unwrap();
+            }
+            match p1 {
+                crate::types::Align::CenterTop
+                | crate::types::Align::RightTop
+                | crate::types::Align::LeftTop => {
+                    pos.y += height;
+                }
+                crate::types::Align::CenterBottom
+                | crate::types::Align::RightBottom
+                | crate::types::Align::LeftBottom => {
+                    pos.y -= height;
+                }
+                crate::types::Align::CenterCenter
+                | crate::types::Align::RightCenter
+                | crate::types::Align::LeftCenter => {
+                    pos.y += height / 2.0;
+                }
+            }
+        };
+        match p1 {
+            crate::types::Align::CenterTop
+            | crate::types::Align::RightTop
+            | crate::types::Align::LeftTop => {
+                for s in strs {
+                    body(s)
+                }
+            }
+            crate::types::Align::CenterBottom
+            | crate::types::Align::RightBottom
+            | crate::types::Align::LeftBottom => {
+                for s in strs.iter().rev() {
+                    body(s)
+                }
+            }
+            crate::types::Align::CenterCenter
+            | crate::types::Align::RightCenter
+            | crate::types::Align::LeftCenter => {
+                for s in strs {
+                    body(s)
+                }
+            }
+        }
+        self.get_bounds(p2).0
+    }
+    fn get_bounds(&self, s: &str) -> (f32, f32) {
+        let m = self.canvas.measure_text(s).unwrap();
+        (m.width() as f32, 18.0)
+    }
+}

@@ -221,6 +221,8 @@ impl Clipboard {
 }
 #[cfg(feature = "tiny-skia")]
 pub(crate) struct Image(pub tiny_skia::Pixmap);
+#[cfg(feature = "wasm")]
+pub(crate) struct Image(pub web_sys::ImageData);
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Graph {
     #[cfg(feature = "skia-vulkan")]
@@ -481,7 +483,7 @@ pub struct Graph {
     pub(crate) file_data_raw: Option<Vec<String>>,
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) constant_eval: Vec<(usize, String)>,
-    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+    #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
     #[cfg_attr(feature = "serde", serde(skip))]
     pub request_redraw: bool,
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -621,7 +623,7 @@ impl Default for Graph {
             lines: Lines::Lines,
             domain_alternate: true,
             var: Vec2::new(-2.0, 2.0),
-            #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+            #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
             request_redraw: false,
             last_interact: None,
             last_right_interact: None,
@@ -1264,6 +1266,10 @@ impl Color {
     }
     pub(crate) fn splat(c: u8) -> Self {
         Self { r: c, g: c, b: c }
+    }
+    #[cfg(feature = "wasm")]
+    pub(crate) fn to_col(self) -> String {
+        format!("#{:x}{:x}{:x}", self.r, self.g, self.b)
     }
     #[cfg(feature = "egui")]
     pub(crate) fn to_col(self) -> egui::Color32 {

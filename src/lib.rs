@@ -82,7 +82,7 @@ impl Graph {
             .renderer_for_window(event_loop, window.clone());
         self.renderer = Some(renderer);
     }
-    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+    #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
     ///is cursor dragging a value or not
     pub fn is_drag(&self) -> bool {
         self.side_drag.is_some() || self.side_slider.is_some()
@@ -612,6 +612,22 @@ impl Graph {
         let data = painter.save_png();
         ui::Data { data }
     }
+    #[cfg(feature = "wasm")]
+    ///repaints the screen
+    pub fn update(&mut self, width: u32, height: u32, canvas: web_sys::CanvasRenderingContext2d) {
+        self.font_width(&canvas);
+        self.set_screen(width as f64, height as f64, true, true);
+        let mut painter = Painter::new(
+            self.background_color,
+            self.anti_alias,
+            self.draw_offset,
+            canvas,
+            self.screen.x,
+            self.screen.y,
+        );
+        let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
+        self.update_inner(&mut painter, plot, width as f64, height as f64);
+    }
     fn update_inner<F>(&mut self, painter: &mut Painter, plot: F, width: f64, height: f64)
     where
         F: Fn(&mut Painter, &mut Graph) -> Option<Vec<(f32, Draw, Color)>>,
@@ -830,6 +846,17 @@ impl Graph {
                 }
             }
         }
+    }
+    #[cfg(feature = "wasm")]
+    fn text(
+        &self,
+        pos: Pos,
+        align: Align,
+        text: &str,
+        color: &Color,
+        painter: &mut Painter,
+    ) -> f32 {
+        painter.text(pos, align, text, color)
     }
     #[cfg(feature = "skia")]
     fn text(&self, pos: Pos, align: Align, text: &str, col: &Color, painter: &mut Painter) -> f32 {
@@ -1176,6 +1203,12 @@ impl Graph {
             }
         }
     }
+    #[cfg(feature = "wasm")]
+    fn font_width(&mut self, canvas: &web_sys::CanvasRenderingContext2d) {
+        if self.font_width == 0.0 {
+            self.font_width = canvas.measure_text("a").unwrap().width() as f32;
+        }
+    }
     #[cfg(feature = "tiny-skia")]
     #[cfg(not(feature = "tiny-skia-text"))]
     fn font_width(&mut self) {}
@@ -1508,14 +1541,14 @@ impl Graph {
             ui.ctx().copy_text(s)
         }
     }
-    #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+    #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
     ///process the current keys and mouse/touch inputs, see Keybinds for more info,
     ///expected to run before update_res()
     pub fn keybinds(&mut self, i: &InputState) {
         self.keybinds_inner(i)
     }
     fn keybinds_inner(&mut self, i: &InputState) {
-        #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+        #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
         {
             self.request_redraw = false;
         }
@@ -1631,7 +1664,7 @@ impl Graph {
                         );
                         self.side_drag = Some((min.0, k));
                         self.name_modified(Some(min.0));
-                        #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+                        #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
                         if self.menu == Menu::Side {
                             self.request_redraw = true;
                         }
@@ -2496,6 +2529,11 @@ impl Graph {
         };
         self.plot_inner(painter, tex)
     }
+    #[cfg(feature = "wasm")]
+    fn plot(&mut self, painter: &mut Painter) -> Option<Vec<(f32, Draw, Color)>> {
+        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: &mut Vec<u8>| todo!();
+        self.plot_inner(painter, tex)
+    }
     fn plot_inner<G>(&mut self, painter: &mut Painter, tex: G) -> Option<Vec<(f32, Draw, Color)>>
     where
         G: Fn(&mut Option<Image>, usize, usize, &mut Vec<u8>),
@@ -3104,7 +3142,7 @@ impl Graph {
                     if let Entry::Vacant(cache) = cache.entry(k) {
                         #[cfg(feature = "egui")]
                         let m = 3;
-                        #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+                        #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
                         let m = 4;
                         let n = lenx * leny * m;
                         let c = image_buffer.len();

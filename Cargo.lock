@@ -1606,6 +1606,7 @@ dependencies = [
  "softbuffer",
  "tiny-skia",
  "vulkano",
+ "web-sys",
  "winit",
  "zstd",
 ]
