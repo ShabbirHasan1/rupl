@@ -627,6 +627,7 @@ impl Graph {
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
+        painter.canvas.stroke();
     }
     fn update_inner<F>(&mut self, painter: &mut Painter, plot: F, width: f64, height: f64)
     where
@@ -2531,7 +2532,15 @@ impl Graph {
     }
     #[cfg(feature = "wasm")]
     fn plot(&mut self, painter: &mut Painter) -> Option<Vec<(f32, Draw, Color)>> {
-        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: &mut Vec<u8>| todo!();
+        let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: &mut Vec<u8>| {
+            *cache = Some(Image(
+                web_sys::ImageData::new_with_u8_clamped_array(
+                    web_sys::wasm_bindgen::Clamped(&data[0..lenx * leny * 4]),
+                    lenx as u32,
+                )
+                .unwrap(),
+            ))
+        };
         self.plot_inner(painter, tex)
     }
     fn plot_inner<G>(&mut self, painter: &mut Painter, tex: G) -> Option<Vec<(f32, Draw, Color)>>
@@ -3154,7 +3163,7 @@ impl Graph {
                             image_buffer[m * i] = r;
                             image_buffer[m * i + 1] = g;
                             image_buffer[m * i + 2] = b;
-                            #[cfg(any(feature = "skia", feature = "tiny-skia"))]
+                            #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
                             {
                                 image_buffer[m * i + 3] = 255;
                             }

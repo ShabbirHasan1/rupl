@@ -714,6 +714,8 @@ pub(crate) struct Painter {
     pub canvas: web_sys::CanvasRenderingContext2d,
     anti_alias: bool,
     pub offset: Pos,
+    width: f64,
+    height: f64,
 }
 #[cfg(feature = "wasm")]
 impl Painter {
@@ -723,25 +725,49 @@ impl Painter {
         anti_alias: bool,
         offset: Pos,
         canvas: web_sys::CanvasRenderingContext2d,
-        x: f64,
-        y: f64,
+        width: f64,
+        height: f64,
     ) -> Self {
+        canvas.reset();
         canvas.set_fill_style_str(&background.to_col());
-        canvas.fill_rect(0.0, 0.0, x, y);
+        canvas.fill_rect(0.0, 0.0, width, height);
         Self {
             canvas,
             anti_alias,
             offset,
+            width,
+            height,
         }
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], width: f32, p2: &Color) {
-        todo!()
+        self.canvas.set_stroke_style_str(&p2.to_col());
+        self.canvas.set_line_width(width as f64);
+        self.canvas.move_to(p0[0].x as f64, p0[0].y as f64);
+        self.canvas.line_to(p0[1].x as f64, p0[1].y as f64);
     }
     pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color, width: f32) {
-        todo!()
+        self.canvas.set_stroke_style_str(&p2.to_col());
+        self.canvas.set_line_width(width as f64);
+        self.canvas
+            .ellipse(
+                p0.x as f64,
+                p0.y as f64,
+                r as f64,
+                r as f64,
+                0.0,
+                0.0,
+                std::f64::consts::TAU,
+            )
+            .unwrap();
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color, p3: f32) {
-        todo!()
+        self.canvas.set_fill_style_str(&p2.to_col());
+        self.canvas.fill_rect(
+            (self.offset.x + p0.x - p3 / 2.0) as f64,
+            (self.offset.y + p0.y - p3 / 2.0) as f64,
+            p3 as f64,
+            p3 as f64,
+        );
     }
     pub(crate) fn highlight(&mut self, xi: f32, yi: f32, xf: f32, yf: f32, color: &Color) {
         todo!()
@@ -752,14 +778,24 @@ impl Painter {
     pub(crate) fn clear_below(&mut self, screen: Vec2, background: &Color) {
         todo!()
     }
-    pub(crate) fn image(&mut self, p0: &Image, pos: Vec2) {
-        todo!()
+    pub(crate) fn image(&mut self, p0: &Image, _pos: Vec2) {
+        self.canvas.put_image_data(&p0.0, 0.0, 0.0).unwrap()
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p3: &Color) {
-        todo!()
+        self.canvas.set_stroke_style_str(&p3.to_col());
+        self.canvas.set_line_width(1.0);
+        self.canvas
+            .move_to(self.offset.x as f64, (self.offset.y + p1) as f64);
+        self.canvas
+            .line_to((self.offset.x + p0) as f64, (self.offset.y + p1) as f64);
     }
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p3: &Color) {
-        todo!()
+        self.canvas.set_stroke_style_str(&p3.to_col());
+        self.canvas.set_line_width(1.0);
+        self.canvas
+            .move_to((self.offset.x + p0) as f64, self.offset.y as f64);
+        self.canvas
+            .line_to((self.offset.x + p0) as f64, (self.offset.y + p1) as f64);
     }
     pub(crate) fn text(
         &mut self,
@@ -768,7 +804,7 @@ impl Painter {
         p2: &str,
         color: &Color,
     ) -> f32 {
-        self.canvas.set_stroke_style_str(&color.to_col());
+        self.canvas.set_fill_style_str(&color.to_col());
         let mut pos = self.offset + p0;
         let strs = p2.split('\n').collect::<Vec<&str>>();
         let mut body = |s: &str| {
@@ -798,7 +834,7 @@ impl Painter {
                     | crate::types::Align::RightTop => pos.y += height,
                 }
                 self.canvas
-                    .stroke_text(s, pos.x as f64, pos.y as f64)
+                    .fill_text(s, pos.x as f64, pos.y as f64)
                     .unwrap();
             }
             match p1 {
