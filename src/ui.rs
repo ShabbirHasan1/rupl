@@ -397,7 +397,7 @@ impl Painter {
     }
     pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color, width: f32) {
         let mut path = tiny_skia::PathBuilder::with_capacity(1, 1);
-        path.push_circle(self.offset.x + p0.x, self.offset.y + p0.y, r);
+        path.push_circle(self.offset.x + p0.x + 0.5, self.offset.y + p0.y + 0.5, r);
         let path = path.finish().unwrap();
         self.canvas.stroke_path(
             &path,
@@ -714,8 +714,6 @@ pub(crate) struct Painter {
     pub canvas: web_sys::CanvasRenderingContext2d,
     anti_alias: bool,
     pub offset: Pos,
-    width: f64,
-    height: f64,
 }
 #[cfg(feature = "wasm")]
 impl Painter {
@@ -728,30 +726,41 @@ impl Painter {
         width: f64,
         height: f64,
     ) -> Self {
-        canvas.reset();
         canvas.set_fill_style_str(&background.to_col());
-        canvas.fill_rect(0.0, 0.0, width, height);
+        canvas.fill_rect(
+            0.0,
+            0.0,
+            offset.x as f64 + width + 1.0,
+            offset.y as f64 + height + 1.0,
+        );
         Self {
             canvas,
             anti_alias,
             offset,
-            width,
-            height,
         }
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], width: f32, p2: &Color) {
+        self.canvas.begin_path();
         self.canvas.set_stroke_style_str(&p2.to_col());
         self.canvas.set_line_width(width as f64);
-        self.canvas.move_to(p0[0].x as f64, p0[0].y as f64);
-        self.canvas.line_to(p0[1].x as f64, p0[1].y as f64);
+        self.canvas.move_to(
+            (self.offset.x + p0[0].x + 0.5) as f64,
+            (self.offset.y + p0[0].y + 0.5) as f64,
+        );
+        self.canvas.line_to(
+            (self.offset.x + p0[1].x + 0.5) as f64,
+            (self.offset.y + p0[1].y + 0.5) as f64,
+        );
+        self.canvas.stroke();
     }
     pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color, width: f32) {
+        self.canvas.begin_path();
         self.canvas.set_stroke_style_str(&p2.to_col());
         self.canvas.set_line_width(width as f64);
         self.canvas
             .ellipse(
-                p0.x as f64,
-                p0.y as f64,
+                (self.offset.x + p0.x + 0.5) as f64,
+                (self.offset.y + p0.y + 0.5) as f64,
                 r as f64,
                 r as f64,
                 0.0,
@@ -759,43 +768,87 @@ impl Painter {
                 std::f64::consts::TAU,
             )
             .unwrap();
+        self.canvas.stroke();
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color, p3: f32) {
         self.canvas.set_fill_style_str(&p2.to_col());
         self.canvas.fill_rect(
-            (self.offset.x + p0.x - p3 / 2.0) as f64,
-            (self.offset.y + p0.y - p3 / 2.0) as f64,
+            (self.offset.x + p0.x - p3 / 2.0 + 0.5) as f64,
+            (self.offset.y + p0.y - p3 / 2.0 + 0.5) as f64,
             p3 as f64,
             p3 as f64,
         );
     }
     pub(crate) fn highlight(&mut self, xi: f32, yi: f32, xf: f32, yf: f32, color: &Color) {
-        todo!()
+        self.canvas.set_fill_style_str(&color.to_col());
+        self.canvas
+            .fill_rect(xi as f64, yi as f64, xf as f64, yf as f64);
     }
     pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
-        todo!()
+        self.canvas.set_fill_style_str(&background.to_col());
+        self.canvas
+            .fill_rect(0.0, 0.0, self.offset.x as f64, screen.y);
     }
     pub(crate) fn clear_below(&mut self, screen: Vec2, background: &Color) {
-        todo!()
+        self.canvas.set_fill_style_str(&background.to_col());
+        self.canvas.fill_rect(0.0, screen.x, screen.x, screen.y);
     }
-    pub(crate) fn image(&mut self, p0: &Image, _pos: Vec2) {
-        self.canvas.put_image_data(&p0.0, 0.0, 0.0).unwrap()
+    pub(crate) fn image(&mut self, p0: &Image, pos: Vec2) {
+        use web_sys::wasm_bindgen::JsCast;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let offscreen: web_sys::HtmlCanvasElement = document
+            .create_element("canvas")
+            .unwrap()
+            .dyn_into()
+            .unwrap();
+        let image_data = &p0.0;
+        offscreen.set_width(image_data.width());
+        offscreen.set_height(image_data.height());
+        let off_ctx: web_sys::CanvasRenderingContext2d = offscreen
+            .get_context("2d")
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap();
+        off_ctx.put_image_data(image_data, 0.0, 0.0).unwrap();
+        self.canvas.set_image_smoothing_enabled(self.anti_alias);
+        self.canvas
+            .draw_image_with_html_canvas_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
+                &offscreen,
+                0.0,
+                0.0,
+                image_data.width() as f64,
+                image_data.height() as f64,
+                self.offset.x as f64,
+                self.offset.y as f64,
+                pos.x,
+                pos.y,
+            )
+            .unwrap();
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p3: &Color) {
+        self.canvas.begin_path();
         self.canvas.set_stroke_style_str(&p3.to_col());
         self.canvas.set_line_width(1.0);
         self.canvas
-            .move_to(self.offset.x as f64, (self.offset.y + p1) as f64);
-        self.canvas
-            .line_to((self.offset.x + p0) as f64, (self.offset.y + p1) as f64);
+            .move_to(self.offset.x as f64, (self.offset.y + p1 + 0.5) as f64);
+        self.canvas.line_to(
+            (self.offset.x + p0) as f64,
+            (self.offset.y + p1 + 0.5) as f64,
+        );
+        self.canvas.stroke();
     }
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p3: &Color) {
+        self.canvas.begin_path();
         self.canvas.set_stroke_style_str(&p3.to_col());
         self.canvas.set_line_width(1.0);
         self.canvas
-            .move_to((self.offset.x + p0) as f64, self.offset.y as f64);
-        self.canvas
-            .line_to((self.offset.x + p0) as f64, (self.offset.y + p1) as f64);
+            .move_to((self.offset.x + p0 + 0.5) as f64, self.offset.y as f64);
+        self.canvas.line_to(
+            (self.offset.x + p0 + 0.5) as f64,
+            (self.offset.y + p1) as f64,
+        );
+        self.canvas.stroke();
     }
     pub(crate) fn text(
         &mut self,

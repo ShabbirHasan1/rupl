@@ -1269,7 +1269,7 @@ impl Color {
     }
     #[cfg(feature = "wasm")]
     pub(crate) fn to_col(self) -> String {
-        format!("#{:x}{:x}{:x}", self.r, self.g, self.b)
+        format!("#{:02x}{:02x}{:02x}", self.r, self.g, self.b)
     }
     #[cfg(feature = "egui")]
     pub(crate) fn to_col(self) -> egui::Color32 {

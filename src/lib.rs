@@ -627,7 +627,6 @@ impl Graph {
         );
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
-        painter.canvas.stroke();
     }
     fn update_inner<F>(&mut self, painter: &mut Painter, plot: F, width: f64, height: f64)
     where
