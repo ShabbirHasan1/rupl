@@ -176,15 +176,12 @@ impl Graph {
         let new = (height * self.target_side_ratio)
             .min(width - self.min_side_width.max(fw))
             .max(self.min_screen_width);
-        let a = if self.is_3d { 0.0 } else { 1.0 };
         let screen = if !matches!(self.menu, Menu::Normal) && offset {
             if height < width {
-                Vec2::new(new - a, height - a)
+                Vec2::new(new, height)
             } else {
-                Vec2::new(width - a, width - a)
+                Vec2::new(width, width)
             }
-        } else if offset {
-            Vec2::new(width - a, height - a)
         } else {
             Vec2::new(width, height)
         };
@@ -348,8 +345,8 @@ impl Graph {
                                 cf.0,
                                 cf.1,
                                 Prec::Dimension(
-                                    ((self.screen.x + 1.0) * prec * self.mult) as usize,
-                                    ((self.screen.y + 1.0) * prec * self.mult) as usize,
+                                    (self.screen.x * prec * self.mult) as usize,
+                                    (self.screen.y * prec * self.mult) as usize,
                                 ),
                             )
                         }
@@ -710,14 +707,15 @@ impl Graph {
             .enumerate()
         {
             let y = (pos.y + 3.0 * self.font_size / 4.0).round();
+            let o = 3.5;
             match self.graph_mode {
                 GraphMode::DomainColoring => {}
                 GraphMode::Flatten | GraphMode::Depth => {
                     self.text_color(pos, Align::RightTop, name, painter);
                     painter.line_segment(
                         [
-                            Pos::new(pos.x + 4.0, y),
-                            Pos::new(self.screen.x as f32 - 4.0, y),
+                            Pos::new(pos.x + o, y),
+                            Pos::new(self.screen.x as f32 - o, y),
                         ],
                         self.line_width,
                         &self.main_colors[i % self.main_colors.len()],
@@ -729,8 +727,8 @@ impl Graph {
                             self.text_color(pos, Align::RightTop, name, painter);
                             painter.line_segment(
                                 [
-                                    Pos::new(pos.x + 4.0, y),
-                                    Pos::new(self.screen.x as f32 - 4.0, y),
+                                    Pos::new(pos.x + o, y),
+                                    Pos::new(self.screen.x as f32 - o, y),
                                 ],
                                 self.line_width,
                                 &self.main_colors[i % self.main_colors.len()],
@@ -740,8 +738,8 @@ impl Graph {
                             self.text_color(pos, Align::RightTop, &format!("im:{name}"), painter);
                             painter.line_segment(
                                 [
-                                    Pos::new(pos.x + 4.0, y),
-                                    Pos::new(self.screen.x as f32 - 4.0, y),
+                                    Pos::new(pos.x + o, y),
+                                    Pos::new(self.screen.x as f32 - o, y),
                                 ],
                                 self.line_width,
                                 &self.alt_colors[i % self.alt_colors.len()],
@@ -751,8 +749,8 @@ impl Graph {
                             self.text_color(pos, Align::RightTop, &format!("re:{name}"), painter);
                             painter.line_segment(
                                 [
-                                    Pos::new(pos.x + 4.0, y),
-                                    Pos::new(self.screen.x as f32 - 4.0, y),
+                                    Pos::new(pos.x + o, y),
+                                    Pos::new(self.screen.x as f32 - o, y),
                                 ],
                                 self.line_width,
                                 &self.main_colors[i % self.main_colors.len()],
@@ -762,8 +760,8 @@ impl Graph {
                             self.text_color(pos, Align::RightTop, &format!("im:{name}"), painter);
                             painter.line_segment(
                                 [
-                                    Pos::new(pos.x + 4.0, y),
-                                    Pos::new(self.screen.x as f32 - 4.0, y),
+                                    Pos::new(pos.x + o, y),
+                                    Pos::new(self.screen.x as f32 - o, y),
                                 ],
                                 self.line_width,
                                 &self.alt_colors[i % self.alt_colors.len()],
@@ -1087,20 +1085,20 @@ impl Graph {
         if !self.disable_lines {
             for j in nx..=mx {
                 let x = self.to_screen(j as f64 / (2.0 * minorx), 0.0).x;
-                painter.vline(x, self.screen.y as f32 + 1.0, &self.axis_color);
+                painter.vline(x, self.screen.y as f32, &self.axis_color);
             }
             for j in my..=ny {
                 let y = self.to_screen(0.0, j as f64 / (2.0 * minory)).y;
-                painter.hline(self.screen.x as f32 + 1.0, y, &self.axis_color);
+                painter.hline(self.screen.x as f32, y, &self.axis_color);
             }
         } else if !self.disable_axis {
             if (nx..=mx).contains(&0) {
                 let x = self.to_screen(0.0, 0.0).x;
-                painter.vline(x, self.screen.y as f32 + 1.0, &self.axis_color);
+                painter.vline(x, self.screen.y as f32, &self.axis_color);
             }
             if (my..=ny).contains(&0) {
                 let y = self.to_screen(0.0, 0.0).y;
-                painter.hline(self.screen.x as f32 + 1.0, y, &self.axis_color);
+                painter.hline(self.screen.x as f32, y, &self.axis_color);
             }
         }
     }
@@ -3142,11 +3140,8 @@ impl Graph {
                     }
                 }
                 GraphMode::DomainColoring => {
-                    let mut s = self.screen;
-                    s.x += 1.0;
-                    s.y += 1.0;
-                    let lenx = (s.x * self.prec() * self.mult) as usize;
-                    let leny = (s.y * self.prec() * self.mult) as usize;
+                    let lenx = (self.screen.x * self.prec() * self.mult) as usize;
+                    let leny = (self.screen.y * self.prec() * self.mult) as usize;
                     if let Entry::Vacant(cache) = cache.entry(k) {
                         #[cfg(feature = "egui")]
                         let m = 3;
@@ -3174,7 +3169,7 @@ impl Graph {
                         }
                     }
                     if let Some(texture) = cache.get(&k) {
-                        painter.image(texture, s);
+                        painter.image(texture, self.screen);
                     }
                 }
             },
