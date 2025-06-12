@@ -32,7 +32,7 @@ skia-vulkan = ["skia-safe/vulkan", "skia", "skia-safe/vulkan-window", "dep:ash",
 vulkano-x11 = ["vulkano/x11"]
 x11 = ["winit/x11", "softbuffer/x11"]
 wayland = ["winit/wayland", "softbuffer/wayland"]
-wasm = ["dep:web-sys"]
+wasm = ["dep:wasm-bindgen", "dep:js-sys"]
 
 [dependencies]
 bytemuck = { version = "1.23.0", optional = true }
@@ -49,7 +49,8 @@ base64 = { version = "0.22.1", optional = true }
 zstd = { version = "0.13.3", optional = true }
 ash = { version = "0.38.0", optional = true }
 vulkano = { version = "0.35.1", default-features = false, optional = true }
-web-sys = { version = "0.3.77", features = ["CanvasRenderingContext2d", "ImageData", "TextMetrics", "Path2d", "HtmlCanvasElement", "Window", "Document"], optional = true }
+wasm-bindgen = { version = "0.2.100", optional = true }
+js-sys = { version = "0.3.77", optional = true }
 
 [dev-dependencies]
 softbuffer = { version = "0.4.6", default-features = false, features = ["x11", "wayland"] }

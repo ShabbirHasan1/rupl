@@ -711,144 +711,108 @@ fn make_paint(p2: &Color, alias: bool) -> tiny_skia::Paint<'_> {
 }
 #[cfg(feature = "wasm")]
 pub(crate) struct Painter {
-    pub canvas: web_sys::CanvasRenderingContext2d,
     anti_alias: bool,
     pub offset: Pos,
 }
 #[cfg(feature = "wasm")]
+#[wasm_bindgen::prelude::wasm_bindgen(module = "/painter.js")]
+extern "C" {
+    fn line_segment(a: f64, b: f64, x: f64, y: f64, w: f64, c: &str);
+    fn circle(x: f64, y: f64, r1: f64, r2: f64, w: f64, c: &str);
+    fn fill(c: &str);
+    fn fill_rect(a: f64, b: f64, x: f64, y: f64, c: &str);
+    fn text_bounds(s: &str) -> js_sys::Array;
+    fn fill_text(s: &str, x: f64, y: f64, c: &str);
+    fn image(
+        raw_pixels: &[u8],
+        width: u32,
+        height: u32,
+        dx: f64,
+        dy: f64,
+        dw: f64,
+        dh: f64,
+        smoothing: bool,
+    );
+}
+#[cfg(feature = "wasm")]
 impl Painter {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(
-        background: Color,
-        anti_alias: bool,
-        offset: Pos,
-        canvas: web_sys::CanvasRenderingContext2d,
-        width: f64,
-        height: f64,
-    ) -> Self {
-        canvas.set_fill_style_str(&background.to_col());
-        canvas.fill_rect(
-            0.0,
-            0.0,
-            offset.x as f64 + width + 1.0,
-            offset.y as f64 + height + 1.0,
-        );
-        Self {
-            canvas,
-            anti_alias,
-            offset,
-        }
+    pub(crate) fn new(background: Color, anti_alias: bool, offset: Pos) -> Self {
+        fill(&background.to_col());
+        Self { anti_alias, offset }
     }
     pub(crate) fn line_segment(&mut self, p0: [Pos; 2], width: f32, p2: &Color) {
-        self.canvas.begin_path();
-        self.canvas.set_stroke_style_str(&p2.to_col());
-        self.canvas.set_line_width(width as f64);
-        self.canvas.move_to(
+        let (a, b) = (
             (self.offset.x + p0[0].x + 0.5) as f64,
             (self.offset.y + p0[0].y + 0.5) as f64,
         );
-        self.canvas.line_to(
+        let (x, y) = (
             (self.offset.x + p0[1].x + 0.5) as f64,
             (self.offset.y + p0[1].y + 0.5) as f64,
         );
-        self.canvas.stroke();
+        line_segment(a, b, x, y, width as f64, &p2.to_col());
     }
     pub fn circle(&mut self, p0: Pos, r: f32, p2: &Color, width: f32) {
-        self.canvas.begin_path();
-        self.canvas.set_stroke_style_str(&p2.to_col());
-        self.canvas.set_line_width(width as f64);
-        self.canvas
-            .ellipse(
-                (self.offset.x + p0.x + 0.5) as f64,
-                (self.offset.y + p0.y + 0.5) as f64,
-                r as f64,
-                r as f64,
-                0.0,
-                0.0,
-                std::f64::consts::TAU,
-            )
-            .unwrap();
-        self.canvas.stroke();
+        circle(
+            (self.offset.x + p0.x + 0.5) as f64,
+            (self.offset.y + p0.y + 0.5) as f64,
+            r as f64,
+            r as f64,
+            width as f64,
+            &p2.to_col(),
+        );
     }
     pub(crate) fn rect_filled(&mut self, p0: Pos, p2: &Color, p3: f32) {
-        self.canvas.set_fill_style_str(&p2.to_col());
-        self.canvas.fill_rect(
+        fill_rect(
             (self.offset.x + p0.x - p3 / 2.0 + 0.5) as f64,
             (self.offset.y + p0.y - p3 / 2.0 + 0.5) as f64,
             p3 as f64,
             p3 as f64,
+            &p2.to_col(),
         );
     }
     pub(crate) fn highlight(&mut self, xi: f32, yi: f32, xf: f32, yf: f32, color: &Color) {
-        self.canvas.set_fill_style_str(&color.to_col());
-        self.canvas
-            .fill_rect(xi as f64, yi as f64, xf as f64, yf as f64);
+        fill_rect(xi as f64, yi as f64, xf as f64, yf as f64, &color.to_col());
     }
     pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
-        self.canvas.set_fill_style_str(&background.to_col());
-        self.canvas
-            .fill_rect(0.0, 0.0, self.offset.x as f64, screen.y);
+        fill_rect(
+            0.0,
+            0.0,
+            self.offset.x as f64,
+            screen.y,
+            &background.to_col(),
+        );
     }
     pub(crate) fn clear_below(&mut self, screen: Vec2, background: &Color) {
-        self.canvas.set_fill_style_str(&background.to_col());
-        self.canvas.fill_rect(0.0, screen.x, screen.x, screen.y);
+        fill_rect(0.0, screen.x, screen.x, screen.y, &background.to_col());
     }
     pub(crate) fn image(&mut self, p0: &Image, pos: Vec2) {
-        use web_sys::wasm_bindgen::JsCast;
-        let document = web_sys::window().unwrap().document().unwrap();
-        let offscreen: web_sys::HtmlCanvasElement = document
-            .create_element("canvas")
-            .unwrap()
-            .dyn_into()
-            .unwrap();
-        let image_data = &p0.0;
-        offscreen.set_width(image_data.width());
-        offscreen.set_height(image_data.height());
-        let off_ctx: web_sys::CanvasRenderingContext2d = offscreen
-            .get_context("2d")
-            .unwrap()
-            .unwrap()
-            .dyn_into()
-            .unwrap();
-        off_ctx.put_image_data(image_data, 0.0, 0.0).unwrap();
-        self.canvas.set_image_smoothing_enabled(self.anti_alias);
-        self.canvas
-            .draw_image_with_html_canvas_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
-                &offscreen,
-                0.0,
-                0.0,
-                image_data.width() as f64,
-                image_data.height() as f64,
-                self.offset.x as f64,
-                self.offset.y as f64,
-                pos.x,
-                pos.y,
-            )
-            .unwrap();
+        image(
+            p0.0,
+            p0.1 as u32,
+            p0.2 as u32,
+            self.offset.x as f64,
+            self.offset.y as f64,
+            pos.x,
+            pos.y,
+            self.anti_alias,
+        )
     }
     pub(crate) fn hline(&mut self, p0: f32, p1: f32, p3: &Color) {
-        self.canvas.begin_path();
-        self.canvas.set_stroke_style_str(&p3.to_col());
-        self.canvas.set_line_width(1.0);
-        self.canvas
-            .move_to(self.offset.x as f64, (self.offset.y + p1 + 0.5) as f64);
-        self.canvas.line_to(
+        let (a, b) = (self.offset.x as f64, (self.offset.y + p1 + 0.5) as f64);
+        let (x, y) = (
             (self.offset.x + p0) as f64,
             (self.offset.y + p1 + 0.5) as f64,
         );
-        self.canvas.stroke();
+        line_segment(a, b, x, y, 1.0, &p3.to_col());
     }
     pub(crate) fn vline(&mut self, p0: f32, p1: f32, p3: &Color) {
-        self.canvas.begin_path();
-        self.canvas.set_stroke_style_str(&p3.to_col());
-        self.canvas.set_line_width(1.0);
-        self.canvas
-            .move_to((self.offset.x + p0 + 0.5) as f64, self.offset.y as f64);
-        self.canvas.line_to(
+        let (a, b) = ((self.offset.x + p0 + 0.5) as f64, self.offset.y as f64);
+        let (x, y) = (
             (self.offset.x + p0 + 0.5) as f64,
             (self.offset.y + p1) as f64,
         );
-        self.canvas.stroke();
+        line_segment(a, b, x, y, 1.0, &p3.to_col());
     }
     pub(crate) fn text(
         &mut self,
@@ -857,11 +821,10 @@ impl Painter {
         p2: &str,
         color: &Color,
     ) -> f32 {
-        self.canvas.set_fill_style_str(&color.to_col());
         let mut pos = self.offset + p0;
         let strs = p2.split('\n').collect::<Vec<&str>>();
         let mut body = |s: &str| {
-            let (width, height) = self.get_bounds(s);
+            let (width, height) = get_bounds(s);
             if !s.is_empty() {
                 let mut pos = pos;
                 match p1 {
@@ -886,9 +849,7 @@ impl Painter {
                     | crate::types::Align::LeftTop
                     | crate::types::Align::RightTop => pos.y += height,
                 }
-                self.canvas
-                    .fill_text(s, pos.x as f64, pos.y as f64)
-                    .unwrap();
+                fill_text(s, pos.x as f64, pos.y as f64, &color.to_col());
             }
             match p1 {
                 crate::types::Align::CenterTop
@@ -931,10 +892,13 @@ impl Painter {
                 }
             }
         }
-        self.get_bounds(p2).0
+        get_bounds(p2).0
     }
-    fn get_bounds(&self, s: &str) -> (f32, f32) {
-        let m = self.canvas.measure_text(s).unwrap();
-        (m.width() as f32, 18.0)
-    }
+}
+#[cfg(feature = "wasm")]
+pub fn get_bounds(s: &str) -> (f32, f32) {
+    let m = text_bounds(s);
+    let x = m.get(0).as_f64().unwrap() as f32;
+    let y = m.get(1).as_f64().unwrap() as f32;
+    (x, y)
 }

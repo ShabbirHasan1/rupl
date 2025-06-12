@@ -9,8 +9,6 @@ use crate::ui::Painter;
 use base64::Engine;
 #[cfg(feature = "rayon")]
 use rayon::slice::ParallelSliceMut;
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 use std::f64::consts::{PI, TAU};
 #[cfg(feature = "serde")]
 use std::io::BufRead;
@@ -18,8 +16,6 @@ fn is_3d(data: &[GraphType]) -> bool {
     data.iter()
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
 }
-//TODO dots not proper size in tiny skia(maybe egui)
-//TODO try and optimize liens in tiny skia
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///
@@ -158,7 +154,7 @@ impl Graph {
     ///sets data and resets domain coloring cache
     pub fn set_data(&mut self, data: Vec<GraphType>) {
         self.data = data;
-        self.cache.clear();
+        self.cache = None;
     }
     pub(crate) fn reset_offset(&self, width: f64, height: f64) -> Vec2 {
         let (_, _, screen) = self.get_new_screen(width, height, true);
@@ -226,7 +222,7 @@ impl Graph {
     ///clears data and domain coloring cache
     pub fn clear_data(&mut self) {
         self.data.clear();
-        self.cache.clear();
+        self.cache = None;
     }
     ///resets current 3d view based on the data that is supplied
     pub fn reset_3d(&mut self) {
@@ -611,17 +607,10 @@ impl Graph {
     }
     #[cfg(feature = "wasm")]
     ///repaints the screen
-    pub fn update(&mut self, width: u32, height: u32, canvas: web_sys::CanvasRenderingContext2d) {
-        self.font_width(&canvas);
+    pub fn update(&mut self, width: u32, height: u32) {
+        self.font_width();
         self.set_screen(width as f64, height as f64, true, true);
-        let mut painter = Painter::new(
-            self.background_color,
-            self.anti_alias,
-            self.draw_offset,
-            canvas,
-            self.screen.x,
-            self.screen.y,
-        );
+        let mut painter = Painter::new(self.background_color, self.anti_alias, self.draw_offset);
         let plot = |painter: &mut Painter, graph: &mut Graph| graph.plot(painter);
         self.update_inner(&mut painter, plot, width as f64, height as f64);
     }
@@ -1202,9 +1191,9 @@ impl Graph {
         }
     }
     #[cfg(feature = "wasm")]
-    fn font_width(&mut self, canvas: &web_sys::CanvasRenderingContext2d) {
+    fn font_width(&mut self) {
         if self.font_width == 0.0 {
-            self.font_width = canvas.measure_text("a").unwrap().width() as f32;
+            self.font_width = ui::get_bounds(" ").0;
         }
     }
     #[cfg(feature = "tiny-skia")]
@@ -1981,7 +1970,7 @@ impl Graph {
         }
         if i.keys_pressed(keybinds.anti_alias) {
             self.anti_alias = !self.anti_alias;
-            self.cache.clear();
+            self.cache = None;
         }
         if self.is_3d {
             let s = (self.bound.y - self.bound.x) / 4.0;
@@ -2059,7 +2048,7 @@ impl Graph {
         } else {
             let rt = (i.raw_scroll_delta.y / 512.0).exp();
             if i.keys_pressed(keybinds.domain_alternate) {
-                self.cache.clear();
+                self.cache = None;
                 self.domain_alternate = !self.domain_alternate
             }
             let (x, y) = (i.modifiers.ctrl, i.modifiers.shift);
@@ -2228,7 +2217,7 @@ impl Graph {
             }
         }
         if self.graph_mode == GraphMode::DomainColoring && i.keys_pressed(keybinds.log_scale) {
-            self.cache.clear();
+            self.cache = None;
             self.log_scale = !self.log_scale
         }
         if i.keys_pressed(keybinds.line_style) {
@@ -2530,12 +2519,11 @@ impl Graph {
     #[cfg(feature = "wasm")]
     fn plot(&mut self, painter: &mut Painter) -> Option<Vec<(f32, Draw, Color)>> {
         let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: &mut Vec<u8>| {
+            let slice = &data[0..lenx * leny * 4];
             *cache = Some(Image(
-                web_sys::ImageData::new_with_u8_clamped_array(
-                    web_sys::wasm_bindgen::Clamped(&data[0..lenx * leny * 4]),
-                    lenx as u32,
-                )
-                .unwrap(),
+                unsafe { std::mem::transmute::<&[u8], &[u8]>(slice) },
+                lenx,
+                leny,
             ))
         };
         self.plot_inner(painter, tex)
@@ -2595,7 +2583,7 @@ impl Graph {
         buffer: &mut Option<Vec<(f32, Draw, Color)>>,
         k: usize,
         data: &GraphType,
-        cache: &mut HashMap<usize, Image>,
+        cache: &mut Option<Image>,
         image_buffer: &mut Vec<u8>,
     ) where
         G: Fn(&mut Option<Image>, usize, usize, &mut Vec<u8>),
@@ -3142,7 +3130,7 @@ impl Graph {
                 GraphMode::DomainColoring => {
                     let lenx = (self.screen.x * self.prec() * self.mult) as usize;
                     let leny = (self.screen.y * self.prec() * self.mult) as usize;
-                    if let Entry::Vacant(cache) = cache.entry(k) {
+                    if cache.is_none() {
                         #[cfg(feature = "egui")]
                         let m = 3;
                         #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
@@ -3162,13 +3150,9 @@ impl Graph {
                                 image_buffer[m * i + 3] = 255;
                             }
                         }
-                        let mut c = None;
-                        tex(&mut c, lenx, leny, image_buffer);
-                        if let Some(c) = c {
-                            cache.insert(c);
-                        }
+                        tex(cache, lenx, leny, image_buffer);
                     }
-                    if let Some(texture) = cache.get(&k) {
+                    if let Some(texture) = cache {
                         painter.image(texture, self.screen);
                     }
                 }

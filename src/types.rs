@@ -2,7 +2,6 @@
 use base64::Engine;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
@@ -222,7 +221,7 @@ impl Clipboard {
 #[cfg(feature = "tiny-skia")]
 pub(crate) struct Image(pub tiny_skia::Pixmap);
 #[cfg(feature = "wasm")]
-pub(crate) struct Image(pub web_sys::ImageData);
+pub(crate) struct Image<'a>(pub &'a [u8], pub usize, pub usize);
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Graph {
     #[cfg(feature = "skia-vulkan")]
@@ -239,7 +238,11 @@ pub struct Graph {
     #[cfg_attr(feature = "serde", serde(default))]
     pub names: Vec<Name>,
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub(crate) cache: HashMap<usize, Image>,
+    #[cfg(feature = "wasm")]
+    pub(crate) cache: Option<Image<'static>>,
+    #[cfg(not(feature = "wasm"))]
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(crate) cache: Option<Image>,
     #[cfg_attr(feature = "serde", serde(default))]
     pub(crate) name_updated: Option<usize>,
     #[cfg(feature = "skia")]
@@ -581,7 +584,7 @@ impl Default for Graph {
             save_file: String::new(),
             #[cfg(feature = "serde")]
             save_num: None,
-            cache: Default::default(),
+            cache: None,
             blacklist_graphs: Vec::new(),
             line_width: 3.0,
             #[cfg(any(feature = "skia", feature = "tiny-skia-text"))]
