@@ -109,7 +109,7 @@ impl Graph {
                         unreachable!()
                     };
                     text_box.1 += 1;
-                    let n = self.get_name(text_box.1).len();
+                    let n = self.get_name_count(text_box.1);
                     text_box.0 = text_box.0.min(n);
                     self.text_box = Some(text_box);
                     self.text_scroll_pos.0 += 1;
@@ -119,7 +119,7 @@ impl Graph {
                         unreachable!()
                     };
                     text_box.1 = text_box.1.saturating_sub(1);
-                    let n = self.get_name(text_box.1).len();
+                    let n = self.get_name_count(text_box.1);
                     text_box.0 = text_box.0.min(n);
                     self.text_box = Some(text_box);
                     self.text_scroll_pos.0 = self.text_scroll_pos.0.saturating_sub(1);
@@ -131,7 +131,7 @@ impl Graph {
                     let new = self.expand_names(new as usize);
                     let new = new + self.text_scroll_pos.0;
                     let x = ((x as f32 / self.font_width).round() as usize)
-                        .min(self.get_name(new).len());
+                        .min(self.get_name_count(new));
                     self.text_box = Some((x, new));
                     self.select = Some((x, x, None));
                 }
@@ -139,7 +139,7 @@ impl Graph {
             if i.pointer.is_some() {
                 if let Some((_, b)) = self.text_box {
                     let x =
-                        ((x as f32 / self.font_width).round() as usize).min(self.get_name(b).len());
+                        ((x as f32 / self.font_width).round() as usize).min(self.get_name_count(b));
                     self.select_move(x);
                 } else {
                     self.select = None;
@@ -207,11 +207,11 @@ impl Graph {
                 if !matches!(g.menu, Menu::Normal | Menu::Side) && text_box.1 == g.get_name_len() {
                     text_box.1 -= 1;
                 }
-                text_box.0 = text_box.0.min(g.get_name(text_box.1).len())
+                text_box.0 = text_box.0.min(g.get_name_count(text_box.1))
             };
             let up = |g: &Graph, text_box: &mut (usize, usize)| {
                 text_box.1 = text_box.1.saturating_sub(1);
-                text_box.0 = text_box.0.min(g.get_name(text_box.1).len())
+                text_box.0 = text_box.0.min(g.get_name_count(text_box.1))
             };
             let modify = |g: &mut Graph, text_box: &mut (usize, usize), c: String| {
                 if !g.modify_name(
@@ -242,7 +242,7 @@ impl Graph {
                     modify(self, &mut text_box, c.to_string())
                 }
                 KeyStr::Character(a) => match a {
-                    'a' => self.select = Some((0, self.get_name(text_box.1).len(), None)),
+                    'a' => self.select = Some((0, self.get_name_count(text_box.1), None)),
                     'z' if !self.history.is_empty()
                         && self.history_pos != self.history.len()
                         && matches!(self.menu, Menu::Side) =>
@@ -317,8 +317,10 @@ impl Graph {
                         }
                         if i.modifiers.ctrl {
                             let mut hit = false;
-                            for (i, j) in self.get_name(text_box.1)[..text_box.0]
+                            for (i, j) in self
+                                .get_name(text_box.1)
                                 .chars()
+                                .take(text_box.0)
                                 .collect::<Vec<char>>()
                                 .into_iter()
                                 .enumerate()
@@ -353,7 +355,10 @@ impl Graph {
                         if i.modifiers.ctrl {
                             let mut hit = false;
                             let s = self.get_name(text_box.1);
-                            for (i, j) in s[(text_box.0 + 1).min(s.len() - 1)..].chars().enumerate()
+                            for (i, j) in s
+                                .chars()
+                                .skip((text_box.0 + 1).min(s.len() - 1))
+                                .enumerate()
                             {
                                 if !j.is_alphanumeric() {
                                     if hit {
@@ -368,7 +373,7 @@ impl Graph {
                                 text_box.0 = s.len()
                             }
                         } else {
-                            text_box.0 = (text_box.0 + 1).min(self.get_name(text_box.1).len());
+                            text_box.0 = (text_box.0 + 1).min(self.get_name_count(text_box.1));
                         }
                         if i.modifiers.shift {
                             self.select_move(text_box.0);
@@ -502,7 +507,7 @@ impl Graph {
                             self.history_push(Change::Line(text_box.1, b, true));
                             if text_box.1 > 0 {
                                 text_box.1 = text_box.1.saturating_sub(1);
-                                text_box.0 = self.get_name(text_box.1).len()
+                                text_box.0 = self.get_name_count(text_box.1)
                             }
                             self.name_modified(None);
                         }
@@ -559,7 +564,7 @@ impl Graph {
                     }
                     NamedKey::End => {
                         text_box.1 = self.get_name_len();
-                        text_box.0 = self.get_name(text_box.1).len();
+                        text_box.0 = self.get_name_count(text_box.1);
                     }
                     NamedKey::PageUp => {
                         text_box.1 = 0;
@@ -567,7 +572,7 @@ impl Graph {
                     }
                     NamedKey::PageDown => {
                         text_box.1 = self.get_name_len();
-                        text_box.0 = self.get_name(text_box.1).len();
+                        text_box.0 = self.get_name_count(text_box.1);
                     }
                     _ => {}
                 },
@@ -713,7 +718,7 @@ impl Graph {
             &Change::Line(b, var, r) if do_rev(r) => {
                 self.remove_name(b);
                 let b = if var { b } else { b.saturating_sub(1) };
-                *text_box = (self.get_name(b).len(), b)
+                *text_box = (self.get_name_count(b), b)
             }
             &Change::Line(b, var, _) => {
                 self.insert_name(b, var);
@@ -888,6 +893,31 @@ impl Graph {
             Menu::Settings => todo!(),
         }
     }
+    pub(crate) fn get_name_count(&self, mut i: usize) -> usize {
+        match self.menu {
+            Menu::Side | Menu::Normal => {
+                for name in &self.names {
+                    if i < name.vars.len() {
+                        return name.vars[i].chars().count();
+                    }
+                    i -= name.vars.len();
+                    if i == 0 {
+                        return name.name.chars().count();
+                    }
+                    i -= 1;
+                }
+                0
+            }
+            #[cfg(feature = "serde")]
+            Menu::Load => self
+                .file_data
+                .as_ref()
+                .unwrap()
+                .get(i)
+                .map_or(0, |(a, _, _)| a.chars().count()),
+            Menu::Settings => todo!(),
+        }
+    }
     pub(crate) fn get_mut_name(&mut self, mut i: usize) -> &mut String {
         match self.menu {
             Menu::Side | Menu::Normal => {
@@ -1057,10 +1087,18 @@ impl Graph {
         }
     }
     pub(crate) fn remove_char(&mut self, i: usize, j: usize) -> char {
-        self.get_mut_name(i).remove(j)
+        let s = self.get_mut_name(i);
+        let mut c = s.char_indices();
+        let j = c.nth(j).unwrap().0;
+        let k = c.next().map(|(n, _)| n).unwrap_or(s.len());
+        s.drain(j..k).next().unwrap()
     }
     pub(crate) fn remove_str(&mut self, i: usize, j: usize, k: usize) -> String {
-        self.get_mut_name(i).drain(j..k).collect()
+        let s = self.get_mut_name(i);
+        let mut c = s.char_indices();
+        let j = c.nth(j).unwrap().0;
+        let k = c.nth(k - j).map(|(n, _)| n).unwrap_or(s.len());
+        s.drain(j..k).collect()
     }
     pub(crate) fn get_name_len(&self) -> usize {
         match self.menu {

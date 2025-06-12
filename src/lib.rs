@@ -3535,52 +3535,52 @@ impl Graph {
             vec![(self.text_color, input)]
         } else {
             let inputi = input;
-            let input = input.chars().collect::<Vec<char>>();
+            let input = input.char_indices().collect::<Vec<(usize, char)>>();
             let mut vec = Vec::new();
             let mut count: isize = (input
                 .iter()
-                .filter(|a| matches!(a, ')' | '}' | ']'))
+                .filter(|(_, a)| matches!(a, ')' | '}' | ']'))
                 .count() as isize
                 - input
                     .iter()
-                    .filter(|a| matches!(a, '(' | '{' | '['))
+                    .filter(|(_, a)| matches!(a, '(' | '{' | '['))
                     .count() as isize)
                 .max(0);
             let mut i = 0;
             let mut j = 0;
             let mut color = self.text_color;
             while i < input.len() {
-                let c = input[i];
+                let (m, c) = input[i];
                 match c {
                     '(' | '{' | '[' => {
                         let col = self.bracket_color[count as usize % self.bracket_color.len()];
                         if color != col {
-                            if j != i {
-                                vec.push((color, &inputi[j..i]));
+                            if j != m {
+                                vec.push((color, &inputi[j..m]));
                             }
                             color = col;
                         }
-                        vec.push((col, &inputi[i..=i]));
-                        j = i + 1;
+                        vec.push((col, &inputi[m..m + c.len_utf8()]));
+                        j = m + 1;
                         count += 1
                     }
                     ')' | '}' | ']' => {
                         count -= 1;
                         let col = self.bracket_color[count as usize % self.bracket_color.len()];
                         if color != col {
-                            if j != i {
-                                vec.push((color, &inputi[j..i]));
+                            if j != m {
+                                vec.push((color, &inputi[j..m]));
                             }
                             color = col;
                         }
-                        vec.push((col, &inputi[i..=i]));
-                        j = i + 1;
+                        vec.push((col, &inputi[m..m + c.len_utf8()]));
+                        j = m + 1;
                     }
                     _ => {
                         if color != self.text_color {
-                            if j != i {
-                                vec.push((color, &inputi[j..i]));
-                                j = i;
+                            if j != m {
+                                vec.push((color, &inputi[j..m]));
+                                j = m;
                             }
                             color = self.text_color;
                         }
@@ -3589,7 +3589,7 @@ impl Graph {
                 i += 1;
             }
             if j != i {
-                vec.push((color, &inputi[j..i]));
+                vec.push((color, &inputi[j..]));
             }
             vec
         }
