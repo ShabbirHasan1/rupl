@@ -1,5 +1,5 @@
 const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext("2d");
+const ctx = canvas.getContext("2d", {desynchronized: true, alpha: false});
 ctx.font = "18px monospace";
 const tau = 2 * Math.PI;
 export function line_segment(a, b, x, y, w, c) {
