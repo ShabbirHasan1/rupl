@@ -481,6 +481,7 @@ impl Graph {
                             let name = self.get_name(text_box.1).chars().collect::<Vec<char>>();
                             if i.modifiers.ctrl && !end_word(name[text_box.0 - 1]) {
                                 for (i, c) in name[..text_box.0].iter().rev().enumerate() {
+                                    //TODO
                                     if c.is_whitespace() || i + 1 == text_box.0 {
                                         let (a, b) = (text_box.0 - i - 1, text_box.0);
                                         let text = self.remove_str(text_box.1, a, b);
@@ -966,6 +967,7 @@ impl Graph {
     pub(crate) fn modify_name(&mut self, i: usize, j: usize, char: String) -> bool {
         let s = self.get_mut_name(i);
         let is_empty = s.is_empty();
+        let j = s.char_indices().nth(j).unwrap().0;
         s.insert_str(j, &char);
         is_empty
     }
