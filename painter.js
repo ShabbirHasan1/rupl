@@ -28,7 +28,6 @@ export function text_bounds(s) {
     ctx.font = "18px monospace";
     const m = ctx.measureText(s);
     const height = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
-    console.log(height);
     return [m.width, height];
 }
 export function fill_text(s, x, y, c) {
