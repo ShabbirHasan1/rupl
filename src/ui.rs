@@ -840,6 +840,7 @@ impl Painter {
         color: &Color,
     ) -> f32 {
         let mut pos = self.offset + p0;
+        pos.y -= 4.0;
         let strs = p2.split('\n').collect::<Vec<&str>>();
         let mut body = |s: &str| {
             let (width, height) = get_bounds(s);
