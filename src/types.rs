@@ -1552,13 +1552,14 @@ impl Div<f64> for Vec2 {
         Vec2::new(self.x / rhs, self.y / rhs)
     }
 }
-#[allow(dead_code)]
 #[derive(Copy, Clone)]
 pub(crate) enum Align {
     LeftBottom,
     LeftCenter,
     LeftTop,
+    #[allow(dead_code)]
     CenterBottom,
+    #[allow(dead_code)]
     CenterCenter,
     CenterTop,
     RightBottom,

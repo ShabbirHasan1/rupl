@@ -273,80 +273,96 @@ impl<'a> Painter<'a> {
         let Some(font) = font else {
             return 0.0;
         };
-        let mut pos = (self.offset + p0).to_pos2();
+        let pos = self.offset + p0;
         let paint = make_paint(1.0, p4, false, false);
         let strs = p2.split('\n').collect::<Vec<&str>>();
-        let mut body = |s: &str| {
+        let measure = |s: &str| -> (f32, f32) {
             let rect = font.measure_str(s, Some(&paint)).1;
-            let (width, height) = (rect.width(), rect.height());
-            if !s.is_empty() {
-                let mut pos = pos;
-                match p1 {
-                    crate::types::Align::CenterBottom
-                    | crate::types::Align::CenterCenter
-                    | crate::types::Align::CenterTop => pos.x -= width / 2.0,
-                    crate::types::Align::LeftBottom
-                    | crate::types::Align::LeftCenter
-                    | crate::types::Align::LeftTop => {}
-                    crate::types::Align::RightBottom
-                    | crate::types::Align::RightCenter
-                    | crate::types::Align::RightTop => pos.x -= width,
-                }
-                match p1 {
-                    crate::types::Align::CenterCenter
-                    | crate::types::Align::LeftCenter
-                    | crate::types::Align::RightCenter => pos.y += height / 2.0,
-                    crate::types::Align::CenterBottom
-                    | crate::types::Align::LeftBottom
-                    | crate::types::Align::RightBottom => {}
-                    crate::types::Align::CenterTop
-                    | crate::types::Align::LeftTop
-                    | crate::types::Align::RightTop => pos.y += height,
-                }
-                self.surface.canvas().draw_str(s, pos, font, &paint);
+            (rect.width(), rect.height())
+        };
+        let draw = |s: &str, pos: Pos| {
+            self.surface
+                .canvas()
+                .draw_str(s, pos.to_pos2(), font, &paint);
+        };
+        align_text(p1, pos, strs, measure, draw);
+        font.measure_str(p2, None).0
+    }
+}
+#[cfg(any(feature = "skia", feature = "tiny-skia-text", feature = "wasm-draw"))]
+fn align_text<A, B>(p1: crate::types::Align, mut pos: Pos, strs: Vec<&str>, measure: A, mut draw: B)
+where
+    A: Fn(&str) -> (f32, f32),
+    B: FnMut(&str, Pos),
+{
+    let mut body = |s: &str| {
+        let (width, height) = measure(s);
+        if !s.is_empty() {
+            let mut pos = pos;
+            match p1 {
+                crate::types::Align::CenterBottom
+                | crate::types::Align::CenterCenter
+                | crate::types::Align::CenterTop => pos.x -= width / 2.0,
+                crate::types::Align::LeftBottom
+                | crate::types::Align::LeftCenter
+                | crate::types::Align::LeftTop => {}
+                crate::types::Align::RightBottom
+                | crate::types::Align::RightCenter
+                | crate::types::Align::RightTop => pos.x -= width,
             }
             match p1 {
-                crate::types::Align::CenterTop
-                | crate::types::Align::RightTop
-                | crate::types::Align::LeftTop => {
-                    pos.y += height;
-                }
-                crate::types::Align::CenterBottom
-                | crate::types::Align::RightBottom
-                | crate::types::Align::LeftBottom => {
-                    pos.y -= height;
-                }
                 crate::types::Align::CenterCenter
-                | crate::types::Align::RightCenter
-                | crate::types::Align::LeftCenter => {
-                    pos.y += height / 2.0;
-                }
+                | crate::types::Align::LeftCenter
+                | crate::types::Align::RightCenter => pos.y += height / 2.0,
+                crate::types::Align::CenterBottom
+                | crate::types::Align::LeftBottom
+                | crate::types::Align::RightBottom => {}
+                crate::types::Align::CenterTop
+                | crate::types::Align::LeftTop
+                | crate::types::Align::RightTop => pos.y += height,
             }
-        };
+            draw(s, pos);
+        }
         match p1 {
             crate::types::Align::CenterTop
             | crate::types::Align::RightTop
             | crate::types::Align::LeftTop => {
-                for s in strs {
-                    body(s)
-                }
+                pos.y += height;
             }
             crate::types::Align::CenterBottom
             | crate::types::Align::RightBottom
             | crate::types::Align::LeftBottom => {
-                for s in strs.iter().rev() {
-                    body(s)
-                }
+                pos.y -= height;
             }
             crate::types::Align::CenterCenter
             | crate::types::Align::RightCenter
             | crate::types::Align::LeftCenter => {
-                for s in strs {
-                    body(s)
-                }
+                pos.y += height / 2.0;
             }
         }
-        font.measure_str(p2, None).0
+    };
+    match p1 {
+        crate::types::Align::CenterTop
+        | crate::types::Align::RightTop
+        | crate::types::Align::LeftTop => {
+            for s in strs {
+                body(s)
+            }
+        }
+        crate::types::Align::CenterBottom
+        | crate::types::Align::RightBottom
+        | crate::types::Align::LeftBottom => {
+            for s in strs.iter().rev() {
+                body(s)
+            }
+        }
+        crate::types::Align::CenterCenter
+        | crate::types::Align::RightCenter
+        | crate::types::Align::LeftCenter => {
+            for s in strs {
+                body(s)
+            }
+        }
     }
 }
 #[cfg(feature = "tiny-skia")]
@@ -544,77 +560,13 @@ impl Painter {
         let Some(font) = font else {
             return 0.0;
         };
-        let mut pos = self.offset + p0;
+        let pos = self.offset + p0;
         let strs = p2.split('\n').collect::<Vec<&str>>();
-        let mut body = |s: &str| {
-            let (width, height) = get_bounds(font, s);
-            if !s.is_empty() {
-                let mut pos = pos;
-                match p1 {
-                    crate::types::Align::CenterBottom
-                    | crate::types::Align::CenterCenter
-                    | crate::types::Align::CenterTop => pos.x -= width / 2.0,
-                    crate::types::Align::LeftBottom
-                    | crate::types::Align::LeftCenter
-                    | crate::types::Align::LeftTop => {}
-                    crate::types::Align::RightBottom
-                    | crate::types::Align::RightCenter
-                    | crate::types::Align::RightTop => pos.x -= width,
-                }
-                match p1 {
-                    crate::types::Align::CenterCenter
-                    | crate::types::Align::LeftCenter
-                    | crate::types::Align::RightCenter => pos.y += height / 2.0,
-                    crate::types::Align::CenterBottom
-                    | crate::types::Align::LeftBottom
-                    | crate::types::Align::RightBottom => {}
-                    crate::types::Align::CenterTop
-                    | crate::types::Align::LeftTop
-                    | crate::types::Align::RightTop => pos.y += height,
-                }
-                self.draw_str(s, pos, fc);
-            }
-            match p1 {
-                crate::types::Align::CenterTop
-                | crate::types::Align::RightTop
-                | crate::types::Align::LeftTop => {
-                    pos.y += height;
-                }
-                crate::types::Align::CenterBottom
-                | crate::types::Align::RightBottom
-                | crate::types::Align::LeftBottom => {
-                    pos.y -= height;
-                }
-                crate::types::Align::CenterCenter
-                | crate::types::Align::RightCenter
-                | crate::types::Align::LeftCenter => {
-                    pos.y += height / 2.0;
-                }
-            }
+        let measure = |s: &str| -> (f32, f32) { get_bounds(font, s) };
+        let draw = |s: &str, pos: Pos| {
+            self.draw_str(s, pos, fc);
         };
-        match p1 {
-            crate::types::Align::CenterTop
-            | crate::types::Align::RightTop
-            | crate::types::Align::LeftTop => {
-                for s in strs {
-                    body(s)
-                }
-            }
-            crate::types::Align::CenterBottom
-            | crate::types::Align::RightBottom
-            | crate::types::Align::LeftBottom => {
-                for s in strs.iter().rev() {
-                    body(s)
-                }
-            }
-            crate::types::Align::CenterCenter
-            | crate::types::Align::RightCenter
-            | crate::types::Align::LeftCenter => {
-                for s in strs {
-                    body(s)
-                }
-            }
-        }
+        align_text(p1, pos, strs, measure, draw);
         get_bounds(font, p2).0
     }
 }
@@ -839,78 +791,13 @@ impl Painter {
         p2: &str,
         color: &Color,
     ) -> f32 {
-        let mut pos = self.offset + p0;
-        pos.y -= 4.0;
+        let pos = self.offset + p0;
         let strs = p2.split('\n').collect::<Vec<&str>>();
-        let mut body = |s: &str| {
-            let (width, height) = get_bounds(s);
-            if !s.is_empty() {
-                let mut pos = pos;
-                match p1 {
-                    crate::types::Align::CenterBottom
-                    | crate::types::Align::CenterCenter
-                    | crate::types::Align::CenterTop => pos.x -= width / 2.0,
-                    crate::types::Align::LeftBottom
-                    | crate::types::Align::LeftCenter
-                    | crate::types::Align::LeftTop => {}
-                    crate::types::Align::RightBottom
-                    | crate::types::Align::RightCenter
-                    | crate::types::Align::RightTop => pos.x -= width,
-                }
-                match p1 {
-                    crate::types::Align::CenterCenter
-                    | crate::types::Align::LeftCenter
-                    | crate::types::Align::RightCenter => pos.y += height / 2.0,
-                    crate::types::Align::CenterBottom
-                    | crate::types::Align::LeftBottom
-                    | crate::types::Align::RightBottom => {}
-                    crate::types::Align::CenterTop
-                    | crate::types::Align::LeftTop
-                    | crate::types::Align::RightTop => pos.y += height,
-                }
-                fill_text(s, pos.x as f64, pos.y as f64, &color.to_col());
-            }
-            match p1 {
-                crate::types::Align::CenterTop
-                | crate::types::Align::RightTop
-                | crate::types::Align::LeftTop => {
-                    pos.y += height;
-                }
-                crate::types::Align::CenterBottom
-                | crate::types::Align::RightBottom
-                | crate::types::Align::LeftBottom => {
-                    pos.y -= height;
-                }
-                crate::types::Align::CenterCenter
-                | crate::types::Align::RightCenter
-                | crate::types::Align::LeftCenter => {
-                    pos.y += height / 2.0;
-                }
-            }
+        let measure = |s: &str| -> (f32, f32) { get_bounds(s) };
+        let draw = |s: &str, pos: Pos| {
+            fill_text(s, pos.x as f64, pos.y as f64, &color.to_col());
         };
-        match p1 {
-            crate::types::Align::CenterTop
-            | crate::types::Align::RightTop
-            | crate::types::Align::LeftTop => {
-                for s in strs {
-                    body(s)
-                }
-            }
-            crate::types::Align::CenterBottom
-            | crate::types::Align::RightBottom
-            | crate::types::Align::LeftBottom => {
-                for s in strs.iter().rev() {
-                    body(s)
-                }
-            }
-            crate::types::Align::CenterCenter
-            | crate::types::Align::RightCenter
-            | crate::types::Align::LeftCenter => {
-                for s in strs {
-                    body(s)
-                }
-            }
-        }
+        align_text(p1, pos, strs, measure, draw);
         get_bounds(p2).0
     }
 }

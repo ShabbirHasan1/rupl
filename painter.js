@@ -34,7 +34,7 @@ export function text_bounds(s) {
 export function fill_text(s, x, y, c) {
     ctx.font = "18px monospace";
     ctx.fillStyle = c;
-    ctx.fillText(s, x, y);
+    ctx.fillText(s, x, y - 4);
 }
 export function image(rawPixels, width, height, dx, dy, dw, dh, smoothing) {
   const imageData = new ImageData(new Uint8ClampedArray(rawPixels), width, height);
