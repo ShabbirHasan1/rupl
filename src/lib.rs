@@ -16,6 +16,15 @@ fn is_3d(data: &[GraphType]) -> bool {
     data.iter()
         .any(|c| matches!(c, GraphType::Width3D(_, _, _, _, _) | GraphType::Coord3D(_)))
 }
+#[cfg(target_arch = "wasm32")]
+pub use ui::dpr;
+#[cfg(target_arch = "wasm32")]
+#[cfg(feature = "tiny-skia")]
+pub use ui::draw;
+#[cfg(target_arch = "wasm32")]
+pub use ui::get_canvas;
+#[cfg(target_arch = "wasm32")]
+pub use ui::resize;
 impl Graph {
     ///creates a new struct where data is the initial set of data to be painted
     ///

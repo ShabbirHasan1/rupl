@@ -714,15 +714,22 @@ pub(crate) struct Painter {
     anti_alias: bool,
     pub offset: Pos,
 }
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen(module = "/painter.js")]
 extern "C" {
+    #[cfg(feature = "wasm")]
     fn line_segment(a: f64, b: f64, x: f64, y: f64, w: f64, c: &str);
+    #[cfg(feature = "wasm")]
     fn circle(x: f64, y: f64, r1: f64, r2: f64, w: f64, c: &str);
+    #[cfg(feature = "wasm")]
     fn fill(c: &str);
+    #[cfg(feature = "wasm")]
     fn fill_rect(a: f64, b: f64, x: f64, y: f64, c: &str);
+    #[cfg(feature = "wasm")]
     fn text_bounds(s: &str) -> js_sys::Array;
+    #[cfg(feature = "wasm")]
     fn fill_text(s: &str, x: f64, y: f64, c: &str);
+    #[cfg(feature = "wasm")]
     fn image(
         raw_pixels: &[u8],
         width: u32,
@@ -733,6 +740,11 @@ extern "C" {
         dh: f64,
         smoothing: bool,
     );
+    #[cfg(feature = "tiny-skia")]
+    pub fn draw(slice: &[u8], width: u32);
+    pub fn get_canvas() -> wasm_bindgen::JsValue;
+    pub fn resize(x: u32, y: u32);
+    pub fn dpr() -> f64;
 }
 #[cfg(feature = "wasm")]
 impl Painter {
