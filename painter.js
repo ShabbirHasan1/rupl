@@ -1,6 +1,5 @@
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext("2d", {desynchronized: true, alpha: false});
-ctx.font = "18px monospace";
 const tau = 2 * Math.PI;
 export function line_segment(a, b, x, y, w, c) {
     ctx.beginPath();
@@ -31,6 +30,7 @@ export function text_bounds(s) {
     return [m.width, height];
 }
 export function fill_text(s, x, y, c) {
+    ctx.font = "18px monospace";
     ctx.fillStyle = c;
     ctx.fillText(s, x, y);
 }

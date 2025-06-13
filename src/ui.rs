@@ -784,7 +784,13 @@ impl Painter {
         );
     }
     pub(crate) fn highlight(&mut self, xi: f32, yi: f32, xf: f32, yf: f32, color: &Color) {
-        fill_rect(xi as f64, yi as f64, xf as f64, yf as f64, &color.to_col());
+        fill_rect(
+            xi as f64,
+            yi as f64,
+            (xf - xi) as f64,
+            (yf - yi) as f64,
+            &color.to_col(),
+        );
     }
     pub(crate) fn clear_offset(&mut self, screen: Vec2, background: &Color) {
         fill_rect(
