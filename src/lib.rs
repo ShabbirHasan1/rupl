@@ -87,7 +87,7 @@ impl Graph {
             .renderer_for_window(event_loop, window.clone());
         self.renderer = Some(renderer);
     }
-    #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
+    #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm-draw"))]
     ///is cursor dragging a value or not
     pub fn is_drag(&self) -> bool {
         self.side_drag.is_some() || self.side_slider.is_some()
@@ -614,7 +614,7 @@ impl Graph {
         let data = painter.save_png();
         ui::Data { data }
     }
-    #[cfg(feature = "wasm")]
+    #[cfg(feature = "wasm-draw")]
     ///repaints the screen
     pub fn update(&mut self, width: u32, height: u32) {
         self.font_width();
@@ -843,7 +843,7 @@ impl Graph {
             }
         }
     }
-    #[cfg(feature = "wasm")]
+    #[cfg(feature = "wasm-draw")]
     fn text(
         &self,
         pos: Pos,
@@ -1199,7 +1199,7 @@ impl Graph {
             }
         }
     }
-    #[cfg(feature = "wasm")]
+    #[cfg(feature = "wasm-draw")]
     fn font_width(&mut self) {
         if self.font_width == 0.0 {
             self.font_width = ui::get_bounds(" ").0;
@@ -1537,14 +1537,14 @@ impl Graph {
             ui.ctx().copy_text(s)
         }
     }
-    #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
+    #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm-draw"))]
     ///process the current keys and mouse/touch inputs, see Keybinds for more info,
     ///expected to run before update_res()
     pub fn keybinds(&mut self, i: &InputState) {
         self.keybinds_inner(i)
     }
     fn keybinds_inner(&mut self, i: &InputState) {
-        #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
+        #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm-draw"))]
         {
             self.request_redraw = false;
         }
@@ -1660,7 +1660,7 @@ impl Graph {
                         );
                         self.side_drag = Some((min.0, k));
                         self.name_modified(Some(min.0));
-                        #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
+                        #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm-draw"))]
                         if self.menu == Menu::Side {
                             self.request_redraw = true;
                         }
@@ -2525,7 +2525,7 @@ impl Graph {
         };
         self.plot_inner(painter, tex)
     }
-    #[cfg(feature = "wasm")]
+    #[cfg(feature = "wasm-draw")]
     fn plot(&mut self, painter: &mut Painter) -> Option<Vec<(f32, Draw, Color)>> {
         let tex = |cache: &mut Option<Image>, lenx: usize, leny: usize, data: &mut Vec<u8>| {
             let slice = &data[0..lenx * leny * 4];
@@ -3142,7 +3142,7 @@ impl Graph {
                     if cache.is_none() {
                         #[cfg(feature = "egui")]
                         let m = 3;
-                        #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
+                        #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm-draw"))]
                         let m = 4;
                         let n = lenx * leny * m;
                         let c = image_buffer.len();
@@ -3154,7 +3154,11 @@ impl Graph {
                             image_buffer[m * i] = r;
                             image_buffer[m * i + 1] = g;
                             image_buffer[m * i + 2] = b;
-                            #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
+                            #[cfg(any(
+                                feature = "skia",
+                                feature = "tiny-skia",
+                                feature = "wasm-draw"
+                            ))]
                             {
                                 image_buffer[m * i + 3] = 255;
                             }

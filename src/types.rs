@@ -220,7 +220,7 @@ impl Clipboard {
 }
 #[cfg(feature = "tiny-skia")]
 pub(crate) struct Image(pub tiny_skia::Pixmap);
-#[cfg(feature = "wasm")]
+#[cfg(feature = "wasm-draw")]
 pub(crate) struct Image<'a>(pub &'a [u8], pub usize, pub usize);
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Graph {
@@ -238,9 +238,9 @@ pub struct Graph {
     #[cfg_attr(feature = "serde", serde(default))]
     pub names: Vec<Name>,
     #[cfg_attr(feature = "serde", serde(skip))]
-    #[cfg(feature = "wasm")]
+    #[cfg(feature = "wasm-draw")]
     pub(crate) cache: Option<Image<'static>>,
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(feature = "wasm-draw"))]
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) cache: Option<Image>,
     #[cfg_attr(feature = "serde", serde(default))]
@@ -486,7 +486,7 @@ pub struct Graph {
     pub(crate) file_data_raw: Option<Vec<String>>,
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) constant_eval: Vec<(usize, String)>,
-    #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
+    #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm-draw"))]
     #[cfg_attr(feature = "serde", serde(skip))]
     pub request_redraw: bool,
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -626,7 +626,7 @@ impl Default for Graph {
             lines: Lines::Lines,
             domain_alternate: true,
             var: Vec2::new(-2.0, 2.0),
-            #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm"))]
+            #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm-draw"))]
             request_redraw: false,
             last_interact: None,
             last_right_interact: None,
@@ -1270,7 +1270,7 @@ impl Color {
     pub(crate) fn splat(c: u8) -> Self {
         Self { r: c, g: c, b: c }
     }
-    #[cfg(feature = "wasm")]
+    #[cfg(feature = "wasm-draw")]
     pub(crate) fn to_col(self) -> String {
         format!("#{:02x}{:02x}{:02x}", self.r, self.g, self.b)
     }

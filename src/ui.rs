@@ -709,7 +709,7 @@ fn make_paint(p2: &Color, alias: bool) -> tiny_skia::Paint<'_> {
     p.anti_alias = alias;
     p
 }
-#[cfg(feature = "wasm")]
+#[cfg(feature = "wasm-draw")]
 pub(crate) struct Painter {
     anti_alias: bool,
     pub offset: Pos,
@@ -717,19 +717,19 @@ pub(crate) struct Painter {
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen(module = "/painter.js")]
 extern "C" {
-    #[cfg(feature = "wasm")]
+    #[cfg(feature = "wasm-draw")]
     fn line_segment(a: f64, b: f64, x: f64, y: f64, w: f64, c: &str);
-    #[cfg(feature = "wasm")]
+    #[cfg(feature = "wasm-draw")]
     fn circle(x: f64, y: f64, r1: f64, r2: f64, w: f64, c: &str);
-    #[cfg(feature = "wasm")]
+    #[cfg(feature = "wasm-draw")]
     fn fill(c: &str);
-    #[cfg(feature = "wasm")]
+    #[cfg(feature = "wasm-draw")]
     fn fill_rect(a: f64, b: f64, x: f64, y: f64, c: &str);
-    #[cfg(feature = "wasm")]
+    #[cfg(feature = "wasm-draw")]
     fn text_bounds(s: &str) -> js_sys::Array;
-    #[cfg(feature = "wasm")]
+    #[cfg(feature = "wasm-draw")]
     fn fill_text(s: &str, x: f64, y: f64, c: &str);
-    #[cfg(feature = "wasm")]
+    #[cfg(feature = "wasm-draw")]
     fn image(
         raw_pixels: &[u8],
         width: u32,
@@ -746,7 +746,7 @@ extern "C" {
     pub fn resize(x: u32, y: u32);
     pub fn dpr() -> f64;
 }
-#[cfg(feature = "wasm")]
+#[cfg(feature = "wasm-draw")]
 impl Painter {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(background: Color, anti_alias: bool, offset: Pos) -> Self {
@@ -907,7 +907,7 @@ impl Painter {
         get_bounds(p2).0
     }
 }
-#[cfg(feature = "wasm")]
+#[cfg(feature = "wasm-draw")]
 pub fn get_bounds(s: &str) -> (f32, f32) {
     let m = text_bounds(s);
     let x = m.get(0).as_f64().unwrap() as f32;
