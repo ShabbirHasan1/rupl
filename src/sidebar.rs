@@ -481,15 +481,13 @@ impl Graph {
                             let name = self.get_name(text_box.1).chars().collect::<Vec<char>>();
                             if i.modifiers.ctrl && !end_word(name[text_box.0 - 1]) {
                                 for (i, c) in name[..text_box.0].iter().rev().enumerate() {
-                                    //TODO
                                     if c.is_whitespace() || i + 1 == text_box.0 {
                                         let (a, b) = (text_box.0 - i - 1, text_box.0);
                                         let text = self.remove_str(text_box.1, a, b);
                                         text_box.0 -= i + 1;
                                         self.history_push(Change::Str(text_box, text, true));
                                         break;
-                                    }
-                                    if end_word(*c) {
+                                    } else if end_word(*c) {
                                         let (a, b) = (text_box.0 - i, text_box.0);
                                         let text = self.remove_str(text_box.1, a, b);
                                         text_box.0 -= i;
@@ -1098,9 +1096,12 @@ impl Graph {
     pub(crate) fn remove_str(&mut self, i: usize, j: usize, k: usize) -> String {
         let s = self.get_mut_name(i);
         let mut c = s.char_indices();
-        let j = c.nth(j).unwrap().0;
-        let k = c.nth(k - j).map(|(n, _)| n).unwrap_or(s.len());
-        s.drain(j..k).collect()
+        let n = c.nth(j).unwrap().0;
+        let k = c
+            .nth(k.saturating_sub(j + 1))
+            .map(|(n, _)| n)
+            .unwrap_or(s.len());
+        s.drain(n..k).collect()
     }
     pub(crate) fn get_name_len(&self) -> usize {
         match self.menu {
@@ -1202,5 +1203,6 @@ pub fn end_word(c: char) -> bool {
             | '±'
             | '%'
             | ';'
+            | ','
     )
 }
