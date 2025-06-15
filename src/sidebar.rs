@@ -965,7 +965,7 @@ impl Graph {
     pub(crate) fn modify_name(&mut self, i: usize, j: usize, char: String) -> bool {
         let s = self.get_mut_name(i);
         let is_empty = s.is_empty();
-        let j = s.char_indices().nth(j).map(|(a, _)| a).unwrap_or(0);
+        let j = s.char_indices().nth(j).map(|(a, _)| a).unwrap_or(s.len());
         s.insert_str(j, &char);
         is_empty
     }
