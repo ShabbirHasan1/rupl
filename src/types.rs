@@ -1060,8 +1060,8 @@ pub struct InputState {
     pub pointer_right: Option<bool>,
     ///Some if multiple touch inputs have been detected
     pub multi: Option<Multi>,
-    #[cfg(feature = "egui")]
-    pub(crate) clipboard_override: Option<String>,
+    #[cfg(any(feature = "egui", target_arch = "wasm32"))]
+    pub clipboard_override: Option<String>,
 }
 impl Default for InputState {
     fn default() -> Self {
@@ -1073,7 +1073,7 @@ impl Default for InputState {
             pointer: None,
             pointer_right: None,
             multi: None,
-            #[cfg(feature = "egui")]
+            #[cfg(any(feature = "egui", target_arch = "wasm32"))]
             clipboard_override: None,
         }
     }

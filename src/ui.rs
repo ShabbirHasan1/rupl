@@ -697,6 +697,7 @@ extern "C" {
     pub fn get_canvas() -> wasm_bindgen::JsValue;
     pub fn resize(x: u32, y: u32);
     pub fn dpr() -> f64;
+    pub(crate) fn write_clipboard(text: &str);
 }
 #[cfg(feature = "wasm-draw")]
 impl Painter {

@@ -1537,11 +1537,22 @@ impl Graph {
             ui.ctx().copy_text(s)
         }
     }
+    #[cfg(not(target_arch = "wasm32"))]
     #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm-draw"))]
     ///process the current keys and mouse/touch inputs, see Keybinds for more info,
     ///expected to run before update_res()
     pub fn keybinds(&mut self, i: &InputState) {
         self.keybinds_inner(i)
+    }
+    #[cfg(target_arch = "wasm32")]
+    #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm-draw"))]
+    ///process the current keys and mouse/touch inputs, see Keybinds for more info,
+    ///expected to run before update_res()
+    pub fn keybinds(&mut self, i: &InputState) {
+        self.keybinds_inner(i);
+        if let Some(s) = self.clipboard.as_ref() {
+            crate::ui::write_clipboard(&s.0);
+        }
     }
     fn keybinds_inner(&mut self, i: &InputState) {
         #[cfg(any(feature = "skia", feature = "tiny-skia", feature = "wasm-draw"))]
@@ -1558,7 +1569,7 @@ impl Graph {
             }
             self.wait_frame = false;
         }
-        #[cfg(feature = "egui")]
+        #[cfg(any(feature = "egui", target_arch = "wasm32"))]
         if let Some(s) = i.clipboard_override.clone() {
             self.clipboard.as_mut().unwrap().0 = s;
         }

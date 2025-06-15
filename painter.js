@@ -61,3 +61,6 @@ export function resize(x, y) {
 export function dpr() {
     return window.devicePixelRatio
 }
+export function write_clipboard(text) {
+    navigator.clipboard.writeText(text).catch(() => {});
+}
