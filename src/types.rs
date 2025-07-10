@@ -1951,6 +1951,7 @@ impl From<&egui::Key> for Key {
             egui::Key::F33 => Key::F33,
             egui::Key::F34 => Key::F34,
             egui::Key::F35 => Key::F35,
+            egui::Key::BrowserBack => Key::F35,
         }
     }
 }

@@ -1530,7 +1530,7 @@ impl Graph {
     #[cfg(feature = "egui")]
     ///process the current keys and mouse/touch inputs, see Keybinds for more info,
     ///expected to run before update_res()
-    pub fn keybinds(&mut self, ui: &egui::Ui) {
+    pub fn keybinds(&mut self, ui: &mut egui::Ui) {
         ui.input(|i| self.keybinds_inner(&i.into()));
         let s = self.clipboard.as_ref().unwrap().0.clone();
         if !s.is_empty() {
