@@ -773,73 +773,73 @@ impl Graph {
         }
     }
     fn write_coord(&self, painter: &mut Painter) {
-        if self.mouse_moved {
-            if let Some(pos) = self.mouse_position {
-                let p = self.to_coord(pos.to_pos());
-                if !self.disable_coord {
-                    let s = if self.graph_mode == GraphMode::DomainColoring {
-                        if let GraphType::Width3D(data, sx, sy, ex, ey) = &self.data[0] {
-                            let len = data.len().isqrt();
-                            let i = ((p.0 - sx) / (ex - sx) * len as f64).round() as usize;
-                            let j = ((p.1 - sy) / (ey - sy) * len as f64).round() as usize;
-                            let ind = i + len * j;
-                            if ind < data.len() {
-                                let (x, y) = data[ind].to_options();
-                                let (x, y) = (x.unwrap_or(0.0), y.unwrap_or(0.0));
-                                format!(
-                                    "{:E}\n{:E}\n{:E}\n{:E}\n{:E}\n{}",
-                                    p.0,
-                                    p.1,
-                                    x,
-                                    y,
-                                    y.hypot(x),
-                                    self.angle_type.to_val(y.atan2(x))
-                                )
-                            } else {
-                                format!("{:E}\n{:E}", p.0, p.1)
-                            }
+        if self.mouse_moved
+            && let Some(pos) = self.mouse_position
+        {
+            let p = self.to_coord(pos.to_pos());
+            if !self.disable_coord {
+                let s = if self.graph_mode == GraphMode::DomainColoring {
+                    if let GraphType::Width3D(data, sx, sy, ex, ey) = &self.data[0] {
+                        let len = data.len().isqrt();
+                        let i = ((p.0 - sx) / (ex - sx) * len as f64).round() as usize;
+                        let j = ((p.1 - sy) / (ey - sy) * len as f64).round() as usize;
+                        let ind = i + len * j;
+                        if ind < data.len() {
+                            let (x, y) = data[ind].to_options();
+                            let (x, y) = (x.unwrap_or(0.0), y.unwrap_or(0.0));
+                            format!(
+                                "{:E}\n{:E}\n{:E}\n{:E}\n{:E}\n{}",
+                                p.0,
+                                p.1,
+                                x,
+                                y,
+                                y.hypot(x),
+                                self.angle_type.to_val(y.atan2(x))
+                            )
                         } else {
                             format!("{:E}\n{:E}", p.0, p.1)
                         }
-                    } else if matches!(self.graph_mode, GraphMode::Polar | GraphMode::SlicePolar) {
-                        format!(
-                            "{:E}\n{}",
-                            p.1.hypot(p.0),
-                            self.angle_type.to_val(p.1.atan2(p.0))
-                        )
                     } else {
                         format!("{:E}\n{:E}", p.0, p.1)
-                    };
-                    self.text(
-                        Pos::new(0.0, self.screen.y as f32),
-                        Align::LeftBottom,
-                        &s,
-                        &self.text_color,
-                        painter,
-                    );
-                }
-                if let Some(ps) = self.ruler_pos {
-                    let dx = p.0 - ps.x;
-                    let dy = p.1 - ps.y;
-                    self.text(
-                        self.screen.to_pos(),
-                        Align::RightBottom,
-                        &format!(
-                            "{:E}\n{:E}\n{:E}\n{}",
-                            dx,
-                            dy,
-                            dy.hypot(dx),
-                            self.angle_type.to_val(dy.atan2(dx))
-                        ),
-                        &self.text_color,
-                        painter,
-                    );
-                    painter.line_segment(
-                        [pos.to_pos(), self.to_screen(ps.x, ps.y)],
-                        1.0,
-                        &self.axis_color,
-                    );
-                }
+                    }
+                } else if matches!(self.graph_mode, GraphMode::Polar | GraphMode::SlicePolar) {
+                    format!(
+                        "{:E}\n{}",
+                        p.1.hypot(p.0),
+                        self.angle_type.to_val(p.1.atan2(p.0))
+                    )
+                } else {
+                    format!("{:E}\n{:E}", p.0, p.1)
+                };
+                self.text(
+                    Pos::new(0.0, self.screen.y as f32),
+                    Align::LeftBottom,
+                    &s,
+                    &self.text_color,
+                    painter,
+                );
+            }
+            if let Some(ps) = self.ruler_pos {
+                let dx = p.0 - ps.x;
+                let dy = p.1 - ps.y;
+                self.text(
+                    self.screen.to_pos(),
+                    Align::RightBottom,
+                    &format!(
+                        "{:E}\n{:E}\n{:E}\n{}",
+                        dx,
+                        dy,
+                        dy.hypot(dx),
+                        self.angle_type.to_val(dy.atan2(dx))
+                    ),
+                    &self.text_color,
+                    painter,
+                );
+                painter.line_segment(
+                    [pos.to_pos(), self.to_screen(ps.x, ps.y)],
+                    1.0,
+                    &self.axis_color,
+                );
             }
         }
     }
@@ -944,10 +944,10 @@ impl Graph {
             painter.rect_filled(pos, color, self.point_size);
         }
         if !matches!(self.lines, Lines::Points) {
-            if let Some(last) = last {
-                if is_in || self.in_screen(last) {
-                    painter.line_segment([last, pos], self.line_width, color);
-                }
+            if let Some(last) = last
+                && (is_in || self.in_screen(last))
+            {
+                painter.line_segment([last, pos], self.line_width, color);
             }
             Some(pos)
         } else {
@@ -1210,10 +1210,10 @@ impl Graph {
     fn font_width(&mut self) {}
     #[cfg(feature = "skia")]
     fn font_width(&mut self) {
-        if self.font_width == 0.0 {
-            if let Some(font) = &self.font {
-                self.font_width = font.measure_str(" ", None).0;
-            }
+        if self.font_width == 0.0
+            && let Some(font) = &self.font
+        {
+            self.font_width = font.measure_str(" ", None).0;
         }
     }
     #[cfg(feature = "egui")]
@@ -1894,19 +1894,20 @@ impl Graph {
                 }
             }
             _ if i.pointer.is_some() => {
-                if !i.pointer.unwrap_or(false) && !self.last_multi {
-                    if let (Some(interact), Some(last)) = (i.pointer_pos, self.last_interact) {
-                        let delta = interact - last;
-                        if self.is_3d {
-                            self.angle.x = (self.angle.x - delta.x / 512.0).rem_euclid(TAU);
-                            self.angle.y = (self.angle.y + delta.y / 512.0).rem_euclid(TAU);
-                            self.mouse_held = true;
-                        } else {
-                            self.offset.x += delta.x / self.zoom.x;
-                            self.offset.y += delta.y / self.zoom.y;
-                            self.recalculate(None);
-                            self.mouse_held = true;
-                        }
+                if !i.pointer.unwrap_or(false)
+                    && !self.last_multi
+                    && let (Some(interact), Some(last)) = (i.pointer_pos, self.last_interact)
+                {
+                    let delta = interact - last;
+                    if self.is_3d {
+                        self.angle.x = (self.angle.x - delta.x / 512.0).rem_euclid(TAU);
+                        self.angle.y = (self.angle.y + delta.y / 512.0).rem_euclid(TAU);
+                        self.mouse_held = true;
+                    } else {
+                        self.offset.x += delta.x / self.zoom.x;
+                        self.offset.y += delta.y / self.zoom.y;
+                        self.recalculate(None);
+                        self.mouse_held = true;
                     }
                 }
                 self.last_multi = false;
@@ -2324,15 +2325,15 @@ impl Graph {
             ],
             (false, false) => vec![GraphMode::Normal, GraphMode::Polar],
         };
-        if i.keys_pressed(keybinds.mode_up) {
-            if let Some(pt) = order.iter().position(|c| *c == self.graph_mode) {
-                self.set_mode(order[((pt as isize + 1) % order.len() as isize) as usize])
-            }
+        if i.keys_pressed(keybinds.mode_up)
+            && let Some(pt) = order.iter().position(|c| *c == self.graph_mode)
+        {
+            self.set_mode(order[((pt as isize + 1) % order.len() as isize) as usize])
         }
-        if i.keys_pressed(keybinds.mode_down) {
-            if let Some(pt) = order.iter().position(|c| *c == self.graph_mode) {
-                self.set_mode(order[(pt as isize - 1).rem_euclid(order.len() as isize) as usize])
-            }
+        if i.keys_pressed(keybinds.mode_down)
+            && let Some(pt) = order.iter().position(|c| *c == self.graph_mode)
+        {
+            self.set_mode(order[(pt as isize - 1).rem_euclid(order.len() as isize) as usize])
         }
         if i.keys_pressed(keybinds.fast) {
             self.fast_3d = !self.fast_3d;
@@ -3467,15 +3468,15 @@ impl Graph {
                                 )
                             }
                         }
-                        if let Some(r) = y {
-                            if r.is_finite() {
-                                painter.circle(
-                                    s,
-                                    self.to_screen(r.abs(), 0.0).x - s.x,
-                                    &self.main_colors[k % self.main_colors.len()],
-                                    self.line_width,
-                                )
-                            }
+                        if let Some(r) = y
+                            && r.is_finite()
+                        {
+                            painter.circle(
+                                s,
+                                self.to_screen(r.abs(), 0.0).x - s.x,
+                                &self.main_colors[k % self.main_colors.len()],
+                                self.line_width,
+                            )
                         }
                     }
                 }

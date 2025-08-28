@@ -156,10 +156,10 @@ impl Graph {
                         };
                         if let Ok(f) = name.parse::<f64>() {
                             body((f * delta).to_string())
-                        } else if let Some((a, b)) = name.rsplit_once('=') {
-                            if let Ok(f) = b.parse::<f64>() {
-                                body(format!("{}={}", a, f * delta))
-                            }
+                        } else if let Some((a, b)) = name.rsplit_once('=')
+                            && let Ok(f) = b.parse::<f64>()
+                        {
+                            body(format!("{}={}", a, f * delta))
                         }
                     }
                 } else if i.pointer_right.unwrap() && mpos.x < 0.0 {
