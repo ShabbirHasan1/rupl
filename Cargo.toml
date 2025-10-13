@@ -9,14 +9,6 @@ documentation = "https://docs.rs/rupl"
 repository = "https://github.com/bgkillas/rupl"
 homepage = "https://github.com/bgkillas/rupl"
 
-[profile.release]
-lto = true
-strip = true
-panic = "abort"
-split-debuginfo = "packed"
-incremental = true
-codegen-units = 1
-
 [features]
 default = ["skia-vulkan", "x11", "wayland", "winit", "rayon", "serde", "arboard"]
 egui = ["dep:egui"]
