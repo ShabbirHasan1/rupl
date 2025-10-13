@@ -28,7 +28,7 @@ winit = ["dep:winit"]
 rayon = ["dep:rayon"]
 serde = ["dep:serde", "dep:bitcode", "dep:base64", "dep:zstd"]
 arboard = ["dep:arboard"]
-skia-vulkan = ["skia-safe/vulkan", "skia", "skia-safe/vulkan-window", "dep:ash", "dep:vulkano"]
+skia-vulkan = ["skia-safe/vulkan", "skia", "dep:ash", "dep:vulkano"]
 vulkano-x11 = ["vulkano/x11"]
 x11 = ["winit/x11", "softbuffer/x11"]
 wayland = ["winit/wayland", "softbuffer/wayland"]
@@ -36,22 +36,22 @@ wasm = ["dep:wasm-bindgen", "dep:js-sys"]
 wasm-draw = ["wasm"]
 
 [dependencies]
-bytemuck = { version = "1.23.2", optional = true }
+bytemuck = { version = "1.24.0", optional = true }
 rayon = { version = "1.11.0", optional = true }
 winit = { version = "0.30.12", default-features = false, features = ["rwh_06"], optional = true }
-egui = { version = "0.32.1", default-features = false, optional = true }
-skia-safe = { version = "0.87.0", optional = true }
+egui = { version = "0.33.0", default-features = false, optional = true }
+skia-safe = { version = "0.89.0", optional = true }
 tiny-skia = { version = "0.11.4", default-features = false, features = ["simd", "std"], optional = true }
 bdf2 = { version = "0.7.1", optional = true }
-serde = { version = "1.0.219", features = ["derive"], optional = true }
+serde = { version = "1.0.228", features = ["derive"], optional = true }
 arboard = { version = "3.6.1", features = ["wayland-data-control"], optional = true }
 bitcode = { version = "0.6.7", features = ["serde"], optional = true }
 base64 = { version = "0.22.1", optional = true }
 zstd = { version = "0.13.3", optional = true }
 ash = { version = "0.38.0", optional = true }
 vulkano = { version = "0.35.2", default-features = false, optional = true }
-wasm-bindgen = { version = "0.2.100", optional = true }
-js-sys = { version = "0.3.77", optional = true }
+wasm-bindgen = { version = "0.2.104", optional = true }
+js-sys = { version = "0.3.81", optional = true }
 
 [dev-dependencies]
 softbuffer = { version = "0.4.6", default-features = false, features = ["x11", "wayland"] }
