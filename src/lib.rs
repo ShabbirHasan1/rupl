@@ -1219,7 +1219,7 @@ impl Graph {
     #[cfg(feature = "egui")]
     fn font_width(&mut self, ctx: &egui::Context) {
         if self.font_width == 0.0 {
-            let width = ctx.fonts(|f| {
+            let width = ctx.fonts_mut(|f| {
                 f.layout_no_wrap(
                     " ".to_string(),
                     egui::FontId::monospace(self.font_size),
